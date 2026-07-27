@@ -55,3 +55,6 @@ app/api/verify-agent
 # pnpm artifacts (we use pnpm-lock.yaml, not package-lock.json)
 frontend/package-lock.json
 frontend/pnpm-workspace.yaml
+
+# Specs (local working docs — not tracked in git)
+docs/specs/
