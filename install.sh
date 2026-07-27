@@ -3,13 +3,13 @@
 # RESMA — Docker Swarm Installer
 #
 # Uso:
-#   curl -fsSL https://raw.githubusercontent.com/USER/resma/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/resma-swarm/resma/main/install.sh | bash
 #   ou
 #   ./install.sh [flags]
 #
 # Flags:
 #   --jwt-secret <value>  Fornecer JWT secret próprio (default: gerar aleatório)
-#   --image <image>       Imagem alternativa (default: ghcr.io/user/resma-api:latest)
+#   --image <image>       Imagem alternativa (default: docker.io/resmaswarm/resma-api:latest)
 #   --port <port>         Porta alternativa (default: 8080)
 #   --domain <domain>     Configura Traefik labels com domínio
 #   --arm                 Usa imagem ARM64
@@ -19,7 +19,7 @@ set -euo pipefail
 
 # Defaults
 JWT_SECRET=""
-IMAGE_PREFIX="ghcr.io/user"
+IMAGE_PREFIX="docker.io/resmaswarm"
 PORT="8080"
 DOMAIN=""
 ARM=false
@@ -45,7 +45,7 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "Flags:"
       echo "  --jwt-secret <value>  Fornecer JWT secret próprio (default: gerar aleatório)"
-      echo "  --image <prefix>      Prefixo de imagem (default: ghcr.io/user)"
+      echo "  --image <prefix>      Prefixo de imagem (default: docker.io/resmaswarm)"
       echo "  --port <port>         Porta alternativa (default: 8080)"
       echo "  --domain <domain>     Configura Traefik labels com domínio"
       echo "  --arm                 Usa imagem ARM64"
@@ -102,7 +102,21 @@ if docker secret inspect resma_jwt_secret &>/dev/null; then
   docker secret rm resma_jwt_secret
 fi
 echo -n "$JWT_SECRET" | docker secret create resma_jwt_secret -
-echo "[OK] Docker secret criado"
+echo "[OK] Docker secret resma_jwt_secret criado"
+
+# 4b. Gerar agent token (para o RESMA Agent fazer push de métricas)
+echo "[INFO] Gerando agent token aleatório..."
+AGENT_TOKEN=$(openssl rand -hex 32 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(32))")
+if [[ -z "$AGENT_TOKEN" ]]; then
+  echo "ERROR: Falha ao gerar agent token."
+  exit 1
+fi
+if docker secret inspect resma_agent_token &>/dev/null; then
+  echo "[WARN] Secret resma_agent_token já existe — removendo..."
+  docker secret rm resma_agent_token
+fi
+echo -n "$AGENT_TOKEN" | docker secret create resma_agent_token -
+echo "[OK] Docker secret resma_agent_token criado"
 
 # 5. Suffix ARM
 SUFFIX=""
@@ -115,11 +129,11 @@ fi
 echo "[INFO] Baixando imagens..."
 docker pull "${IMAGE_PREFIX}/resma-api:latest${SUFFIX}"
 docker pull "${IMAGE_PREFIX}/resma-ml:latest${SUFFIX}"
+docker pull "${IMAGE_PREFIX}/resma-agent:latest${SUFFIX}"
 echo "[OK] Imagens baixadas"
 
 # 7. Deploy
 echo "[INFO] Deployando stack resma..."
-RESMA_REGISTRY="${IMAGE_PREFIX#ghcr.io/}" \
 RESMA_CORS_ORIGINS="${RESMA_CORS_ORIGINS:-http://localhost:${PORT}}" \
   docker stack deploy -c docker-stack.yml "$STACK_NAME"
 echo "[OK] Stack deployado"

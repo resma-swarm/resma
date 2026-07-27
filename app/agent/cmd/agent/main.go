@@ -8,7 +8,7 @@
 //	  --env RESMA_NODE_ID={{.Node.ID}} \
 //	  --env RESMA_NODE_HOSTNAME={{.Node.Hostname}} \
 //	  -v /var/run/docker.sock:/var/run/docker.sock:ro \
-//	  ghcr.io/resma/resma-agent:latest
+//	  docker.io/resmaswarm/resma-agent:latest
 //
 // O agent NÃO acessa DuckDB. Ele lê do Docker socket local e faz HTTP POST
 // para o manager. Resiliência: ring buffer para métricas, persistência em

@@ -1,12 +1,12 @@
 # RESMA — Docker Swarm Stack
 #
 # Deploy: docker stack deploy -c docker-stack.yml resma
-# Install: curl -fsSL https://raw.githubusercontent.com/USER/resma/main/install.sh | bash
+# Install: curl -fsSL https://raw.githubusercontent.com/resma-swarm/resma/main/install.sh | bash
 #
 # Pré-requisitos:
 #   - Docker Swarm initialized (docker swarm init)
 #   - JWT secret created (install.sh faz isso automaticamente)
-#   - Imagens publicadas no GHCR (ghcr.io/USER/resma-api, ghcr.io/USER/resma-ml)
+#   - Imagens publicadas no Docker Hub (docker.io/resmaswarm/resma-api, resma-ml, resma-agent)
 #
 # Variáveis (definir via env ou docker secret):
 #   RESMA_CORS_ORIGINS — CSV de origens CORS (default: http://localhost:8080)
@@ -14,7 +14,7 @@
 
 services:
   resma-api:
-    image: ghcr.io/${RESMA_REGISTRY:-user}/resma-api:latest
+    image: docker.io/resmaswarm/resma-api:latest
     ports:
       - target: 8080
         published: 8080
@@ -30,7 +30,7 @@ services:
       - RESMA_ML_ENABLED=true
       - RESMA_JWT_SECRET_FILE=/run/secrets/resma_jwt_secret
       - RESMA_CORS_ORIGINS=${RESMA_CORS_ORIGINS:-http://localhost:8080}
-      - RESMA_EXCLUDED_IMAGES=ghcr.io/${RESMA_REGISTRY:-user}/resma-api:latest,ghcr.io/${RESMA_REGISTRY:-user}/resma-ml:latest
+      - RESMA_EXCLUDED_IMAGES=docker.io/resmaswarm/resma-api:latest,docker.io/resmaswarm/resma-ml:latest
       - RESMA_COLLECT_INTERVAL=1
       - RESMA_RETENTION_DAYS=30
       - RESMA_CLUSTER_INTERVAL=60
@@ -79,7 +79,7 @@ services:
       - resma-net
 
   resma-ml:
-    image: ghcr.io/${RESMA_REGISTRY:-user}/resma-ml:latest
+    image: docker.io/resmaswarm/resma-ml:latest
     # NÃO monta resma-data — o ML sidecar não acessa o DuckDB diretamente.
     # Ele solicita dados via HTTP ao Go API (/api/internal/*).
     environment:
@@ -108,7 +108,7 @@ services:
   # Coleta stats locais de containers e faz push para o resma-api.
   # Monta docker.sock para listar containers e ler stats locais.
   resma-agent:
-    image: ghcr.io/${RESMA_REGISTRY:-user}/resma-agent:latest
+    image: docker.io/resmaswarm/resma-agent:latest
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - resma-agent-data:/data

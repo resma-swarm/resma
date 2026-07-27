@@ -1,7 +1,7 @@
 # Configuration
 
 RESMA is configured entirely through environment variables. A complete template
-is available in [`.env.example`](https://github.com/USER/resma/blob/main/.env.example)
+is available in [`.env.example`](https://github.com/resma-swarm/resma/blob/main/.env.example)
 in the repository root.
 
 ---

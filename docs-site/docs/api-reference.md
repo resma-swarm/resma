@@ -207,7 +207,7 @@ List all monitored Docker Swarm services.
     {
       "id": "swarm-service-id",
       "name": "api",
-      "image": "ghcr.io/user/api:latest",
+      "image": "docker.io/resmaswarm/resma-api:latest",
       "replicas": 3,
       "containers": [
         {
@@ -234,7 +234,7 @@ Get details for a specific service.
 {
   "id": "swarm-service-id",
   "name": "api",
-  "image": "ghcr.io/user/api:latest",
+  "image": "docker.io/resmaswarm/resma-api:latest",
   "replicas": 3,
   "resource_limits": {
     "cpus": "0.50",

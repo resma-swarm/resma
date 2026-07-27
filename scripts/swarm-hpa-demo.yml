@@ -122,7 +122,7 @@ services:
   # incluindo nginx-app. As recomendações de limites geradas pelo RESMA
   # podem ser usadas para ajustar os limits deste stack e as regras do swarm-hpa.
   resma-api:
-    image: ghcr.io/${RESMA_REGISTRY:-user}/resma-api:latest
+    image: docker.io/resmaswarm/resma-api:latest
     ports:
       - target: 8080
         published: 8080
@@ -141,7 +141,7 @@ services:
       - RESMA_RETENTION_DAYS=7
       - RESMA_CLUSTER_INTERVAL=30
       - RESMA_STORAGE_INTERVAL=300
-      - RESMA_EXCLUDED_IMAGES=ghcr.io/${RESMA_REGISTRY:-user}/resma-api:latest,ghcr.io/${RESMA_REGISTRY:-user}/resma-ml:latest
+      - RESMA_EXCLUDED_IMAGES=docker.io/resmaswarm/resma-api:latest,docker.io/resmaswarm/resma-ml:latest
     secrets:
       - resma_jwt_secret
     deploy:
@@ -171,7 +171,7 @@ services:
   # resma-ml — sidecar Python para análise estatística e ML
   # ===========================================================================
   resma-ml:
-    image: ghcr.io/${RESMA_REGISTRY:-user}/resma-ml:latest
+    image: docker.io/resmaswarm/resma-ml:latest
     volumes:
       - resma-hpa-data:/data:ro
     environment:
