@@ -1,0 +1,197 @@
+# RESMA — Docker Compose (dev multi-node, default)
+#
+# Ambiente de desenvolvimento com hot reload + múltiplos agents simulando
+# worker nodes. Este é o modo default — `docker compose up -d` sobe tudo.
+#
+# Para dev standalone (sem workers), usar:
+#   docker compose -f docker-compose.standalone.yml up -d
+#
+# Para subir ambiente de test Swarm (APIs reais + leaky/oom/drift services):
+#   docker stack deploy -c test-env/docker-compose.yml resma-test
+#
+# Para produção, usar docker-compose.swarm.yml via docker stack deploy.
+#
+# Serviços:
+#   go-dev            — Go API com air (hot reload Go)
+#   ml-dev            — ML sidecar Python com uvicorn --reload
+#   agent-dev         — RESMA Agent (node principal)
+#   frontend-dev      — Vite com hot reload React
+#   agent-worker-1/2/3 — agents com node_ids distintos (workers simulados)
+#
+# Uso:
+#   docker compose up -d
+#   docker compose logs -f go-dev
+#   docker compose exec go-dev bash
+
+services:
+  go-dev:
+    build:
+      context: .
+      dockerfile: app/api/Dockerfile
+      target: dev
+    volumes:
+      - ./app/api:/src
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "8080:8080"
+    working_dir: /src
+    environment:
+      - CGO_ENABLED=1
+      - RESMA_DB_PATH=/data/resma.duckdb
+      - RESMA_HTTP_ADDR=:8080
+      - RESMA_ML_URL=http://ml-dev:8081
+      - RESMA_JWT_SECRET=${RESMA_JWT_SECRET:-dev-secret-change-me}
+      - RESMA_COLLECT_INTERVAL=5
+      - RESMA_RETENTION_DAYS=30
+      - RESMA_OUTLIER_THRESHOLD=3.0
+      - RESMA_LEAK_R2_THRESHOLD=0.7
+      - RESMA_LEAK_DAILY_MB_THRESHOLD=10.0
+      - RESMA_ANALYSIS_WINDOW_DAYS=7
+      - RESMA_JWT_ACCESS_TTL_MINUTES=15
+      - RESMA_JWT_REFRESH_TTL_DAYS=7
+      - RESMA_BCRYPT_COST=12
+      - RESMA_LOGIN_RATE_LIMIT=5
+      - RESMA_ML_ENABLED=true
+      - RESMA_EXCLUDED_IMAGES=resma-api:latest
+      - RESMA_CORS_ORIGINS=http://localhost:5173
+      - RESMA_CLUSTER_INTERVAL=60
+      - RESMA_STORAGE_INTERVAL=300
+      - RESMA_AGENT_TOKEN=${RESMA_AGENT_TOKEN:-dev-agent-token-change-me}
+      - RESMA_AGENT_TASK_POLL_INTERVAL=15
+    command: ["air"]
+    tty: true
+    stdin_open: true
+
+  # ML sidecar — não acessa DuckDB diretamente, solicita via HTTP ao Go API.
+  ml-dev:
+    build:
+      context: .
+      dockerfile: app/ml/Dockerfile
+    volumes:
+      - ./app/ml:/app/app/ml
+    environment:
+      - RESMA_API_URL=http://go-dev:8080
+    ports:
+      - "8081:8081"
+    command: ["uvicorn", "app.ml.main:app", "--host", "0.0.0.0", "--port", "8081", "--reload"]
+
+  # Agent — coleta stats dos containers locais e faz push para o go-dev.
+  agent-dev:
+    build:
+      context: .
+      dockerfile: app/agent/Dockerfile
+      target: dev
+    volumes:
+      - ./app/agent:/src
+      - agent-go-mod-cache:/go/pkg/mod
+      - agent-go-build-cache:/root/.cache/go-build
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    working_dir: /src
+    environment:
+      - RESMA_API_URL=http://go-dev:8080
+      - RESMA_AGENT_TOKEN=${RESMA_AGENT_TOKEN:-dev-agent-token-change-me}
+      - RESMA_COLLECT_INTERVAL=5
+      - RESMA_HEARTBEAT_INTERVAL=60
+      - RESMA_NODE_ID=dev-node-1
+      - RESMA_NODE_HOSTNAME=dev-agent-host
+      - RESMA_OOM_EVENTS_FILE=/data/events.pending.jsonl
+    command: ["go", "run", "./cmd/agent"]
+    depends_on:
+      - go-dev
+
+  frontend-dev:
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - frontend-node-modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_PROXY_TARGET=http://go-dev:8080
+    command: ["sh", "-c", "corepack enable && corepack prepare pnpm@latest --activate && pnpm config set dangerouslyAllowAllBuilds true && pnpm install && pnpm dev --host 0.0.0.0"]
+    depends_on:
+      - go-dev
+
+  # ---- Workers simulados (multi-node) ----
+  # Cada agent usa um node_id/hostname distinto. Compartilham o mesmo
+  # docker.sock (dev single-node), mas reportam nodes diferentes —
+  # suficiente para testar a UI, API e SSE com múltiplos agents.
+  agent-worker-1:
+    build:
+      context: .
+      dockerfile: app/agent/Dockerfile
+      target: dev
+    volumes:
+      - ./app/agent:/src
+      - agent-go-mod-cache:/go/pkg/mod
+      - agent-go-build-cache:/root/.cache/go-build
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    working_dir: /src
+    environment:
+      - RESMA_API_URL=http://go-dev:8080
+      - RESMA_AGENT_TOKEN=${RESMA_AGENT_TOKEN:-dev-agent-token-change-me}
+      - RESMA_COLLECT_INTERVAL=5
+      - RESMA_HEARTBEAT_INTERVAL=30
+      - RESMA_NODE_ID=worker-node-1
+      - RESMA_NODE_HOSTNAME=worker-1
+      - RESMA_OOM_EVENTS_FILE=/data/events.pending.jsonl
+    command: ["go", "run", "./cmd/agent"]
+    depends_on:
+      - go-dev
+
+  agent-worker-2:
+    build:
+      context: .
+      dockerfile: app/agent/Dockerfile
+      target: dev
+    volumes:
+      - ./app/agent:/src
+      - agent-go-mod-cache:/go/pkg/mod
+      - agent-go-build-cache:/root/.cache/go-build
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    working_dir: /src
+    environment:
+      - RESMA_API_URL=http://go-dev:8080
+      - RESMA_AGENT_TOKEN=${RESMA_AGENT_TOKEN:-dev-agent-token-change-me}
+      - RESMA_COLLECT_INTERVAL=5
+      - RESMA_HEARTBEAT_INTERVAL=30
+      - RESMA_NODE_ID=worker-node-2
+      - RESMA_NODE_HOSTNAME=worker-2
+      - RESMA_OOM_EVENTS_FILE=/data/events.pending.jsonl
+    command: ["go", "run", "./cmd/agent"]
+    depends_on:
+      - go-dev
+
+  agent-worker-3:
+    build:
+      context: .
+      dockerfile: app/agent/Dockerfile
+      target: dev
+    volumes:
+      - ./app/agent:/src
+      - agent-go-mod-cache:/go/pkg/mod
+      - agent-go-build-cache:/root/.cache/go-build
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    working_dir: /src
+    environment:
+      - RESMA_API_URL=http://go-dev:8080
+      - RESMA_AGENT_TOKEN=${RESMA_AGENT_TOKEN:-dev-agent-token-change-me}
+      - RESMA_COLLECT_INTERVAL=5
+      - RESMA_HEARTBEAT_INTERVAL=30
+      - RESMA_NODE_ID=worker-node-3
+      - RESMA_NODE_HOSTNAME=worker-3
+      - RESMA_OOM_EVENTS_FILE=/data/events.pending.jsonl
+    command: ["go", "run", "./cmd/agent"]
+    depends_on:
+      - go-dev
+
+volumes:
+  go-mod-cache:
+  go-build-cache:
+  frontend-node-modules:
+  agent-go-mod-cache:
+  agent-go-build-cache:

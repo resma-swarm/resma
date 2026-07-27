@@ -1,0 +1,39 @@
+# RESMA API — air config (hot reload para desenvolvimento)
+# https://github.com/air-verse/air
+
+root = "."
+tmp_dir = "tmp"
+
+[build]
+# Comando de build
+cmd = "go build -o ./tmp/resma-api ./cmd/server"
+# Binário a executar
+bin = "./tmp/resma-api"
+# Arquivos/dirs para monitorar (relativo a root)
+include_dir = ["cmd", "internal"]
+include_ext = ["go"]
+# Arquivos/dirs para ignorar
+exclude_dir = ["tmp", "docs", "vendor"]
+exclude_ext = ["test.go"]
+# Atraso antes de rebuildar (ms)
+delay = 1000
+# Parar erro de build antigo
+stop_on_error = false
+# Comando para rodar antes do build (opcional)
+pre_cmd = []
+# Comando para rodar depois do build (opcional)
+post_cmd = []
+# Log de erro
+log = "air-errors.log"
+
+[log]
+time = true
+
+[color]
+main = "magenta"
+watcher = "cyan"
+build = "yellow"
+runner = "green"
+
+[misc]
+clean_on_exit = true

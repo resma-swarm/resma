@@ -1,0 +1,191 @@
+# RESMA — CI Pipeline
+# Trigger: push para main, pull request
+# Jobs: go-lint, go-test, go-vet, ml-test, frontend-build, docker-build, push (main only)
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  GO_VERSION: "1.26"
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
+
+jobs:
+  go-lint:
+    name: Go Lint (golangci-lint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: app/api
+
+  go-test:
+    name: Go Test (race + cover)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Go test
+        env:
+          CGO_ENABLED: 1
+        run: go test -race -cover -timeout 120s ./...
+
+  go-vet:
+    name: Go Vet
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - run: go vet ./...
+
+  gofmt-check:
+    name: Go Format Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - run: |
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "Arquivos não formatados:"
+            gofmt -l .
+            exit 1
+          fi
+
+  ml-test:
+    name: ML Sidecar Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/ml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pip install pytest httpx
+      - run: pytest tests/ -v
+        continue-on-error: true # ML tests são opcionais nesta fase
+
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        continue-on-error: true # lockfile pode não existir ainda
+      - run: pnpm install
+      - run: pnpm build
+
+  docker-build:
+    name: Docker Build (API + ML)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: app/api/Dockerfile
+          target: runtime
+          push: false
+          tags: resma-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build ML image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: app/ml/Dockerfile
+          push: false
+          tags: resma-ml:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  push:
+    name: Push to GHCR
+    needs: [go-lint, go-test, go-vet, gofmt-check, docker-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: app/api/Dockerfile
+          target: runtime
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/resma-api:latest
+            ghcr.io/${{ github.repository_owner }}/resma-api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Push ML image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: app/ml/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/resma-ml:latest
+            ghcr.io/${{ github.repository_owner }}/resma-ml:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

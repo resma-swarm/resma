@@ -1,0 +1,234 @@
+# RESMA — Docker Swarm HPA (Horizontal Pod Autoscaler) Demo
+#
+# Demonstra auto-scaling no Docker Swarm usando swarm-hpa
+# (https://github.com/Aleksey512/swarm-hpa) em conjunto com RESMA.
+#
+# Cenário:
+#   - nginx com réplicas escaláveis (1→5) baseado em CPU/RPS
+#   - resma-api monitorando o cluster e coletando métricas
+#   - swarm-hpa lê labels dos serviços e escala automaticamente
+#
+# Pré-requisitos:
+#   - Docker Swarm ativo: docker swarm init
+#   - swarm-hpa instalado no cluster (ver docs/benchmarks.md)
+#   - Imagens RESMA publicadas no registry
+#
+# Deploy:
+#   docker stack deploy -c scripts/swarm-hpa-demo.yml resma-hpa
+#
+# Escalar manualmente (teste):
+#   docker service scale resma-hpa_nginx-app=5
+#
+# Ver réplicas:
+#   docker service ls
+#   docker service ps resma-hpa_nginx-app
+#
+# Remover:
+#   docker stack rm resma-hpa
+#
+# ---
+# Fase 6 — Benchmarking / Auto-scaling
+# Spec: docs/specs/oss/phase-6-benchmarking/spec.md (tarefa 6.5)
+
+services:
+  # ===========================================================================
+  # nginx-app — serviço alvo do auto-scaling
+  # ===========================================================================
+  # Labels swarm-hpa controlam o comportamento de scaling:
+  #   swarm.autoscaler=true              — habilita auto-scaling neste serviço
+  #   swarm.autoscaler.min=<n>           — mínimo de réplicas
+  #   swarm.autoscaler.max=<n>           — máximo de réplicas
+  #   swarm.autoscaler.metric=cpu|rps    — métrica para escalar
+  #   swarm.autoscaler.target=<valor>    — valor alvo da métrica (ex: 70 = 70% CPU)
+  #   swarm.autoscaler.interval=<secs>   — intervalo de checagem
+  nginx-app:
+    image: nginx:alpine
+    ports:
+      - target: 80
+        published: 8088
+        mode: ingress
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == worker
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 64M
+        reservations:
+          cpus: "0.10"
+          memory: 16M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+      # Labels lidos pelo swarm-hpa para auto-scaling
+      labels:
+        - "swarm.autoscaler=true"
+        - "swarm.autoscaler.min=1"
+        - "swarm.autoscaler.max=5"
+        - "swarm.autoscaler.metric=cpu"
+        - "swarm.autoscaler.target=70"
+        - "swarm.autoscaler.interval=30"
+        # Labels informativos para o RESMA identificar este serviço
+        - "resma.monitor=true"
+        - "resma.benchmark-target=true"
+        - "resma.description=nginx load target for HPA demo"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - hpa-net
+
+  # ===========================================================================
+  # load-generator — gera carga contra nginx-app para disparar scaling
+  # ===========================================================================
+  # Usa hey (https://github.com/rakyll/hey) para gerar carga sustentada.
+  # Alternativa: usar wrk dentro de um container alpine.
+  load-generator:
+    image: alpine:latest
+    command: >
+      sh -c "
+        apk add --no-cache curl &&
+        while true; do
+          curl -s -o /dev/null http://nginx-app/ || true;
+          sleep 0.01;
+        done
+      "
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == worker
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 32M
+        reservations:
+          cpus: "0.05"
+          memory: 8M
+      restart_policy:
+        condition: any
+    networks:
+      - hpa-net
+
+  # ===========================================================================
+  # resma-api — monitora o cluster, coleta métricas, recomenda limites
+  # ===========================================================================
+  # RESMA coleta métricas de CPU/memória de todos os serviços Swarm,
+  # incluindo nginx-app. As recomendações de limites geradas pelo RESMA
+  # podem ser usadas para ajustar os limits deste stack e as regras do swarm-hpa.
+  resma-api:
+    image: ghcr.io/${RESMA_REGISTRY:-user}/resma-api:latest
+    ports:
+      - target: 8080
+        published: 8080
+        mode: host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - resma-hpa-data:/data
+    environment:
+      - RESMA_ENV=production
+      - RESMA_DB_PATH=/data/resma.duckdb
+      - RESMA_HTTP_ADDR=:8080
+      - RESMA_ML_URL=http://resma-ml:8081
+      - RESMA_ML_ENABLED=true
+      - RESMA_JWT_SECRET_FILE=/run/secrets/resma_jwt_secret
+      - RESMA_COLLECT_INTERVAL=1
+      - RESMA_RETENTION_DAYS=7
+      - RESMA_CLUSTER_INTERVAL=30
+      - RESMA_STORAGE_INTERVAL=300
+      - RESMA_EXCLUDED_IMAGES=ghcr.io/${RESMA_REGISTRY:-user}/resma-api:latest,ghcr.io/${RESMA_REGISTRY:-user}/resma-ml:latest
+    secrets:
+      - resma_jwt_secret
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - hpa-net
+
+  # ===========================================================================
+  # resma-ml — sidecar Python para análise estatística e ML
+  # ===========================================================================
+  resma-ml:
+    image: ghcr.io/${RESMA_REGISTRY:-user}/resma-ml:latest
+    volumes:
+      - resma-hpa-data:/data:ro
+    environment:
+      - RESMA_DB_PATH=/data/resma.duckdb
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+        reservations:
+          cpus: "0.10"
+          memory: 64M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - hpa-net
+
+  # ===========================================================================
+  # swarm-hpa — auto-scaler externo (opcional, instalar separadamente)
+  # ===========================================================================
+  # O swarm-hpa é instalado como um serviço global no cluster.
+  # Ele lê as labels swarm.autoscaler.* dos serviços e escala réplicas
+  # conforme a métrica configurada.
+  #
+  # Para instalar (não incluído neste compose — instalar via repo oficial):
+  #   docker service create --name swarm-hpa \
+  #     --mode global \
+  #     --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock \
+  #     --constraint node.role==manager \
+  #     aleksey512/swarm-hpa:latest
+  #
+  # Após instalar, o swarm-hpa detectará nginx-app pelas labels e começará
+  # a monitorar CPU. Quando CPU > 70%, escala até max=5 réplicas.
+  # Quando CPU < threshold, escala de volta para min=1.
+
+# =============================================================================
+# Volumes e Secrets
+# =============================================================================
+
+volumes:
+  resma-hpa-data:
+
+secrets:
+  resma_jwt_secret:
+    external: true
+
+networks:
+  hpa-net:
+    driver: overlay
+    attachable: true

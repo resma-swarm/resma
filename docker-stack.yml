@@ -1,0 +1,156 @@
+# RESMA — Docker Swarm Stack
+#
+# Deploy: docker stack deploy -c docker-stack.yml resma
+# Install: curl -fsSL https://raw.githubusercontent.com/USER/resma/main/install.sh | bash
+#
+# Pré-requisitos:
+#   - Docker Swarm initialized (docker swarm init)
+#   - JWT secret created (install.sh faz isso automaticamente)
+#   - Imagens publicadas no GHCR (ghcr.io/USER/resma-api, ghcr.io/USER/resma-ml)
+#
+# Variáveis (definir via env ou docker secret):
+#   RESMA_CORS_ORIGINS — CSV de origens CORS (default: http://localhost:8080)
+#   RESMA_DOMAIN — domínio para Traefik (opcional, default: resma.local)
+
+services:
+  resma-api:
+    image: ghcr.io/${RESMA_REGISTRY:-user}/resma-api:latest
+    ports:
+      - target: 8080
+        published: 8080
+        mode: host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - resma-data:/data
+    environment:
+      - RESMA_ENV=production
+      - RESMA_DB_PATH=/data/resma.duckdb
+      - RESMA_HTTP_ADDR=:8080
+      - RESMA_ML_URL=http://resma-ml:8081
+      - RESMA_ML_ENABLED=true
+      - RESMA_JWT_SECRET_FILE=/run/secrets/resma_jwt_secret
+      - RESMA_CORS_ORIGINS=${RESMA_CORS_ORIGINS:-http://localhost:8080}
+      - RESMA_EXCLUDED_IMAGES=ghcr.io/${RESMA_REGISTRY:-user}/resma-api:latest,ghcr.io/${RESMA_REGISTRY:-user}/resma-ml:latest
+      - RESMA_COLLECT_INTERVAL=1
+      - RESMA_RETENTION_DAYS=30
+      - RESMA_CLUSTER_INTERVAL=60
+      - RESMA_STORAGE_INTERVAL=300
+      - RESMA_ANALYSIS_WINDOW_DAYS=7
+      - RESMA_BCRYPT_COST=12
+      - RESMA_LOGIN_RATE_LIMIT=5
+      - RESMA_API_KEY_DEFAULT_SCOPES=read
+      - RESMA_API_KEY_RATE_LIMIT=100
+      - RESMA_AGENT_TOKEN_FILE=/run/secrets/resma_agent_token
+      - RESMA_AGENT_TASK_POLL_INTERVAL=15
+    secrets:
+      - resma_jwt_secret
+      - resma_agent_token
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+      # Traefik labels (descomentar se usar Traefik)
+      # labels:
+      #   - traefik.enable=true
+      #   - traefik.http.routers.resma.rule=Host(${RESMA_DOMAIN:-resma.local})
+      #   - traefik.http.routers.resma.entrypoints=http
+      #   - traefik.http.services.resma.loadbalancer.server.port=8080
+      #   # SSE: desabilitar bufferização
+      #   - traefik.http.middlewares.resma-sse.headers.customResponseHeaders.X-Accel-Buffering=no
+      #   - traefik.http.routers.resma-sse.rule=Host(`${RESMA_DOMAIN:-resma.local}`) && PathPrefix(`/api/sse/`)
+      #   - traefik.http.routers.resma-sse.middlewares=resma-sse
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - resma-net
+
+  resma-ml:
+    image: ghcr.io/${RESMA_REGISTRY:-user}/resma-ml:latest
+    # NÃO monta resma-data — o ML sidecar não acessa o DuckDB diretamente.
+    # Ele solicita dados via HTTP ao Go API (/api/internal/*).
+    environment:
+      - RESMA_API_URL=http://api:8080
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+        reservations:
+          cpus: "0.10"
+          memory: 64M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - resma-net
+
+  # RESMA Agent — global service (1 replica por node, manager + workers).
+  # Coleta stats locais de containers e faz push para o resma-api.
+  # Monta docker.sock para listar containers e ler stats locais.
+  resma-agent:
+    image: ghcr.io/${RESMA_REGISTRY:-user}/resma-agent:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - resma-agent-data:/data
+    environment:
+      - RESMA_API_URL=http://resma-api:8080
+      - RESMA_AGENT_TOKEN_FILE=/run/secrets/resma_agent_token
+      - RESMA_COLLECT_INTERVAL=1
+      - RESMA_HEARTBEAT_INTERVAL=60
+      - RESMA_OOM_EVENTS_FILE=/data/events.pending.jsonl
+    secrets:
+      - resma_agent_token
+    deploy:
+      mode: global
+      resources:
+        limits:
+          cpus: "0.10"
+          memory: 32M
+        reservations:
+          cpus: "0.02"
+          memory: 16M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 5
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - resma-net
+
+volumes:
+  resma-data:
+  resma-agent-data:
+
+secrets:
+  resma_jwt_secret:
+    external: true
+  resma_agent_token:
+    external: true
+
+networks:
+  resma-net:
+    driver: overlay

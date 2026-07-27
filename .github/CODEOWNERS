@@ -1,0 +1,24 @@
+# CODEOWNERS — RESMA
+# Define quem é automaticamente requestado para review em PRs.
+
+# Backend Go (API + Agent)
+/app/api/           @danie
+/app/agent/         @danie
+
+# ML sidecar Python
+/app/ml/            @danie
+
+# Frontend React
+/frontend/          @danie
+
+# Docker e infra
+/docker-compose.yml @danie
+/docker-compose.standalone.yml @danie
+/scripts/           @danie
+
+# Documentação e specs
+/docs/              @danie
+/AGENTS.md          @danie
+
+# Default — qualquer arquivo não coberto acima
+*                   @danie

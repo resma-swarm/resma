@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RESMA — RESource MAnager — Documento Técnico</title>
+<style>
+:root {
+    --bg: #0F1117;
+    --surface: #1A1D27;
+    --surface-hover: #222631;
+    --border: #2D3140;
+    --text-primary: #F3F4F6;
+    --text-secondary: #8B8FA3;
+    --accent: #2563EB;
+    --accent-hover: #1D4ED8;
+    --success: #059669;
+    --warning: #D97706;
+    --error: #DC2626;
+    --code-bg: #15171F;
+    --radius-card: 8px;
+    --radius-input: 4px;
+    --shadow: 0 1px 2px rgba(0,0,0,.06);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 16px;
+}
+
+code, pre {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+}
+
+.container {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 48px 24px 64px;
+}
+
+header {
+    margin-bottom: 48px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+}
+
+header h1 {
+    font-size: 32px;
+    font-weight: 600;
+    line-height: 1.2;
+    margin-bottom: 8px;
+}
+
+header .subtitle {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+nav.toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 24px;
+    margin-bottom: 40px;
+}
+
+nav.toc h3 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+nav.toc ol {
+    list-style: none;
+    counter-reset: toc;
+    padding: 0;
+    columns: 2;
+    column-gap: 24px;
+}
+
+nav.toc ol li {
+    padding: 4px 0 4px 28px;
+    position: relative;
+    counter-increment: toc;
+    break-inside: avoid;
+}
+
+nav.toc ol li::before {
+    content: counter(toc);
+    position: absolute;
+    left: 0;
+    top: 4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+nav.toc a {
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 14px;
+}
+
+nav.toc a:hover {
+    color: var(--accent);
+}
+
+section {
+    margin-bottom: 40px;
+}
+
+h2 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 24px 0 12px;
+    color: var(--text-primary);
+}
+
+h4 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 16px 0 8px;
+    color: var(--text-secondary);
+}
+
+p {
+    margin-bottom: 12px;
+    color: var(--text-primary);
+}
+
+p code, li code {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-input);
+    padding: 2px 6px;
+    font-size: 13px;
+    color: #c4d3f5;
+}
+
+pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 16px;
+    overflow-x: auto;
+    margin: 12px 0;
+}
+
+pre code {
+    font-size: 13px;
+    color: #e4e6eb;
+    background: none;
+    border: none;
+    padding: 0;
+}
+
+ul {
+    list-style: none;
+    padding: 0;
+}
+
+ul li {
+    padding: 8px 0 8px 24px;
+    position: relative;
+    color: var(--text-primary);
+}
+
+ul li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 16px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 14px;
+}
+
+th {
+    text-align: left;
+    padding: 12px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
+}
+
+tr:hover td {
+    background: var(--surface-hover);
+}
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 24px;
+    box-shadow: var(--shadow);
+    margin: 16px 0;
+}
+
+.card-warning { border-left: 3px solid var(--warning); }
+.card-info { border-left: 3px solid var(--accent); }
+.card-success { border-left: 3px solid var(--success); }
+.card-danger { border-left: 3px solid var(--error); }
+
+.badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.badge-blue { background: rgba(37,99,235,.15); color: #93c5fd; }
+.badge-green { background: rgba(5,150,105,.15); color: #6ee7b7; }
+.badge-yellow { background: rgba(217,119,6,.15); color: #fcd34d; }
+.badge-red { background: rgba(220,38,38,.15); color: #fca5a5; }
+
+.diagram {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 20px;
+    overflow-x: auto;
+    margin: 16px 0;
+}
+
+.diagram pre {
+    margin: 0;
+    border: none;
+    background: none;
+    padding: 0;
+}
+
+@media (max-width: 640px) {
+    .container { padding: 24px 16px 48px; }
+    header h1 { font-size: 24px; }
+    table { font-size: 13px; }
+    th, td { padding: 8px 12px; }
+    nav.toc ol { columns: 1; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+    <h1>RESMA — RESource MAnager</h1>
+    <p class="subtitle">Documento Técnico de Referência &middot; v0.2.0 &middot; Julho 2026</p>
+</header>
+
+<nav class="toc">
+    <h3>Sumário</h3>
+    <ol>
+        <li><a href="#resumo">Resumo Executivo</a></li>
+        <li><a href="#contexto">Público e Contexto</a></li>
+        <li><a href="#visao">Visão Geral</a></li>
+        <li><a href="#arquitetura">Arquitetura e Camadas</a></li>
+        <li><a href="#componentes">Componentes e Módulos</a></li>
+        <li><a href="#auth">Autenticação e Onboarding</a></li>
+        <li><a href="#ml">Modelo de IA — ML Simples</a></li>
+        <li><a href="#stack">Stack Tecnológica</a></li>
+        <li><a href="#duckdb">Schema DuckDB e Queries</a></li>
+        <li><a href="#api">API Endpoints</a></li>
+        <li><a href="#templates">Templates de Recursos</a></li>
+        <li><a href="#fluxos">Fluxos Principais</a></li>
+        <li><a href="#deploy">Deploy</a></li>
+        <li><a href="#governanca">Governança, Regras e Riscos</a></li>
+        <li><a href="#faq">FAQ</a></li>
+        <li><a href="#glossario">Glossário</a></li>
+        <li><a href="#versionamento">Versionamento</a></li>
+    </ol>
+</nav>
+
+<section id="resumo">
+    <h2>1. Resumo Executivo</h2>
+    <p>O <strong>RESMA</strong> é um serviço self-contained que coleta métricas de CPU/memória de containers Docker Swarm diretamente da Docker API, armazena em DuckDB (embedded), analisa com percentis + ML simples (3 técnicas) e recomenda limits/reservations de recursos. Roda como 1 container no manager node, sem dependências externas.</p>
+    <div class="card card-info">
+        <p><strong>Princípio:</strong> "O básico que funciona" — sem over-engineering, stack já conhecida, ~2 semanas de esforço.</p>
+    </div>
+</section>
+
+<section id="contexto">
+    <h2>2. Público e Contexto</h2>
+    <h3>Problema</h3>
+    <ul>
+        <li>30 servidores CapRover isolados sendo migrados para Docker Swarm</li>
+        <li>Containers sem limits de CPU/memória causando instabilidade</li>
+        <li>Necessidade de right-sizing data-driven, não baseado em chute</li>
+        <li>Usuário leigo precisa aplicar configurações sem entender <code>cpus: '0.5'</code></li>
+    </ul>
+    <h3>Público-alvo</h3>
+    <ul>
+        <li><strong>Operadores de infraestrutura:</strong> dashboard com recomendações e aplicação de limits</li>
+        <li><strong>Desenvolvedores:</strong> visibilidade de consumo dos seus serviços</li>
+        <li><strong>Gestores:</strong> relatório de eficiência de recursos</li>
+    </ul>
+    <h3>Escala</h3>
+    <table>
+        <thead><tr><th>Métrica</th><th>Valor</th></tr></thead>
+        <tbody>
+            <tr><td>Containers</td><td>~100</td></tr>
+            <tr><td>Retenção</td><td>30 dias</td></tr>
+            <tr><td>Volume de dados</td><td>~20MB</td></tr>
+            <tr><td>Intervalo de coleta</td><td>15 segundos</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<section id="visao">
+    <h2>3. Visão Geral</h2>
+    <div class="diagram">
+<pre><code>Docker Swarm (manager node)
+         │
+         ▼
+┌──────────────────────────────────────┐
+│           RESMA (1 container)          │
+│                                        │
+│  ┌──────────┐  ┌──────────────┐       │
+│  │ Collector │  │  DuckDB      │       │
+│  │ (aiodocker│→ │  (embedded)  │       │
+│  │  /stats)  │  │  30d retention│       │
+│  └──────────┘  └──────────────┘       │
+│         │              │               │
+│         ▼              ▼               │
+│  ┌──────────┐  ┌──────────────┐       │
+│  │ OOM Event│  │  Recommender  │       │
+│  │ Listener │  │  (percentis + │       │
+│  │ (/events)│  │   ML simples) │       │
+│  └──────────┘  └──────────────┘       │
+│         │              │               │
+│         ▼              ▼               │
+│  ┌──────────┐  ┌──────────────┐       │
+│  │ Templates│  │  FastAPI      │       │
+│  │ (YAML)   │  │  (API + SPA)  │       │
+│  └──────────┘  └──────────────┘       │
+│         │              │               │
+│         ▼              ▼               │
+│  ┌──────────┐  ┌──────────────┐       │
+│  │  Auth    │  │  React SPA   │       │
+│  │ (JWT +   │  │  (dashboard)  │       │
+│  │  bcrypt) │  │  + login gate │       │
+│  └──────────┘  └──────────────┘       │
+└──────────────────────────────────────┘</code></pre>
+    </div>
+</section>
+
+<section id="arquitetura">
+    <h2>4. Arquitetura e Camadas</h2>
+
+    <div class="card">
+        <h3>Camada 1 — Coleta (Collector)</h3>
+        <ul>
+            <li><strong>aiodocker</strong> conecta ao Docker socket (<code>/var/run/docker.sock</code>)</li>
+            <li>Polling de <code>/containers/{id}/stats</code> a cada 15s</li>
+            <li>Listener de <code>/events</code> para OOM kills</li>
+            <li>Batch insert via DuckDB Appender API</li>
+            <li>Totalmente async (Python asyncio)</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h3>Camada 2 — Armazenamento (DuckDB)</h3>
+        <ul>
+            <li>Embedded, sem processo separado</li>
+            <li>Schema columnar otimizado para OLAP</li>
+            <li>Retention automática: delete de dados &gt; 30 dias</li>
+            <li>Export opcional para Parquet</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h3>Camada 3 — Análise (Recommender)</h3>
+        <ul>
+            <li>Percentis P50/P95 com outliers removidos (Z-score)</li>
+            <li>Detecção de memory leak (Regressão Linear)</li>
+            <li>Classificação de padrão de uso (KMeans)</li>
+            <li>Margem de segurança adaptativa</li>
+            <li>OOM events influenciam recomendação</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h3>Camada 4 — Templates</h3>
+        <ul>
+            <li>Perfis YAML versionados no Git</li>
+            <li>Usuário leigo aplica sem entender sintaxe Docker</li>
+            <li>6 perfis: small, medium, large, database, worker-heavy, ml</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h3>Camada 5 — Autenticação (Auth)</h3>
+        <ul>
+            <li>Onboarding no primeiro acesso (criar usuário admin + senha)</li>
+            <li>Senha armazenada como hash bcrypt no DuckDB</li>
+            <li>JWT para sessões (access token + refresh token)</li>
+            <li>Middleware FastAPI: todos os endpoints <code>/api/*</code> exigem Bearer token</li>
+            <li>Endpoints <code>/api/auth/*</code> são públicos (login, onboarding, status)</li>
+            <li>Frontend: redirect para login se não autenticado</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h3>Camada 6 — API (FastAPI)</h3>
+        <ul>
+            <li>Endpoints REST para dashboard e ações</li>
+            <li>Serve frontend estático via <code>app.frontend()</code> (FastAPI 0.138.0)</li>
+            <li>Single container: API + SPA</li>
+            <li>Auth middleware protege todas as rotas <code>/api/*</code> (exceto <code>/api/auth/*</code>)</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h3>Camada 7 — Frontend (React SPA)</h3>
+        <ul>
+            <li>Tela de onboarding (primeiro acesso, se não houver usuário)</li>
+            <li>Tela de login (usuário + senha)</li>
+            <li>Dashboard com gráficos de consumo (protegido)</li>
+            <li>Lista de recomendações com confiança</li>
+            <li>Aplicação de templates</li>
+            <li>Visualização de OOM events</li>
+            <li>Logout + refresh automático de token</li>
+        </ul>
+    </div>
+</section>
+
+<section id="componentes">
+    <h2>5. Componentes e Módulos</h2>
+
+    <h3>Estrutura de Arquivos</h3>
+    <pre><code>resma/
+├── backend/
+│   ├── main.py              # FastAPI app + lifecycle + app.frontend()
+│   ├── collector.py          # Async Docker API metrics collector
+│   ├── docker_client.py      # Wrapper aiodocker
+│   ├── recommender.py        # Percentis + ML simples
+│   ├── templates.py          # Load/apply templates YAML
+│   ├── db.py                 # DuckDB connection + schema + retention
+│   ├── models.py             # Pydantic models
+│   ├── config.py             # Settings (env vars)
+│   ├── auth.py               # Onboarding, login, JWT, bcrypt, middleware
+│   └── deps.py               # Dependencies (get_current_user, get_db)
+├── frontend/
+│   ├── src/
+│   │   ├── App.tsx
+│   │   ├── pages/
+│   │   │   ├── Dashboard.tsx
+│   │   │   ├── Recommendations.tsx
+│   │   │   ├── Templates.tsx
+│   │   │   ├── Services.tsx
+│   │   │   ├── Login.tsx
+│   │   │   └── Onboarding.tsx
+│   │   ├── components/
+│   │   │   ├── ProtectedRoute.tsx
+│   │   │   └── AuthGate.tsx
+│   │   ├── contexts/
+│   │   │   └── AuthContext.tsx
+│   │   └── api/
+│   ├── package.json
+│   ├── pnpm-lock.yaml
+│   └── vite.config.ts
+├── templates/
+│   ├── small.yml
+│   ├── medium.yml
+│   ├── large.yml
+│   ├── database.yml
+│   ├── worker-heavy.yml
+│   └── ml.yml
+├── Dockerfile
+├── docker-compose.yml
+├── pyproject.toml
+└── docs/
+    ├── TECH_SPEC.md
+    └── TECH_SPEC.html</code></pre>
+
+    <h3>Responsabilidades por Arquivo</h3>
+    <table>
+        <thead><tr><th>Arquivo</th><th>Responsabilidade</th></tr></thead>
+        <tbody>
+            <tr><td><code>main.py</code></td><td>FastAPI app, lifecycle (startup/shutdown), rotas, <code>app.frontend()</code></td></tr>
+            <tr><td><code>collector.py</code></td><td>Loop async de coleta de <code>/stats</code> e <code>/events</code>, batch insert</td></tr>
+            <tr><td><code>docker_client.py</code></td><td>Wrapper <code>aiodocker</code>, reconexão, error handling</td></tr>
+            <tr><td><code>recommender.py</code></td><td><code>ResourceRecommender</code> class — percentis + ML</td></tr>
+            <tr><td><code>templates.py</code></td><td>Load YAML, validar, aplicar via Docker API</td></tr>
+            <tr><td><code>db.py</code></td><td>DuckDB connection, schema init, Appender, retention job</td></tr>
+            <tr><td><code>models.py</code></td><td>Pydantic schemas para API (incluindo auth)</td></tr>
+            <tr><td><code>config.py</code></td><td>Settings via env vars (intervalo coleta, retention, JWT, etc)</td></tr>
+            <tr><td><code>auth.py</code></td><td>Onboarding, login, JWT generation/validation, bcrypt, middleware</td></tr>
+            <tr><td><code>deps.py</code></td><td>FastAPI dependencies: <code>get_current_user</code>, <code>get_db</code></td></tr>
+        </tbody>
+    </table>
+</section>
+
+<section id="auth">
+    <h2>6. Autenticação e Onboarding</h2>
+
+    <div class="card card-info">
+        <p>O RESMA implementa autenticação própria similar ao Portainer: no primeiro acesso, o frontend detecta que não há usuário cadastrado e exibe a tela de <strong>onboarding</strong> para criar o usuário admin com senha. Após o cadastro, a senha é armazenada como <strong>hash bcrypt</strong> no DuckDB. Todos os acessos subsequentes exigem <strong>login</strong> (usuário + senha), que retorna um <strong>JWT</strong> (access + refresh token). O frontend bloqueia todas as rotas protegidas se o usuário não estiver autenticado.</p>
+    </div>
+
+    <h3>Fluxo de Onboarding (Primeiro Acesso)</h3>
+    <div class="diagram">
+<pre><code>1. Frontend carrega → GET /api/auth/status
+2. Backend verifica: existe usuário na tabela users?
+3. Se não existe → retorna { initialized: false }
+4. Frontend exibe tela de Onboarding (criar usuário + senha)
+5. POST /api/auth/onboarding { username, password }
+6. Backend valida senha (mín. 8 chars), gera hash bcrypt, insere em users
+7. Retorna access_token + refresh_token
+8. Frontend armazena token → redirect para Dashboard</code></pre>
+    </div>
+
+    <h3>Fluxo de Login (Acessos Posteriores)</h3>
+    <div class="diagram">
+<pre><code>1. Frontend carrega → GET /api/auth/status
+2. Backend retorna { initialized: true }
+3. Frontend verifica: há token válido em localStorage?
+4. Se não → exibe tela de Login
+5. POST /api/auth/login { username, password }
+6. Backend valida: bcrypt.verify(password, hash)
+7. Se ok → retorna access_token + refresh_token
+8. Frontend armazena token → redirect para Dashboard</code></pre>
+    </div>
+
+    <h3>Tabela users no DuckDB</h3>
+    <pre><code>CREATE TABLE users (
+    id          INTEGER PRIMARY KEY,
+    username    VARCHAR UNIQUE NOT NULL,
+    password_hash VARCHAR NOT NULL,
+    role        VARCHAR DEFAULT 'admin',
+    created_at  TIMESTAMP DEFAULT now(),
+    updated_at  TIMESTAMP DEFAULT now(),
+);
+
+CREATE TABLE refresh_tokens (
+    token       VARCHAR PRIMARY KEY,
+    user_id     INTEGER REFERENCES users(id),
+    expires_at  TIMESTAMP,
+    revoked     BOOLEAN DEFAULT false,
+    created_at  TIMESTAMP DEFAULT now(),
+);</code></pre>
+
+    <h3>JWT — Tokens</h3>
+    <table>
+        <thead><tr><th>Token</th><th>TTL</th><th>Função</th></tr></thead>
+        <tbody>
+            <tr><td><code>access_token</code></td><td>15 minutos</td><td>Autenticar requisições à API</td></tr>
+            <tr><td><code>refresh_token</code></td><td>7 dias</td><td>Renovar access_token sem novo login</td></tr>
+        </tbody>
+    </table>
+
+    <h4>Payload do JWT</h4>
+    <pre><code>{
+    "sub": 1,
+    "username": "admin",
+    "role": "admin",
+    "exp": 1737500000,
+    "type": "access"
+}</code></pre>
+    <p><strong>Assinatura:</strong> HMAC-SHA256 com <code>RESMA_JWT_SECRET</code> (env var).</p>
+
+    <h3>Middleware de Autenticação</h3>
+    <pre><code>from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import jwt
+
+security = HTTPBearer()
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> dict:
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
+        if payload.get("type") != "access":
+            raise HTTPException(401, "Invalid token type")
+        return {
+            "sub": payload["sub"],
+            "username": payload["username"],
+            "role": payload["role"],
+        }
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(401, "Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(401, "Invalid token")</code></pre>
+
+    <h3>Endpoints de Autenticação</h3>
+    <table>
+        <thead><tr><th>Método</th><th>Path</th><th>Auth</th><th>Descrição</th></tr></thead>
+        <tbody>
+            <tr><td><span class="badge badge-blue">GET</span></td><td><code>/api/auth/status</code></td><td><span class="badge badge-red">Não</span></td><td>Retorna <code>{ initialized: bool }</code></td></tr>
+            <tr><td><span class="badge badge-green">POST</span></td><td><code>/api/auth/onboarding</code></td><td><span class="badge badge-red">Não</span></td><td>Cria primeiro usuário (só funciona se não houver usuário)</td></tr>
+            <tr><td><span class="badge badge-green">POST</span></td><td><code>/api/auth/login</code></td><td><span class="badge badge-red">Não</span></td><td>Autentica e retorna tokens</td></tr>
+            <tr><td><span class="badge badge-green">POST</span></td><td><code>/api/auth/refresh</code></td><td><span class="badge badge-yellow">Refresh</span></td><td>Renova access token</td></tr>
+            <tr><td><span class="badge badge-green">POST</span></td><td><code>/api/auth/logout</code></td><td><span class="badge badge-green">Sim</span></td><td>Revoga refresh token</td></tr>
+            <tr><td><span class="badge badge-blue">GET</span></td><td><code>/api/auth/me</code></td><td><span class="badge badge-green">Sim</span></td><td>Dados do usuário atual</td></tr>
+            <tr><td><span class="badge badge-green">POST</span></td><td><code>/api/auth/change-password</code></td><td><span class="badge badge-green">Sim</span></td><td>Altera senha</td></tr>
+        </tbody>
+    </table>
+
+    <h3>Frontend — AuthGate e ProtectedRoute</h3>
+    <pre><code>function AuthGate() {
+    const { initialized, user, loading } = useAuth();
+
+    if (loading) return &lt;Spinner /&gt;;
+    if (!initialized) return &lt;Onboarding /&gt;;
+    if (!user) return &lt;Login /&gt;;
+    return &lt;Outlet /&gt;;
+}</code></pre>
+
+    <pre><code>function ProtectedRoute() {
+    const { user, loading } = useAuth();
+
+    if (loading) return &lt;Spinner /&gt;;
+    if (!user) return &lt;Navigate to="/login" /&gt;;
+    return &lt;Outlet /&gt;;
+}</code></pre>
+
+    <h3>AuthContext</h3>
+    <pre><code>interface AuthContextType {
+    initialized: boolean;
+    user: User | null;
+    loading: boolean;
+    login: (username: string, password: string) => Promise&lt;void&gt;;
+    onboarding: (username: string, password: string) => Promise&lt;void&gt;;
+    logout: () => void;
+    refreshToken: () => Promise&lt;void&gt;;
+}</code></pre>
+    <p>O <code>AuthContext</code> gerencia:</p>
+    <ul>
+        <li>Verificação de <code>initialized</code> ao montar (<code>GET /api/auth/status</code>)</li>
+        <li>Login/onboarding → armazenar tokens em <code>localStorage</code></li>
+        <li>Refresh automático quando <code>access_token</code> expira</li>
+        <li>Logout → limpar <code>localStorage</code> + redirect para login</li>
+        <li>Interceptor HTTP: adiciona <code>Authorization: Bearer</code> em todas as requests</li>
+    </ul>
+
+    <h3>Validação de Senha</h3>
+    <ul>
+        <li>Mínimo 8 caracteres</li>
+        <li>Pelo menos 1 letra e 1 número</li>
+        <li>Validação no backend (não confiar só no frontend)</li>
+        <li>Hash: bcrypt com cost factor 12</li>
+    </ul>
+
+    <h3>Segurança</h3>
+    <ul>
+        <li><code>RESMA_JWT_SECRET</code> deve ser gerado na primeira inicialização (UUID aleatório) e persistido no DuckDB se não definido via env var</li>
+        <li>Refresh tokens podem ser revogados (tabela <code>refresh_tokens</code> no DuckDB)</li>
+        <li>Rate limiting no endpoint de login (máx 5 tentativas por minuto por IP)</li>
+        <li>Senha nunca logada ou retornada em nenhuma resposta de API</li>
+    </ul>
+</section>
+
+<section id="ml">
+    <h2>7. Modelo de IA — ML Simples para Recomendações</h2>
+
+    <div class="card card-info">
+        <p>O RESMA usa <strong>3 técnicas clássicas de ML</strong> com 3 dependências (<code>scikit-learn</code>, <code>scipy</code>, <code>numpy</code>). Sem deep learning, sem pipeline de treino, sem GPU. O modelo roda on-demand quando o usuário pede recomendação.</p>
+    </div>
+
+    <h3>Técnica 1 — Z-score (Remoção de Outliers)</h3>
+    <p><strong>Objetivo:</strong> Remover spikes de deploy/restart antes de calcular percentis.</p>
+    <p><strong>Algoritmo:</strong></p>
+    <ul>
+        <li>Calcular Z-score de cada amostra: <code>z = (x - μ) / σ</code></li>
+        <li>Remover amostras com <code>|z| &gt; 3.0</code> (3 desvios padrão)</li>
+        <li>Calcular P50/P95 sobre os dados limpos</li>
+    </ul>
+    <p><strong>Threshold:</strong> <code>|z| &gt; 3.0</code> (configurável via <code>RESMA_OUTLIER_THRESHOLD</code>)</p>
+    <p><strong>Valor real:</strong> P95 sem o pico do deploy às 14h que triplicou CPU.</p>
+    <pre><code>from scipy import stats
+import numpy as np
+
+def remove_outliers(values: np.ndarray, threshold: float = 3.0) -> np.ndarray:
+    z_scores = stats.zscore(values)
+    return values[np.abs(z_scores) &lt; threshold]</code></pre>
+
+    <h3>Técnica 2 — Regressão Linear (Detecção de Memory Leak)</h3>
+    <p><strong>Objetivo:</strong> Detectar tendência crescente de memória que percentis não capturam.</p>
+    <p><strong>Algoritmo:</strong></p>
+    <ul>
+        <li>Agrupar memória por hora (média)</li>
+        <li>Regressão linear: <code>x = índice temporal</code>, <code>y = mem_usage</code></li>
+        <li>Calcular slope (bytes/hora) e R² (qualidade do ajuste)</li>
+        <li>Classificar como leak se: <code>slope &gt; 0</code> AND <code>R² &gt; 0.7</code> AND <code>daily_growth &gt; 10MB</code></li>
+    </ul>
+    <p><strong>Valor real:</strong> "memória cresce 50MB/dia com R²=0.92 — provável leak, não aumentar limit, investigar código"</p>
+    <pre><code>from sklearn.linear_model import LinearRegression
+import numpy as np
+
+def detect_memory_trend(mem_values: np.ndarray) -&gt; dict:
+    x = np.arange(len(mem_values)).reshape(-1, 1)
+    model = LinearRegression()
+    model.fit(x, mem_values)
+
+    slope = model.coef_[0]
+    r_squared = model.score(x, mem_values)
+    daily_growth_mb = (slope * 24) / (1024 * 1024)
+
+    return {
+        'slope_bytes_per_hour': float(slope),
+        'daily_growth_mb': round(daily_growth_mb, 2),
+        'r_squared': round(r_squared, 3),
+        'has_leak': bool(slope &gt; 0 and r_squared &gt; 0.7 and daily_mb &gt; 10),
+    }</code></pre>
+
+    <h3>Técnica 3 — KMeans (Classificação de Padrão)</h3>
+    <p><strong>Objetivo:</strong> Classificar o workload para ajustar margem de segurança.</p>
+    <p><strong>Algoritmo:</strong></p>
+    <ul>
+        <li>Agrupar CPU médio por hora do dia</li>
+        <li>KMeans com <code>n_clusters=2</code> (baixo vs alto)</li>
+        <li>Calcular ratio entre clusters</li>
+        <li>Classificar: <code>ratio &gt; 3</code> → business_hours, <code>ratio &lt; 1.5</code> → constant, senão → batch</li>
+    </ul>
+    <p><strong>Valor real:</strong> "serviço é business_hours — pode ter reservation menor fora do horário"</p>
+    <pre><code>from sklearn.cluster import KMeans
+import numpy as np
+
+def classify_workload_pattern(hourly_cpu: dict) -&gt; str:
+    if len(hourly_cpu) &lt; 12:
+        return 'unknown'
+    vals = list(hourly_cpu.values())
+    ratio = max(vals) / min(vals) if min(vals) &gt; 0 else 999
+    if ratio &gt; 3:
+        return 'business_hours'
+    elif ratio &lt; 1.5:
+        return 'constant'
+    return 'batch'</code></pre>
+
+    <h3>Margem de Segurança Adaptativa</h3>
+    <table>
+        <thead><tr><th>Padrão</th><th>OOM Events</th><th>Memory Leak</th><th>Margem</th></tr></thead>
+        <tbody>
+            <tr><td>constant</td><td>0</td><td>não</td><td><span class="badge badge-blue">1.5x</span></td></tr>
+            <tr><td>constant</td><td>≥1</td><td>não</td><td><span class="badge badge-yellow">2.0x</span></td></tr>
+            <tr><td>business_hours</td><td>0</td><td>não</td><td><span class="badge badge-blue">1.8x</span></td></tr>
+            <tr><td>business_hours</td><td>≥1</td><td>não</td><td><span class="badge badge-yellow">2.3x</span></td></tr>
+            <tr><td>batch</td><td>0</td><td>não</td><td><span class="badge badge-blue">1.5x</span></td></tr>
+            <tr><td>qualquer</td><td>qualquer</td><td>sim</td><td><span class="badge badge-red">1.2x + alerta</span></td></tr>
+        </tbody>
+    </table>
+
+    <h3>Comparação: Antes vs Com ML</h3>
+    <table>
+        <thead><tr><th>Recomendação</th><th>Só percentil</th><th>Com ML simples</th></tr></thead>
+        <tbody>
+            <tr><td>CPU limit</td><td>P95 × 1.5</td><td>P95 (sem outliers) × margem adaptativa</td></tr>
+            <tr><td>Memory limit</td><td>P95 × 1.5</td><td>P95 (sem outliers) × margem + detecção leak</td></tr>
+            <tr><td>Pattern</td><td><span class="badge badge-red">não detectado</span></td><td>business_hours / constant / batch</td></tr>
+            <tr><td>Memory leak</td><td><span class="badge badge-red">não detectado</span></td><td>"cresce 50MB/dia, R²=0.92"</td></tr>
+            <tr><td>Outliers do deploy</td><td>contamina P95</td><td>filtrado por Z-score</td></tr>
+            <tr><td>Margem</td><td>fixa 1.5x</td><td>1.2x a 2.3x conforme padrão</td></tr>
+            <tr><td>Confiança</td><td>"high se &gt;1000"</td><td>"high se &gt;5000 + R² baixo"</td></tr>
+        </tbody>
+    </table>
+
+    <div class="card card-warning">
+        <h3>O que NÃO usar (over-engineering)</h3>
+        <ul>
+            <li><s>Holt-Winters forecasting</s> — complexo, precisa mais dados, ganho marginal</li>
+            <li><s>Redes neurais / LSTM</s> — desnecessário para este contexto</li>
+            <li><s>AutoML</s> — absurdo para 100 containers</li>
+            <li><s>Time series forecasting de longo prazo</s> — 30 dias não justifica</li>
+        </ul>
+    </div>
+
+    <h3>Dependências ML</h3>
+    <pre><code>scikit-learn    # LinearRegression, KMeans
+scipy           # zscore, percentile
+numpy           # arrays</code></pre>
+    <p>3 pacotes. Sem TensorFlow, sem PyTorch, sem transformers.</p>
+</section>
+
+<section id="stack">
+    <h2>8. Stack Tecnológica</h2>
+
+    <h3>Backend</h3>
+    <table>
+        <thead><tr><th>Tecnologia</th><th>Versão</th><th>Função</th></tr></thead>
+        <tbody>
+            <tr><td>Python</td><td>3.12+</td><td>Runtime</td></tr>
+            <tr><td>FastAPI</td><td>0.138.0+</td><td>API + serve SPA (<code>app.frontend()</code>)</td></tr>
+            <tr><td>aiodocker</td><td>latest</td><td>Async Docker API client</td></tr>
+            <tr><td>duckdb</td><td>latest</td><td>Embedded OLAP database</td></tr>
+            <tr><td>scikit-learn</td><td>latest</td><td>LinearRegression, KMeans</td></tr>
+            <tr><td>scipy</td><td>latest</td><td>Z-score, estatísticas</td></tr>
+            <tr><td>numpy</td><td>latest</td><td>Arrays numéricos</td></tr>
+            <tr><td>pydantic</td><td>v2</td><td>Models de API</td></tr>
+            <tr><td>pyyaml</td><td>latest</td><td>Templates YAML</td></tr>
+            <tr><td>bcrypt</td><td>latest</td><td>Hash de senhas</td></tr>
+            <tr><td>PyJWT</td><td>latest</td><td>Geração e validação de JWT</td></tr>
+        </tbody>
+    </table>
+
+    <h3>Frontend</h3>
+    <table>
+        <thead><tr><th>Tecnologia</th><th>Função</th></tr></thead>
+        <tbody>
+            <tr><td>React 19</td><td>UI framework</td></tr>
+            <tr><td>Vite</td><td>Build tool + dev server</td></tr>
+            <tr><td>TailwindCSS v4</td><td>Styling (utility-first, última versão)</td></tr>
+            <tr><td>shadcn/ui (original)</td><td>Componentes (última versão, sem forks)</td></tr>
+            <tr><td>Recharts ou Tremor</td><td>Gráficos</td></tr>
+            <tr><td>TanStack Query</td><td>Data fetching</td></tr>
+            <tr><td>React Router</td><td>Roteamento + protected routes</td></tr>
+            <tr><td>pnpm</td><td>Gerenciador de pacotes (lockfile determinístico)</td></tr>
+        </tbody>
+    </table>
+
+    <h3>Justificativas</h3>
+    <ul>
+        <li><strong>DuckDB vs SQLite:</strong> Workload é 100% OLAP. DuckDB tem <code>quantile()</code> nativo, 100x mais rápido em GROUP BY. SQLite é OLTP.</li>
+        <li><strong>Python vs Node.js:</strong> Mesma stack do mcp-caprover. DuckDB Python bindings é o mais maduro.</li>
+        <li><strong>Vite vs Next.js:</strong> SPA puro, sem SSR. Vite é mais leve. FastAPI serve o build estático.</li>
+        <li><strong>aiodocker:</strong> Async nativo, não bloqueia o event loop do FastAPI.</li>
+    </ul>
+</section>
+
+<section id="duckdb">
+    <h2>9. Schema DuckDB e Queries Analíticas</h2>
+
+    <h3>Schema</h3>
+    <pre><code>CREATE TABLE metrics (
+    ts          TIMESTAMP,
+    service     VARCHAR,
+    container_id VARCHAR,
+    cpu_percent DOUBLE,
+    cpu_usage   BIGINT,
+    cpu_system  BIGINT,
+    mem_usage   BIGINT,
+    mem_limit   BIGINT,
+    mem_percent DOUBLE,
+    net_rx      BIGINT,
+    net_tx      BIGINT,
+    block_read  BIGINT,
+    block_write BIGINT,
+);
+
+CREATE TABLE oom_events (
+    ts          TIMESTAMP,
+    service     VARCHAR,
+    container_id VARCHAR,
+    exit_code   INTEGER,
+);
+
+CREATE TABLE service_configs (
+    service           VARCHAR PRIMARY KEY,
+    cpu_limit         DOUBLE,
+    mem_limit         BIGINT,
+    cpu_reservation   DOUBLE,
+    mem_reservation   BIGINT,
+    template          VARCHAR,
+    updated_at        TIMESTAMP,
+);
+
+CREATE TABLE users (
+    id          INTEGER PRIMARY KEY,
+    username    VARCHAR UNIQUE NOT NULL,
+    password_hash VARCHAR NOT NULL,
+    role        VARCHAR DEFAULT 'admin',
+    created_at  TIMESTAMP DEFAULT now(),
+    updated_at  TIMESTAMP DEFAULT now(),
+);
+
+CREATE TABLE refresh_tokens (
+    token       VARCHAR PRIMARY KEY,
+    user_id     INTEGER REFERENCES users(id),
+    expires_at  TIMESTAMP,
+    revoked     BOOLEAN DEFAULT false,
+    created_at  TIMESTAMP DEFAULT now(),
+);</code></pre>
+
+    <h3>Percentis por Serviço (7 dias)</h3>
+    <pre><code>SELECT
+    service,
+    quantile(cpu_percent, 0.50) AS cpu_p50,
+    quantile(cpu_percent, 0.95) AS cpu_p95,
+    quantile(mem_usage, 0.50) AS mem_p50,
+    quantile(mem_usage, 0.95) AS mem_p95,
+    count(*) AS samples
+FROM metrics
+WHERE ts &gt; now() - INTERVAL 7 DAYS
+GROUP BY service
+ORDER BY cpu_p95 DESC;</code></pre>
+
+    <h3>Média Horária de CPU (para classificação de padrão)</h3>
+    <pre><code>SELECT
+    extract(hour from ts) AS hour,
+    avg(cpu_percent) AS cpu_avg
+FROM metrics
+WHERE service = ? AND ts &gt; now() - INTERVAL 7 DAYS
+GROUP BY hour
+ORDER BY hour;</code></pre>
+
+    <h3>OOM Events por Serviço</h3>
+    <pre><code>SELECT
+    service,
+    count(*) AS oom_count,
+    max(ts) AS last_oom
+FROM oom_events
+WHERE ts &gt; now() - INTERVAL 7 DAYS
+GROUP BY service
+ORDER BY oom_count DESC;</code></pre>
+
+    <h3>Retention (job diário)</h3>
+    <pre><code>DELETE FROM metrics WHERE ts &lt; now() - INTERVAL 30 DAYS;
+DELETE FROM oom_events WHERE ts &lt; now() - INTERVAL 30 DAYS;</code></pre>
+
+    <h3>Inserção (Appender API)</h3>
+    <pre><code>import duckdb
+
+con = duckdb.connect('resma.duckdb')
+appender = con.appender('metrics')
+appender.append([ts, service, container_id, cpu_pct, ...])
+appender.close()</code></pre>
+</section>
+
+<section id="api">
+    <h2>10. API Endpoints</h2>
+
+    <h3>Autenticação</h3>
+    <table>
+        <thead><tr><th>Método</th><th>Path</th><th>Auth</th><th>Descrição</th></tr></thead>
+        <tbody>
+            <tr><td><span class="badge badge-blue">GET</span></td><td><code>/api/auth/status</code></td><td><span class="badge badge-red">Não</span></td><td>Retorna <code>{ initialized: bool }</code></td></tr>
+            <tr><td><span class="badge badge-green">POST</span></td><td><code>/api/auth/onboarding</code></td><td><span class="badge badge-red">Não</span></td><td>Cria primeiro usuário admin</td></tr>
+            <tr><td><span class="badge badge-green">POST</span></td><td><code>/api/auth/login</code></td><td><span class="badge badge-red">Não</span></td><td>Autentica e retorna JWT</td></tr>
+            <tr><td><span class="badge badge-green">POST</span></td><td><code>/api/auth/refresh</code></td><td><span class="badge badge-yellow">Refresh</span></td><td>Renova access token</td></tr>
+            <tr><td><span class="badge badge-green">POST</span></td><td><code>/api/auth/logout</code></td><td><span class="badge badge-green">Sim</span></td><td>Revoga refresh token</td></tr>
+            <tr><td><span class="badge badge-blue">GET</span></td><td><code>/api/auth/me</code></td><td><span class="badge badge-green">Sim</span></td><td>Dados do usuário atual</td></tr>
+            <tr><td><span class="badge badge-green">POST</span></td><td><code>/api/auth/change-password</code></td><td><span class="badge badge-green">Sim</span></td><td>Altera senha</td></tr>
+        </tbody>
+    </table>
+
+    <h3>Métricas</h3>
+    <table>
+        <thead><tr><th>Método</th><th>Path</th><th>Descrição</th></tr></thead>
+        <tbody>
+            <tr><td><span class="badge badge-blue">GET</span></td><td><code>/api/services</code></td><td>Lista todos os serviços monitorados</td></tr>
+            <tr><td><span class="badge badge-blue">GET</span></td><td><code>/api/services/{name}/metrics</code></td><td>Métricas de um serviço (<code>range=7d</code>)</td></tr>
+            <tr><td><span class="badge badge-blue">GET</span></td><td><code>/api/services/{name}/stats</code></td><td>Estatísticas (P50, P95, min, max, avg)</td></tr>
+        </tbody>
+    </table>
+
+    <h3>Recomendações</h3>
+    <table>
+        <thead><tr><th>Método</th><th>Path</th><th>Descrição</th></tr></thead>
+        <tbody>
+            <tr><td><span class="badge badge-blue">GET</span></td><td><code>/api/recommendations</code></td><td>Lista recomendações de todos os serviços</td></tr>
+            <tr><td><span class="badge badge-blue">GET</span></td><td><code>/api/recommendations/{service}</code></td><td>Recomendação detalhada de um serviço</td></tr>
+            <tr><td><span class="badge badge-green">POST</span></td><td><code>/api/recommendations/{service}/apply</code></td><td>Aplica recomendação via Docker API</td></tr>
+        </tbody>
+    </table>
+
+    <h3>Templates</h3>
+    <table>
+        <thead><tr><th>Método</th><th>Path</th><th>Descrição</th></tr></thead>
+        <tbody>
+            <tr><td><span class="badge badge-blue">GET</span></td><td><code>/api/templates</code></td><td>Lista templates disponíveis</td></tr>
+            <tr><td><span class="badge badge-blue">GET</span></td><td><code>/api/templates/{name}</code></td><td>Detalha um template</td></tr>
+            <tr><td><span class="badge badge-green">POST</span></td><td><code>/api/templates/{name}/apply/{service}</code></td><td>Aplica template a um serviço</td></tr>
+        </tbody>
+    </table>
+
+    <h3>OOM Events</h3>
+    <table>
+        <thead><tr><th>Método</th><th>Path</th><th>Descrição</th></tr></thead>
+        <tbody>
+            <tr><td><span class="badge badge-blue">GET</span></td><td><code>/api/oom-events</code></td><td>Lista OOM events (<code>service</code>, <code>range</code>)</td></tr>
+        </tbody>
+    </table>
+
+    <h3>Dashboard</h3>
+    <table>
+        <thead><tr><th>Método</th><th>Path</th><th>Descrição</th></tr></thead>
+        <tbody>
+            <tr><td><span class="badge badge-blue">GET</span></td><td><code>/api/dashboard</code></td><td>Resumo geral (serviços, top consumers, OOMs)</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<section id="templates">
+    <h2>11. Templates de Recursos</h2>
+
+    <h3>Estrutura YAML</h3>
+    <pre><code>name: medium
+description: Serviço web com tráfego moderado
+resources:
+  limits:
+    cpus: '0.5'
+    memory: 512M
+  reservations:
+    cpus: '0.25'
+    memory: 256M</code></pre>
+
+    <h3>Perfis Disponíveis</h3>
+    <table>
+        <thead><tr><th>Template</th><th>CPU Limit</th><th>Mem Limit</th><th>CPU Reserv.</th><th>Mem Reserv.</th><th>Uso</th></tr></thead>
+        <tbody>
+            <tr><td><span class="badge badge-blue">small</span></td><td>0.25</td><td>128M</td><td>0.10</td><td>64M</td><td>Microserviços leves</td></tr>
+            <tr><td><span class="badge badge-blue">medium</span></td><td>0.50</td><td>512M</td><td>0.25</td><td>256M</td><td>APIs web moderadas</td></tr>
+            <tr><td><span class="badge badge-blue">large</span></td><td>1.00</td><td>1G</td><td>0.50</td><td>512M</td><td>APIs com alto tráfego</td></tr>
+            <tr><td><span class="badge badge-green">database</span></td><td>2.00</td><td>2G</td><td>1.00</td><td>1G</td><td>PostgreSQL, MongoDB</td></tr>
+            <tr><td><span class="badge badge-yellow">worker-heavy</span></td><td>1.50</td><td>1G</td><td>0.75</td><td>512M</td><td>Workers de processamento</td></tr>
+            <tr><td><span class="badge badge-yellow">ml</span></td><td>2.00</td><td>4G</td><td>1.00</td><td>2G</td><td>Modelos de ML</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<section id="fluxos">
+    <h2>12. Fluxos Principais</h2>
+
+    <h3>Fluxo 1 — Coleta Contínua</h3>
+    <div class="diagram">
+<pre><code>Startup
+  → Conectar ao Docker socket
+  → Iniciar DuckDB + criar schema
+  → Loop async (a cada 15s):
+      → Listar containers ativos
+      → Para cada container: GET /containers/{id}/stats
+      → Batch insert via Appender
+  → Listener paralelo: /events (OOM kills)
+  → Job diário: retention (delete &gt; 30 dias)</code></pre>
+    </div>
+
+    <h3>Fluxo 2 — Recomendação On-Demand</h3>
+    <div class="diagram">
+<pre><code>Usuário clica "Recomendar"
+  → Query DuckDB: métricas 7 dias
+  → Se &lt; 100 amostras: retornar "collecting_data"
+  → Remover outliers (Z-score)
+  → Calcular P50/P95
+  → Detectar memory leak (Regressão Linear)
+  → Classificar padrão (KMeans/ratio)
+  → Contar OOM events
+  → Calcular margem adaptativa
+  → Retornar recomendação + confiança</code></pre>
+    </div>
+
+    <h3>Fluxo 3 — Aplicar Recomendação/Template</h3>
+    <div class="diagram">
+<pre><code>Usuário clica "Aplicar"
+  → Validar recurso sugerido
+  → Docker API: update service com novos limits
+  → Atualizar service_configs no DuckDB
+  → Retornar sucesso/falha</code></pre>
+    </div>
+
+    <h3>Fluxo 4 — Onboarding (Primeiro Acesso)</h3>
+    <div class="diagram">
+<pre><code>1. Usuário acessa RESMA no browser
+2. Frontend: GET /api/auth/status → { initialized: false }
+3. Frontend exibe tela de Onboarding
+4. Usuário preenche: username + senha (mín. 8 chars)
+5. POST /api/auth/onboarding { username, password }
+6. Backend: valida senha, gera hash bcrypt, insere em users
+7. Backend: gera access_token + refresh_token
+8. Frontend: armazena tokens, redirect para Dashboard</code></pre>
+    </div>
+
+    <h3>Fluxo 5 — Login (Acessos Posteriores)</h3>
+    <div class="diagram">
+<pre><code>1. Usuário acessa RESMA no browser
+2. Frontend: GET /api/auth/status → { initialized: true }
+3. Frontend: verifica token em localStorage
+4. Se token válido → Dashboard diretamente
+5. Se token expirado → tenta refresh
+6. Se refresh falha → exibe tela de Login
+7. Usuário preenche: username + senha
+8. POST /api/auth/login { username, password }
+9. Backend: bcrypt.verify(password, hash)
+10. Se ok → access_token + refresh_token
+11. Frontend: armazena tokens, redirect para Dashboard</code></pre>
+    </div>
+
+    <h3>Fluxo 6 — Deploy do RESMA</h3>
+    <div class="diagram">
+<pre><code>Dockerfile multi-stage:
+  Stage 1: build React (pnpm install --frozen-lockfile && pnpm build)
+  Stage 2: Python + FastAPI + dist/ frontend
+  → docker stack deploy resma
+  → 1 container no manager node
+  → Mount /var/run/docker.sock</code></pre>
+    </div>
+</section>
+
+<section id="deploy">
+    <h2>13. Deploy</h2>
+
+    <h3>Dockerfile (multi-stage)</h3>
+    <pre><code>FROM node:22-alpine AS frontend
+RUN corepack enable && corepack prepare pnpm@latest --activate
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY frontend/ .
+RUN pnpm build
+
+FROM python:3.12-slim
+WORKDIR /app
+COPY pyproject.toml .
+RUN pip install -e .
+COPY backend/ ./backend/
+COPY --from=frontend /app/frontend/dist ./static/
+EXPOSE 8080
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8080"]</code></pre>
+
+    <h3>docker-compose.yml (para Swarm)</h3>
+    <pre><code>version: '3.8'
+
+services:
+  resma:
+    image: resma:latest
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - resma-data:/data
+    environment:
+      - RESMA_DB_PATH=/data/resma.duckdb
+      - RESMA_COLLECT_INTERVAL=15
+      - RESMA_RETENTION_DAYS=30
+      - RESMA_OUTLIER_THRESHOLD=3.0
+      - RESMA_JWT_SECRET=change-me-in-production
+    ports:
+      - "8080:8080"
+
+volumes:
+  resma-data:</code></pre>
+
+    <h3>Variáveis de Ambiente</h3>
+    <table>
+        <thead><tr><th>Variável</th><th>Default</th><th>Descrição</th></tr></thead>
+        <tbody>
+            <tr><td><code>RESMA_DB_PATH</code></td><td><code>/data/resma.duckdb</code></td><td>Caminho do DuckDB</td></tr>
+            <tr><td><code>RESMA_COLLECT_INTERVAL</code></td><td><code>15</code></td><td>Intervalo de coleta (segundos)</td></tr>
+            <tr><td><code>RESMA_RETENTION_DAYS</code></td><td><code>30</code></td><td>Dias de retenção</td></tr>
+            <tr><td><code>RESMA_OUTLIER_THRESHOLD</code></td><td><code>3.0</code></td><td>Threshold Z-score</td></tr>
+            <tr><td><code>RESMA_LEAK_R2_THRESHOLD</code></td><td><code>0.7</code></td><td>R² mínimo para leak</td></tr>
+            <tr><td><code>RESMA_LEAK_DAILY_MB_THRESHOLD</code></td><td><code>10</code></td><td>Crescimento diário mínimo (MB)</td></tr>
+            <tr><td><code>RESMA_ANALYSIS_WINDOW_DAYS</code></td><td><code>7</code></td><td>Janela de análise</td></tr>
+            <tr><td><code>RESMA_JWT_SECRET</code></td><td>auto-gerado</td><td>Secret para assinar JWT (definir em produção)</td></tr>
+            <tr><td><code>RESMA_JWT_ACCESS_TTL_MINUTES</code></td><td><code>15</code></td><td>TTL do access token (minutos)</td></tr>
+            <tr><td><code>RESMA_JWT_REFRESH_TTL_DAYS</code></td><td><code>7</code></td><td>TTL do refresh token (dias)</td></tr>
+            <tr><td><code>RESMA_BCRYPT_COST</code></td><td><code>12</code></td><td>Cost factor do bcrypt</td></tr>
+            <tr><td><code>RESMA_LOGIN_RATE_LIMIT</code></td><td><code>5</code></td><td>Máx. tentativas de login por minuto por IP</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<section id="governanca">
+    <h2>14. Governança, Regras e Riscos</h2>
+
+    <h3>Segurança</h3>
+    <ul>
+        <li><strong>Docker socket:</strong> RESMA precisa de acesso ao <code>/var/run/docker.sock</code> — equivalente a root no host. Restringir acesso de rede ao serviço.</li>
+        <li><strong>Autenticação obrigatória:</strong> Todos os endpoints <code>/api/*</code> exigem JWT Bearer token (exceto <code>/api/auth/*</code>).</li>
+        <li><strong>Senhas com bcrypt:</strong> Hash bcrypt cost 12. Senha nunca armazenada em texto plano, nunca logada, nunca retornada.</li>
+        <li><strong>JWT com refresh:</strong> Access token 15min + refresh token 7 dias. Refresh tokens revogáveis.</li>
+        <li><strong>Onboarding único:</strong> Endpoint <code>/api/auth/onboarding</code> só funciona se não houver usuário cadastrado. Após o primeiro usuário, retorna 403.</li>
+        <li><strong>Rate limiting:</strong> Máximo 5 tentativas de login por minuto por IP.</li>
+        <li><strong>Sem secrets no código:</strong> Todas as configurações via env vars. <code>RESMA_JWT_SECRET</code> deve ser definido em produção.</li>
+        <li><strong>HTTPS recomendado:</strong> Em produção, usar Traefik/ingress com TLS.</li>
+    </ul>
+
+    <h3>Limitações Conhecidas</h3>
+    <ul>
+        <li><strong>Sem histórico pré-deploy:</strong> RESMA começa a coletar do zero. Recomendações ficam precisas após ~7 dias.</li>
+        <li><strong>100 containers máximo:</strong> Testado para esta escala. Para mais, considerar particionamento.</li>
+        <li><strong>Sem HA:</strong> 1 réplica no manager. Se o manager cai, RESMA cai. Aceitável para tool operacional.</li>
+        <li><strong>DuckDB single-writer:</strong> Apenas 1 processo escreve. Reads concorrentes são suportados.</li>
+    </ul>
+
+    <h3>Riscos</h3>
+    <table>
+        <thead><tr><th>Risco</th><th>Probabilidade</th><th>Impacto</th><th>Mitigação</th></tr></thead>
+        <tbody>
+            <tr><td>Docker socket exposto</td><td><span class="badge badge-green">Baixa</span></td><td><span class="badge badge-red">Alto</span></td><td>Rede interna only, sem port publicadas</td></tr>
+            <tr><td>DuckDB corrompido</td><td><span class="badge badge-green">Baixa</span></td><td><span class="badge badge-yellow">Médio</span></td><td>Volume persistente + backup diário</td></tr>
+            <tr><td>Coleta impacta performance</td><td><span class="badge badge-green">Baixa</span></td><td><span class="badge badge-green">Baixo</span></td><td>15s intervalo, batch insert, ~20MB total</td></tr>
+            <tr><td>Recomendação errada</td><td><span class="badge badge-yellow">Média</span></td><td><span class="badge badge-yellow">Médio</span></td><td>Confidence score + humano revisa</td></tr>
+        </tbody>
+    </table>
+
+    <div class="card card-info">
+        <h3>No Hardcode</h3>
+        <p>Todos os thresholds, intervalos, limites e padrões são configuráveis via env vars. Templates são YAML externos. Nenhum valor variável é fixo no código.</p>
+    </div>
+</section>
+
+<section id="faq">
+    <h2>15. FAQ</h2>
+
+    <div class="card">
+        <p><strong>Q: Por que DuckDB e não Prometheus?</strong></p>
+        <p>A: Prometheus exige infraestrutura separada. RESMA é self-contained — 1 container, 0 dependências externas. DuckDB é embedded e suficiente para 100 containers.</p>
+    </div>
+
+    <div class="card">
+        <p><strong>Q: Por que não usar o VPA do Kubernetes?</strong></p>
+        <p>A: Docker Swarm não tem VPA. O RESMA implementa lógica similar (percentis) + ML simples, específico para Swarm.</p>
+    </div>
+
+    <div class="card">
+        <p><strong>Q: Quando as recomendações ficam confiáveis?</strong></p>
+        <p>A: Após ~7 dias de coleta com &gt; 5000 amostras (confidence: high). Antes disso, funciona mas com confidence: low/medium.</p>
+    </div>
+
+    <div class="card">
+        <p><strong>Q: O ML precisa de GPU?</strong></p>
+        <p>A: Não. 3 técnicas clássicas (Z-score, Regressão Linear, KMeans) rodam em CPU em &lt; 1 segundo.</p>
+    </div>
+
+    <div class="card">
+        <p><strong>Q: Posso usar sem o ML?</strong></p>
+        <p>A: Sim. O ML é uma camada encima dos percentis. Pode-se desabilitar via env var <code>RESMA_ML_ENABLED=false</code>.</p>
+    </div>
+
+    <div class="card">
+        <p><strong>Q: Como funciona o primeiro acesso?</strong></p>
+        <p>A: No primeiro acesso, o RESMA detecta que não há usuário cadastrado e exibe a tela de onboarding. O usuário cria seu login e senha, que é armazenada como hash bcrypt no DuckDB. Após isso, todos os acesses exigem autenticação.</p>
+    </div>
+
+    <div class="card">
+        <p><strong>Q: Posso ter múltiplos usuários?</strong></p>
+        <p>A: A V1 suporta 1 usuário admin. A V2 pode adicionar múltiplos usuários com roles (admin, viewer).</p>
+    </div>
+
+    <div class="card">
+        <p><strong>Q: O JWT secret é auto-gerado?</strong></p>
+        <p>A: Se <code>RESMA_JWT_SECRET</code> não for definido via env var, o RESMA gera um UUID aleatório e persiste no DuckDB. Em produção, recomenda-se definir explicitamente.</p>
+    </div>
+</section>
+
+<section id="glossario">
+    <h2>16. Glossário</h2>
+    <table>
+        <thead><tr><th>Termo</th><th>Definição</th></tr></thead>
+        <tbody>
+            <tr><td>Right-sizing</td><td>Ajustar recursos alocados ao uso real</td></tr>
+            <tr><td>OOM Kill</td><td>Out-Of-Memory kill — container morto por exceder memória</td></tr>
+            <tr><td>P50/P95</td><td>Percentil 50 (mediana) / Percentil 95</td></tr>
+            <tr><td>Z-score</td><td>Número de desvios padrão acima/abaixo da média</td></tr>
+            <tr><td>R²</td><td>Coeficiente de determinação (qualidade do ajuste da regressão)</td></tr>
+            <tr><td>Memory Leak</td><td>Vazamento de memória — crescimento contínuo sem liberação</td></tr>
+            <tr><td>KMeans</td><td>Algoritmo de clustering que agrupa dados em K clusters</td></tr>
+            <tr><td>OLAP</td><td>Online Analytical Processing (consultas analíticas)</td></tr>
+            <tr><td>Appender</td><td>API do DuckDB para inserção em lote de alta performance</td></tr>
+            <tr><td>VPA</td><td>Vertical Pod Autoscaler (Kubernetes)</td></tr>
+            <tr><td>Reservation</td><td>Recursos garantidos (Docker Swarm)</td></tr>
+            <tr><td>Limit</td><td>Recursos máximos (Docker Swarm)</td></tr>
+            <tr><td>JWT</td><td>JSON Web Token — token de autenticação stateless</td></tr>
+            <tr><td>bcrypt</td><td>Algoritmo de hash de senhas adaptativo</td></tr>
+            <tr><td>Onboarding</td><td>Processo de configuração inicial (criar primeiro usuário)</td></tr>
+            <tr><td>Refresh Token</td><td>Token de longa duração para renovar access tokens</td></tr>
+            <tr><td>Access Token</td><td>Token de curta duração para autenticar requisições</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<section id="versionamento">
+    <h2>17. Versionamento</h2>
+    <table>
+        <thead><tr><th>Versão</th><th>Data</th><th>Alteração</th></tr></thead>
+        <tbody>
+            <tr><td>0.1.0</td><td>2026-07-20</td><td>Documento técnico inicial</td></tr>
+            <tr><td>0.2.0</td><td>2026-07-20</td><td>Adicionada camada de autenticação e onboarding</td></tr>
+        </tbody>
+    </table>
+</section>
+
+</div>
+</body>
+</html>

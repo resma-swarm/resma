@@ -1,0 +1,149 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-background: oklch(0.16 0.005 260);
+  --color-foreground: oklch(0.96 0.003 260);
+  --color-card: oklch(0.19 0.006 260);
+  --color-card-foreground: oklch(0.96 0.003 260);
+  --color-popover: oklch(0.19 0.006 260);
+  --color-popover-foreground: oklch(0.96 0.003 260);
+  --color-primary: oklch(0.62 0.19 255);
+  --color-primary-foreground: oklch(0.98 0 0);
+  --color-secondary: oklch(0.24 0.006 260);
+  --color-secondary-foreground: oklch(0.96 0.003 260);
+  --color-muted: oklch(0.22 0.005 260);
+  --color-muted-foreground: oklch(0.62 0.01 260);
+  --color-accent: oklch(0.26 0.008 260);
+  --color-accent-foreground: oklch(0.96 0.003 260);
+  --color-destructive: oklch(0.58 0.2 25);
+  --color-destructive-foreground: oklch(0.98 0 0);
+  --color-success: oklch(0.6 0.15 160);
+  --color-success-foreground: oklch(0.98 0 0);
+  --color-warning: oklch(0.7 0.16 70);
+  --color-warning-foreground: oklch(0.2 0 0);
+  --color-border: oklch(0.26 0.006 260 / 0.6);
+  --color-input: oklch(0.22 0.005 260);
+  --color-ring: oklch(0.62 0.19 255);
+  --color-sidebar: oklch(0.17 0.005 260);
+  --color-sidebar-foreground: oklch(0.96 0.003 260);
+  --color-sidebar-border: oklch(0.26 0.006 260 / 0.6);
+  --color-sidebar-accent: oklch(0.24 0.008 260);
+  --color-sidebar-accent-foreground: oklch(0.96 0.003 260);
+  --color-sidebar-primary: oklch(0.62 0.19 255);
+  --color-sidebar-primary-foreground: oklch(0.98 0 0);
+  --color-sidebar-ring: oklch(0.62 0.19 255);
+  --color-chart-1: oklch(0.62 0.19 255);
+  --color-chart-2: oklch(0.6 0.15 160);
+  --color-chart-3: oklch(0.7 0.16 70);
+  --color-chart-4: oklch(0.58 0.2 25);
+  --color-chart-5: oklch(0.65 0.18 300);
+  --radius: 0.625rem;
+}
+
+:root {
+  --background: var(--color-background);
+  --foreground: var(--color-foreground);
+  --card: var(--color-card);
+  --card-foreground: var(--color-card-foreground);
+  --popover: var(--color-popover);
+  --popover-foreground: var(--color-popover-foreground);
+  --primary: var(--color-primary);
+  --primary-foreground: var(--color-primary-foreground);
+  --secondary: var(--color-secondary);
+  --secondary-foreground: var(--color-secondary-foreground);
+  --muted: var(--color-muted);
+  --muted-foreground: var(--color-muted-foreground);
+  --accent: var(--color-accent);
+  --accent-foreground: var(--color-accent-foreground);
+  --destructive: var(--color-destructive);
+  --destructive-foreground: var(--color-destructive-foreground);
+  --success: var(--color-success);
+  --success-foreground: var(--color-success-foreground);
+  --warning: var(--color-warning);
+  --warning-foreground: var(--color-warning-foreground);
+  --border: var(--color-border);
+  --input: var(--color-input);
+  --ring: var(--color-ring);
+  --sidebar: var(--color-sidebar);
+  --sidebar-foreground: var(--color-sidebar-foreground);
+  --sidebar-border: var(--color-sidebar-border);
+  --sidebar-accent: var(--color-sidebar-accent);
+  --sidebar-accent-foreground: var(--color-sidebar-accent-foreground);
+  --chart-1: var(--color-chart-1);
+  --chart-2: var(--color-chart-2);
+  --chart-3: var(--color-chart-3);
+  --chart-4: var(--color-chart-4);
+  --chart-5: var(--color-chart-5);
+  --sidebar-primary: var(--color-primary);
+  --sidebar-primary-foreground: var(--color-primary-foreground);
+  --sidebar-ring: var(--color-ring);
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+@layer base {
+  .border, .border-b, .border-t, .border-r, .border-l {
+    border-color: var(--color-border);
+  }
+}
+
+[data-slot="card"] {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(0.62 0.19 255 / 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.7); }
+}
+
+.animate-pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+  0%, 100% {
+    border-color: var(--destructive);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    border-color: rgba(239, 68, 68, 0.6);
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
+  }
+}
+
+.animate-pulse-border {
+  animation: pulse-border 2s ease-in-out infinite;
+}

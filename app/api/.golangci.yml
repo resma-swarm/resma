@@ -1,0 +1,40 @@
+# RESMA — golangci-lint config
+run:
+  timeout: 5m
+  go: "1.26"
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - revive
+    - gocritic
+
+linters-settings:
+  goimports:
+    local-prefixes: github.com/resma/api
+  gocritic:
+    enabled-tags:
+      - performance
+      - style
+  revive:
+    rules:
+      - name: exported
+        disabled: true # nomes curtos são OK em Go
+
+issues:
+  exclude-rules:
+    # Test files podem ter unused params e ser menos estritos
+    - path: _test\.go
+      linters:
+        - gocritic
+        - revive
+  max-issues-per-linter: 0
+  max-same-issues: 0

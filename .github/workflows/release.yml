@@ -1,0 +1,76 @@
+# RESMA — Release Pipeline
+# Trigger: push de tag v*.*.*
+# Jobs: build multi-arch, push GHCR com tags semânticas, GitHub Release
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  release:
+    name: Build & Push Multi-arch
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Build & Push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: app/api/Dockerfile
+          target: runtime
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/resma-api:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/resma-api:${{ steps.version.outputs.VERSION }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/resma-api:${{ steps.version.outputs.VERSION }}-amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & Push ML image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: app/ml/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/resma-ml:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/resma-ml:${{ steps.version.outputs.VERSION }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/resma-ml:${{ steps.version.outputs.VERSION }}-amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}

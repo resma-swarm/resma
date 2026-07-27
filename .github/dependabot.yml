@@ -1,0 +1,62 @@
+# RESMA — Dependabot config
+# Atualiza dependências automaticamente via PRs
+version: 2
+updates:
+  # Go API
+  - package-ecosystem: gomod
+    directory: /app/api
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - go
+
+  # Python ML sidecar
+  - package-ecosystem: pip
+    directory: /app/ml
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - python
+
+  # Frontend (npm/pnpm)
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - frontend
+
+  # Docker (Dockerfiles)
+  - package-ecosystem: docker
+    directory: /app/api
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - docker
+
+  - package-ecosystem: docker
+    directory: /app/ml
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - docker
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - ci

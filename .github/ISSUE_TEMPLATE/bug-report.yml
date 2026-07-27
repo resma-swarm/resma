@@ -1,0 +1,87 @@
+name: Bug Report
+description: Reporte um bug no RESMA
+title: "[bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Bug Report — RESMA
+
+        Obrigado por reportar! Preencha os campos abaixo para nos ajudar a reproduzir e corrigir o problema.
+  - type: textarea
+    id: description
+    attributes:
+      label: Descrição
+      description: Descreva claramente o que está acontecendo vs o que deveria acontecer.
+      placeholder: "Ex: Ao clicar em 'Salvar' na página de Parâmetros, o valor não persiste após refresh."
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Passos para reproduzir
+      description: Lista numerada dos passos.
+      placeholder: |
+        1. Fazer login como owner
+        2. Navegar para /settings/parameters
+        3. Alterar 'Retention Days' para 60
+        4. Clicar em 'Salvar'
+        5. Fazer refresh (F5)
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamento esperado
+      placeholder: "O valor deveria permanecer 60 após refresh."
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Comportamento atual
+      placeholder: "O valor volta para o default (30)."
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Componente
+      options:
+        - API Go
+        - Frontend React
+        - ML sidecar
+        - Agent
+        - Docker / Infra
+        - Documentação
+        - Outro
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versão / commit
+      placeholder: "ex: v0.8.0 ou commit hash"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      description: Cole logs relevantes (docker compose logs, console do browser, etc).
+      render: shell
+  - type: dropdown
+    id: role
+    attributes:
+      label: Role do usuário (se aplicável)
+      options:
+        - owner
+        - admin
+        - user
+        - N/A
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      options:
+        - label: Concordo em seguir o código de conduta do projeto
+          required: true

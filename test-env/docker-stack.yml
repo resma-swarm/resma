@@ -1,0 +1,81 @@
+services:
+  dotnet-api:
+    image: test-env-dotnet-api:latest
+    ports:
+      - "5001:8080"
+
+  node-api:
+    image: test-env-node-api:latest
+    ports:
+      - "5002:3000"
+
+  python-api:
+    image: test-env-python-api:latest
+    ports:
+      - "5003:5000"
+
+  web-frontend:
+    image: test-env-web-frontend:latest
+    ports:
+      - "5174:5174"
+
+  load-generator:
+    image: test-env-load-generator:latest
+    depends_on:
+      - dotnet-api
+      - node-api
+      - python-api
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+  leaky-service:
+    image: test-env-leaky-service:latest
+    ports:
+      - "5011:8080"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          cpus: "0.20"
+          memory: 128M
+
+  oom-prone-service:
+    image: test-env-oom-prone-service:latest
+    ports:
+      - "5012:8080"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          cpus: "0.20"
+          memory: 64M
+
+  drift-service:
+    image: test-env-drift-service:latest
+    ports:
+      - "5013:8080"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          cpus: "0.30"
+          memory: 128M
+
+  scenario-simulator:
+    image: test-env-scenario-simulator:latest
+    depends_on:
+      - leaky-service
+      - oom-prone-service
+      - drift-service
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any

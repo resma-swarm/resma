@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentação
+    url: https://github.com/danie/resma/tree/main/docs
+    about: Leia a documentação e specs antes de abrir uma issue.
+  - name: Suporte / Dúvidas
+    url: https://github.com/danie/resma/discussions
+    about: Para dúvidas gerais, use as Discussions em vez de Issues.
