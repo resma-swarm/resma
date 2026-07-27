@@ -20,6 +20,11 @@ const config: Config = {
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
 
+  // T1 (uiux): plugin PostCSS do Tailwind CSS v4.
+  // Empurra @tailwindcss/postcss para a pipeline do Docusaurus sem remover os
+  // plugins nativos.
+  plugins: ['./src/plugins/tailwind-config.js'],
+
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
   // may want to replace "en" with "zh-Hans".
@@ -41,7 +46,7 @@ const config: Config = {
         },
         blog: false,
         theme: {
-          customCss: './src/css/custom.css',
+          customCss: ['./src/css/custom.css', './src/css/tailwind.css'],
         },
       } satisfies Preset.Options,
     ],

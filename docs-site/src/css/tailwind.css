@@ -1,0 +1,47 @@
+/* Tailwind CSS v4 — entry point para o docs-site RESMA.
+ *
+ * T1 (uiux): fundacao Tailwind. Importamos o bundle completo do Tailwind v4
+ * (theme + preflight + utilities) e declaramos os design tokens RESMA via
+ * @theme, gerando utilities como bg-canvas, text-ink, border-hairline, etc.
+ *
+ * Nota: o preflight do Tailwind pode sobrescrever alguns resets base do
+ * Infima. Como o redesign (T2+) substitui a landing page por componentes
+ * Tailwind proprios, aceitamos isso; as paginas de docs MDX continuam usando
+ * estilos Infima para tipografia de conteudo (conflitos minimos na pratica).
+ */
+
+@import 'tailwindcss';
+
+/* Sincroniza o dark variant do Tailwind com o data-theme do Docusaurus. */
+@custom-variant dark (&:is([data-theme='dark'] *));
+
+/* Design tokens RESMA expostos como utilities do Tailwind.
+ * Mantenha sincronizado com as CSS variables em custom.css. */
+@theme {
+  --color-canvas: #0a0a0f;
+  --color-surface-1: #0f1014;
+  --color-surface-2: #141519;
+  --color-surface-3: #18191d;
+  --color-surface-raised: #1c1d21;
+
+  --color-brand: #2563eb;
+  --color-brand-accent: #3ecf8e;
+
+  --color-hairline: #23252a;
+  --color-hairline-strong: #3e3e44;
+
+  --color-ink: #f4f4f6;
+  --color-body: #cdcdcd;
+  --color-muted: #878787;
+
+  --color-success: #3ecf8e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* Fontes de conteudo para deteccao de classes pelo Tailwind v4. */
+@source '../pages';
+@source '../components';

@@ -1,28 +1,72 @@
 /**
  * Any CSS included here will be global. The classic template
  * bundles Infima by default. Infima is a CSS framework designed to
- * work well for static content rendered in Docusaurus.
+ * work well with static content rendered in Docusaurus.
+ *
+ * T1 (uiux): paleta dark premium RESMA + tipografia Inter/JetBrains Mono.
+ * As utilities do Tailwind vivem em tailwind.css; aqui ficam as CSS variables
+ * RESMA e o mapeamento para as --ifm-* do Infima (Docusaurus).
  */
 
+/* Fontes self-hosted via @fontsource (Inter 400/600, JetBrains Mono 400).
+ * Os @import devem vir antes de qualquer outra regra (CSS spec). O plugin
+ * @tailwindcss/postcss resolve estes paths a partir de node_modules. */
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/jetbrains-mono/400.css';
+
 :root {
-  --ifm-color-primary: #2563eb;
+  /* Paleta RESMA — fonte de verdade (mantenha sincronizada com @theme em tailwind.css) */
+  --resma-canvas: #0a0a0f;
+  --resma-surface-1: #0f1014;
+  --resma-surface-2: #141519;
+  --resma-surface-3: #18191d;
+  --resma-surface-raised: #1c1d21;
+  --resma-brand: #2563eb;
+  --resma-brand-accent: #3ecf8e;
+  --resma-hairline: #23252a;
+  --resma-hairline-strong: #3e3e44;
+  --resma-ink: #f4f4f6;
+  --resma-body: #cdcdcd;
+  --resma-muted: #878787;
+  --resma-success: #3ecf8e;
+  --resma-warning: #f59e0b;
+  --resma-error: #ef4444;
+
+  /* Mapear para Infima variables (Docusaurus usa --ifm-*) */
+  --ifm-background-color: var(--resma-canvas);
+  --ifm-background-surface-color: var(--resma-surface-2);
+  --ifm-color-primary: var(--resma-brand);
   --ifm-color-primary-dark: #1d4ed8;
   --ifm-color-primary-darker: #1e40af;
   --ifm-color-primary-darkest: #1e3a8a;
   --ifm-color-primary-light: #3b82f6;
   --ifm-color-primary-lighter: #60a5fa;
   --ifm-color-primary-lightest: #93c5fd;
+  --ifm-color-emphasis-300: var(--resma-hairline);
+  --ifm-color-emphasis-700: var(--resma-body);
+  --ifm-heading-color: var(--resma-ink);
+  --ifm-font-color-base: var(--resma-body);
+  --ifm-font-family-base: 'Inter', system-ui, sans-serif;
+  --ifm-font-family-monospace: 'JetBrains Mono', monospace;
   --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  --ifm-link-color: var(--resma-brand);
+  --ifm-link-hover-color: var(--resma-brand-accent);
+  --ifm-navbar-background-color: var(--resma-surface-1);
+  --ifm-footer-background-color: var(--resma-surface-1);
+  --ifm-menu-color: var(--resma-body);
+  --docusaurus-highlighted-code-line-bg: rgba(37, 99, 235, 0.15);
 }
 
-[data-theme='dark'] {
-  --ifm-color-primary: #3b82f6;
-  --ifm-color-primary-dark: #2563eb;
-  --ifm-color-primary-darker: #1d4ed8;
-  --ifm-color-primary-darkest: #1e40af;
-  --ifm-color-primary-light: #60a5fa;
-  --ifm-color-primary-lighter: #93c5fd;
-  --ifm-color-primary-lightest: #bfdbfe;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+/* Usar html[data-theme='dark'] (mesma especificidade do Infima) para que nosso
+ * override venca por ordem de carga (custom.css vem depois do Infima no bundle). */
+html[data-theme='dark'] {
+  --ifm-background-color: var(--resma-canvas);
+  --ifm-background-surface-color: var(--resma-surface-2);
+  --ifm-color-primary: var(--resma-brand);
+  --ifm-heading-color: var(--resma-ink);
+  --ifm-font-color-base: var(--resma-body);
+  --ifm-navbar-background-color: var(--resma-surface-1);
+  --ifm-footer-background-color: var(--resma-surface-1);
+  --docusaurus-highlighted-code-line-bg: rgba(37, 99, 235, 0.25);
 }
