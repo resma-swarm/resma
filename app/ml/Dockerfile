@@ -1,7 +1,7 @@
 # RESMA ML Sidecar — Dockerfile
 # Python slim com numpy, scipy, scikit-learn para análise de recursos
 # Build context: repo root (docker-compose usa context: .)
-FROM python:3.12-slim AS base
+FROM python:3.14-slim AS base
 
 WORKDIR /app
 
