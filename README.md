@@ -40,18 +40,27 @@ Tudo isso com um dashboard interativo, API REST e streaming em tempo real via SS
 # Inicialize o Swarm (se ainda não estiver)
 docker swarm init
 
-# Instale o RESMA via script
-curl -fsSL https://raw.githubusercontent.com/resma-swarm/resma/main/install.sh | bash
+# Instale o RESMA via installer container (padrão SwarmPit)
+docker run -it --rm \
+  --name resma-installer \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  resmaswarm/resma-install:latest
 ```
 
-O script cria os secrets do Docker, faz deploy do stack e imprime as credenciais
-do usuário owner (criado via onboarding). Para opções personalizadas:
+O installer roda isolado num container, gera os Docker secrets (JWT + agent token),
+faz pull das imagens, deploya o stack e aguarda o healthcheck. Para instalação
+não-interativa:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/resma-swarm/resma/main/install.sh | bash -s -- --port 8080 --domain resma.example.com
+docker run -it --rm \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  -e INTERACTIVE=0 \
+  -e STACK_NAME=resma \
+  -e APP_PORT=8080 \
+  resmaswarm/resma-install:latest
 ```
 
-### Docker Compose (produção local)
+### Docker Compose (dev local)
 
 ```bash
 # Build e deploy via Docker Swarm (obrigatório para produção)

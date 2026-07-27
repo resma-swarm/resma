@@ -96,6 +96,21 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build & Push Installer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: app/installer/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            docker.io/${{ env.DOCKERHUB_NAMESPACE }}/resma-install:latest
+            docker.io/${{ env.DOCKERHUB_NAMESPACE }}/resma-install:${{ steps.version.outputs.VERSION }}
+            ghcr.io/${{ env.GHCR_NAMESPACE }}/resma-install:latest
+            ghcr.io/${{ env.GHCR_NAMESPACE }}/resma-install:${{ steps.version.outputs.VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:

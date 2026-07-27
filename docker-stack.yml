@@ -1,11 +1,11 @@
 # RESMA — Docker Swarm Stack
 #
-# Deploy: docker stack deploy -c docker-stack.yml resma
-# Install: curl -fsSL https://raw.githubusercontent.com/resma-swarm/resma/main/install.sh | bash
+# Deploy manual: docker stack deploy -c docker-stack.yml resma
+# Install (recomendado): docker run -it --rm -v /var/run/docker.sock:/var/run/docker.sock resmaswarm/resma-install:latest
 #
 # Pré-requisitos:
 #   - Docker Swarm initialized (docker swarm init)
-#   - JWT secret created (install.sh faz isso automaticamente)
+#   - JWT + agent token secrets (o installer container cria automaticamente)
 #   - Imagens publicadas no Docker Hub (docker.io/resmaswarm/resma-api, resma-ml, resma-agent)
 #
 # Variáveis (definir via env ou docker secret):
