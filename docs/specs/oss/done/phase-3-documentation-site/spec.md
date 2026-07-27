@@ -159,7 +159,7 @@ Justificativa do Technical Council:
   // @version 1.0
   // @description RESource MAnager for Docker Swarm
   // @contact.name RESMA
-  // @contact.url https://github.com/USER/resma
+  // @contact.url https://github.com/resma-swarm/resma
   // @license.name MIT
   // @license.url https://opensource.org/licenses/MIT
   // @host localhost:8080

@@ -1,6 +1,10 @@
 # RESMA — Release Pipeline
 # Trigger: push de tag v*.*.*
-# Jobs: build multi-arch, push GHCR com tags semânticas, GitHub Release
+# Jobs: build multi-arch, push Docker Hub (principal) + GHCR (mirror), GitHub Release
+#
+# Pré-requisitos:
+#   - Secret DOCKERHUB_USERNAME = resmaswarm
+#   - Secret DOCKERHUB_TOKEN    = access token do Docker Hub (criar em hub.docker.com → Account Settings → Security)
 name: Release
 
 on:
@@ -9,7 +13,8 @@ on:
       - "v*.*.*"
 
 env:
-  REGISTRY: ghcr.io
+  DOCKERHUB_NAMESPACE: resmaswarm
+  GHCR_NAMESPACE: ${{ github.repository_owner }}
 
 jobs:
   release:
@@ -27,10 +32,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to GHCR
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GHCR (mirror)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -47,9 +58,10 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/resma-api:latest
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/resma-api:${{ steps.version.outputs.VERSION }}
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/resma-api:${{ steps.version.outputs.VERSION }}-amd64
+            docker.io/${{ env.DOCKERHUB_NAMESPACE }}/resma-api:latest
+            docker.io/${{ env.DOCKERHUB_NAMESPACE }}/resma-api:${{ steps.version.outputs.VERSION }}
+            ghcr.io/${{ env.GHCR_NAMESPACE }}/resma-api:latest
+            ghcr.io/${{ env.GHCR_NAMESPACE }}/resma-api:${{ steps.version.outputs.VERSION }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -61,9 +73,26 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/resma-ml:latest
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/resma-ml:${{ steps.version.outputs.VERSION }}
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/resma-ml:${{ steps.version.outputs.VERSION }}-amd64
+            docker.io/${{ env.DOCKERHUB_NAMESPACE }}/resma-ml:latest
+            docker.io/${{ env.DOCKERHUB_NAMESPACE }}/resma-ml:${{ steps.version.outputs.VERSION }}
+            ghcr.io/${{ env.GHCR_NAMESPACE }}/resma-ml:latest
+            ghcr.io/${{ env.GHCR_NAMESPACE }}/resma-ml:${{ steps.version.outputs.VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & Push Agent image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: app/agent/Dockerfile
+          target: runtime
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            docker.io/${{ env.DOCKERHUB_NAMESPACE }}/resma-agent:latest
+            docker.io/${{ env.DOCKERHUB_NAMESPACE }}/resma-agent:${{ steps.version.outputs.VERSION }}
+            ghcr.io/${{ env.GHCR_NAMESPACE }}/resma-agent:latest
+            ghcr.io/${{ env.GHCR_NAMESPACE }}/resma-agent:${{ steps.version.outputs.VERSION }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

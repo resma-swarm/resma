@@ -53,7 +53,7 @@ version: "3.8"
 
 services:
   resma-api:
-    image: ghcr.io/user/resma:latest
+    image: docker.io/resmaswarm/resma:latest
     environment:
       - RESMA_JWT_SECRET_FILE=/run/secrets/resma_jwt_secret
       - RESMA_ADMIN_PASSWORD_FILE=/run/secrets/resma_admin_password
@@ -78,7 +78,7 @@ services:
           - node.role == manager
 
   resma-ml:
-    image: ghcr.io/user/resma-ml:latest
+    image: docker.io/resmaswarm/resma-ml:latest
     networks:
       - resma-net
     deploy:
@@ -126,7 +126,7 @@ For single-node deployments or local testing without Swarm.
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/USER/resma.git
+git clone https://github.com/resma-swarm/resma.git
 cd resma
 ```
 
@@ -174,7 +174,7 @@ For contributing to RESMA or running it outside Docker.
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/USER/resma.git
+git clone https://github.com/resma-swarm/resma.git
 cd resma
 ```
 

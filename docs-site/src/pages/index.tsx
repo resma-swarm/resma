@@ -126,7 +126,7 @@ function HomepageHeader() {
           </Link>
           <Link
             className="button button--outline button--lg"
-            href="https://github.com/USER/resma">
+            href="https://github.com/resma-swarm/resma">
             GitHub ⭐
           </Link>
         </div>

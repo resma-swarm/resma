@@ -37,7 +37,7 @@ const config: Config = {
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
-            'https://github.com/USER/resma/tree/main/docs-site/',
+            'https://github.com/resma-swarm/resma/tree/main/docs-site/',
         },
         blog: false,
         theme: {
@@ -73,7 +73,7 @@ const config: Config = {
           label: 'API',
         },
         {
-          href: 'https://github.com/USER/resma',
+          href: 'https://github.com/resma-swarm/resma',
           label: 'GitHub',
           position: 'right',
         },
@@ -104,11 +104,11 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/USER/resma',
+              href: 'https://github.com/resma-swarm/resma',
             },
             {
               label: 'Issues',
-              href: 'https://github.com/USER/resma/issues',
+              href: 'https://github.com/resma-swarm/resma/issues',
             },
           ],
         },
@@ -117,7 +117,7 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/USER/resma',
+              href: 'https://github.com/resma-swarm/resma',
             },
           ],
         },

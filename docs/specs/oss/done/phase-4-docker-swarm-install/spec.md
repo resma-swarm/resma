@@ -19,7 +19,7 @@ Tornar a instalação do RESMA em Docker Swarm o mais simples possível: um coma
   ```yaml
   services:
     resma-api:
-      image: ghcr.io/USER/resma-api:latest
+      image: docker.io/resmaswarm/resma-api:latest
       ports:
         - target: 8080
           published: 8080
@@ -32,7 +32,7 @@ Tornar a instalação do RESMA em Docker Swarm o mais simples possível: um coma
         - RESMA_ML_URL=http://resma-ml:8081
         - RESMA_JWT_SECRET_FILE=/run/secrets/resma_jwt_secret
         - RESMA_CORS_ORIGINS=${RESMA_CORS_ORIGINS:-http://localhost:8080}
-        - RESMA_EXCLUDED_IMAGES=ghcr.io/user/resma-api:latest,ghcr.io/user/resma-ml:latest
+        - RESMA_EXCLUDED_IMAGES=docker.io/resmaswarm/resma-api:latest,docker.io/resmaswarm/resma-ml:latest
       secrets:
         - resma_jwt_secret
       deploy:
@@ -57,7 +57,7 @@ Tornar a instalação do RESMA em Docker Swarm o mais simples possível: um coma
         start_period: 10s
 
     resma-ml:
-      image: ghcr.io/USER/resma-ml:latest
+      image: docker.io/resmaswarm/resma-ml:latest
       volumes:
         - resma-data:/data
       environment:
@@ -111,18 +111,18 @@ Tornar a instalação do RESMA em Docker Swarm o mais simples possível: um coma
     ```
   - **Nginx (se usado em vez de Traefik):** `proxy_buffering off; proxy_read_timeout 24h;` para `/api/sse/`
 - **ARM support** (inspirado em Swarmpit `docker-compose.arm.yml`):
-  - Criar `docker-stack.arm.yml` com imagem ARM (`ghcr.io/USER/resma-api:latest-arm64`, `ghcr.io/USER/resma-ml:latest-arm64`)
+  - Criar `docker-stack.arm.yml` com imagem ARM (`docker.io/resmaswarm/resma-api:latest-arm64`, `docker.io/resmaswarm/resma-ml:latest-arm64`)
   - Ou usar multi-arch manifest no GHCR (preferível — 1 imagem para todas as arquiteturas)
 
 ### 4.2 — Criar install.sh + Installer interativo
 
 - **Arquivo:** `install.sh` (raiz)
-- **One-liner:** `curl -fsSL https://raw.githubusercontent.com/USER/resma/main/install.sh | bash`
+- **One-liner:** `curl -fsSL https://raw.githubusercontent.com/resma-swarm/resma/main/install.sh | bash`
 - **Script faz:**
   1. Verifica se Docker está instalado e é manager do Swarm
   2. Gera JWT secret aleatório se não fornecido
   3. Cria Docker secret: `echo "$SECRET" | docker secret create resma_jwt_secret -`
-  4. Faz pull das imagens: `docker pull ghcr.io/USER/resma-api:latest` e `docker pull ghcr.io/USER/resma-ml:latest`
+  4. Faz pull das imagens: `docker pull docker.io/resmaswarm/resma-api:latest` e `docker pull docker.io/resmaswarm/resma-ml:latest`
   5. Deploy: `docker stack deploy -c docker-stack.yml resma`
   6. Aguarda healthcheck: `docker service inspect resma_resma-api --format '{{.UpdateStatus.State}}'` e `docker service inspect resma_resma-ml --format '{{.UpdateStatus.State}}'`
   7. Printa URL: `http://<manager-ip>:8080`
@@ -137,7 +137,7 @@ Tornar a instalação do RESMA em Docker Swarm o mais simples possível: um coma
 
 - **Referência Swarmpit — Installer via Docker run:**
   - Swarmpit oferece `docker run -it --rm --volume /var/run/docker.sock:/var/run/docker.sock swarmpit/install:1.10`
-  - RESMA pode oferecer installer similar: `docker run -it --rm --volume /var/run/docker.sock:/var/run/docker.sock ghcr.io/USER/resma-installer:latest`
+  - RESMA pode oferecer installer similar: `docker run -it --rm --volume /var/run/docker.sock:/var/run/docker.sock docker.io/resmaswarm/resma-installer:latest`
   - Installer interativo pergunta: domínio, porta, JWT secret (gerar ou fornecer), Traefik (sim/não)
   - **Decisão:** Implementar como tarefa futura (pós-v0.1.0) — `install.sh` é suficiente para primeira release
 
@@ -207,7 +207,7 @@ Tornar a instalação do RESMA em Docker Swarm o mais simples possível: um coma
   docker swarm init
 
   # 2. Deploy RESMA
-  curl -fsSL https://raw.githubusercontent.com/USER/resma/main/install.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/resma-swarm/resma/main/install.sh | bash
 
   # 3. Access
   open http://localhost:8080
@@ -219,7 +219,7 @@ Tornar a instalação do RESMA em Docker Swarm o mais simples possível: um coma
 ### 4.7 — Publicar imagens no GitHub Container Registry
 
 - **Arquivo:** `.github/workflows/release.yml` (ver Fase 5)
-- **2 imagens:** `ghcr.io/USER/resma-api:latest` (Go) + `ghcr.io/USER/resma-ml:latest` (Python)
+- **2 imagens:** `docker.io/resmaswarm/resma-api:latest` (Go) + `docker.io/resmaswarm/resma-ml:latest` (Python)
 - **Workflow:**
   ```yaml
   - name: Login to GHCR
@@ -247,7 +247,7 @@ Tornar a instalação do RESMA em Docker Swarm o mais simples possível: um coma
       tags: ghcr.io/${{ github.repository }}-ml:latest,ghcr.io/${{ github.repository }}-ml:${{ github.ref_name }}
   ```
 - **Configurar:** Package visibility = public no GitHub para ambos os packages
-- **Documentar:** `docker pull ghcr.io/USER/resma-api:latest` e `docker pull ghcr.io/USER/resma-ml:latest`
+- **Documentar:** `docker pull docker.io/resmaswarm/resma-api:latest` e `docker pull docker.io/resmaswarm/resma-ml:latest`
 
 ## Critérios de aceite
 

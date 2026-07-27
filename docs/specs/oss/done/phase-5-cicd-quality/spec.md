@@ -39,8 +39,8 @@ Estabelecer pipeline de CI/CD completo no GitHub Actions: lint, testes, build Do
 - **Trigger:** push de tag `v*.*.*`
 - **Jobs:**
   1. Build Docker multi-arch (amd64 + arm64) para **2 imagens**:
-     - `ghcr.io/USER/resma-api:latest`, `:vX.Y.Z`, `:vX.Y`, `:vX`
-     - `ghcr.io/USER/resma-ml:latest`, `:vX.Y.Z`, `:vX.Y`, `:vX`
+     - `docker.io/resmaswarm/resma-api:latest`, `:vX.Y.Z`, `:vX.Y`, `:vX`
+     - `docker.io/resmaswarm/resma-ml:latest`, `:vX.Y.Z`, `:vX.Y`, `:vX`
   2. Criar GitHub Release com notes auto-geradas
   3. Atualizar CHANGELOG.md (opcional — via semantic-release)
 

@@ -1,6 +1,6 @@
 # RESMA — RESource MAnager for Docker Swarm
 
-[![CI](https://github.com/resma/resma/actions/workflows/ci.yml/badge.svg)](https://github.com/resma/resma/actions/workflows/ci.yml)
+[![CI](https://github.com/resma-swarm/resma/actions/workflows/ci.yml/badge.svg)](https://github.com/resma-swarm/resma/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 ![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)
 ![Python Version](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
@@ -41,14 +41,14 @@ Tudo isso com um dashboard interativo, API REST e streaming em tempo real via SS
 docker swarm init
 
 # Instale o RESMA via script
-curl -fsSL https://raw.githubusercontent.com/resma/resma/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/resma-swarm/resma/main/install.sh | bash
 ```
 
 O script cria os secrets do Docker, faz deploy do stack e imprime as credenciais
 do usuário owner (criado via onboarding). Para opções personalizadas:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/resma/resma/main/install.sh | bash -s -- --port 8080 --domain resma.example.com
+curl -fsSL https://raw.githubusercontent.com/resma-swarm/resma/main/install.sh | bash -s -- --port 8080 --domain resma.example.com
 ```
 
 ### Docker Compose (produção local)
@@ -231,4 +231,4 @@ Este projeto está licenciado sob a **Licença MIT** — veja o arquivo
 - [React](https://react.dev/) + [Vite](https://vitejs.dev/) — pela experiência de desenvolvimento do frontend
 - [shadcn/ui](https://ui.shadcn.com/) — pelos componentes de UI acessíveis e elegantes
 - [Contributor Covenant](https://www.contributorcovenant.org/) — pelo Código de Conduta
-- A todos os [contribuidores](https://github.com/resma/resma/graphs/contributors) que dedicam seu tempo ao projeto
+- A todos os [contribuidores](https://github.com/resma-swarm/resma/graphs/contributors) que dedicam seu tempo ao projeto

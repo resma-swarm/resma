@@ -57,7 +57,7 @@ Migrar a camada de API/infraestrutura do RESMA de Python (FastAPI) para Go, mant
 ```yaml
 services:
   resma-api:
-    image: ghcr.io/user/resma-api:latest
+    image: docker.io/resmaswarm/resma-api:latest
     ports:
       - target: 8080
         published: 8080
@@ -82,7 +82,7 @@ services:
           memory: 32M
 
   resma-ml:
-    image: ghcr.io/user/resma-ml:latest
+    image: docker.io/resmaswarm/resma-ml:latest
     volumes:
       - resma-data:/data
     environment:

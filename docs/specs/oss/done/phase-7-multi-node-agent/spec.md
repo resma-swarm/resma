@@ -1036,7 +1036,7 @@ services:
       - resma-net
 
   resma-agent:
-    image: ghcr.io/${RESMA_REGISTRY:-user}/resma-agent:latest
+    image: docker.io/resmaswarm/resma-agent:latest
     deploy:
       mode: global
       resources:
@@ -1054,7 +1054,7 @@ services:
       - RESMA_AGENT_TOKEN_FILE=/run/secrets/resma_agent_token
       - RESMA_NODE_ID={{.Node.ID}}
       - RESMA_NODE_HOSTNAME={{.Node.Hostname}}
-      - RESMA_EXCLUDED_IMAGES=ghcr.io/${RESMA_REGISTRY:-user}/resma-api:latest,ghcr.io/${RESMA_REGISTRY:-user}/resma-ml:latest,ghcr.io/${RESMA_REGISTRY:-user}/resma-agent:latest
+      - RESMA_EXCLUDED_IMAGES=docker.io/resmaswarm/resma-api:latest,docker.io/resmaswarm/resma-ml:latest,docker.io/resmaswarm/resma-agent:latest
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     secrets:

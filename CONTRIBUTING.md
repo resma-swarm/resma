@@ -27,7 +27,7 @@ seguimos e o fluxo para enviar contribuições.
 ### 1. Clone o repositório
 
 ```bash
-git clone https://github.com/resma/resma.git
+git clone https://github.com/resma-swarm/resma.git
 cd resma
 ```
 
@@ -161,7 +161,7 @@ Hooks configurados:
 # Fork o repositório no GitHub, depois:
 git clone https://github.com/SEU_USUARIO/resma.git
 cd resma
-git remote add upstream https://github.com/resma/resma.git
+git remote add upstream https://github.com/resma-swarm/resma.git
 ```
 
 ### 2. Crie uma branch
@@ -341,7 +341,7 @@ docker compose exec go-dev go run ./cmd/smoke-test
 
 ## Dúvidas?
 
-- Abra uma [issue](https://github.com/resma/resma/issues) com a label `question`
+- Abra uma [issue](https://github.com/resma-swarm/resma/issues) com a label `question`
 - Leia a [documentação](docs-site/)
 - Consulte o [Código de Conduta](CODE_OF_CONDUCT.md)
 
