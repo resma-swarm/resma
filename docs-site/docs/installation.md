@@ -1,8 +1,8 @@
 # Installation
 
-RESMA can be deployed in three ways: as a **Docker Swarm service** (recommended
-for production), via **Docker Compose** (for single-node or testing), or
-**locally** for development.
+RESMA can be deployed in three ways: via the **installer container** (recommended
+for production Docker Swarm), via **Docker Compose** (for single-node or testing),
+or **locally** for development.
 
 ---
 
@@ -16,9 +16,75 @@ for production), via **Docker Compose** (for single-node or testing), or
 
 ---
 
-## Method 1: Docker Swarm (Production)
+## Method 1: Installer Container (Production — Recommended)
 
-This is the recommended deployment for production clusters.
+The installer container is the simplest way to deploy RESMA on a Docker Swarm
+cluster. It runs isolated in a container with the Docker socket mounted — no
+`curl | bash`, no dependencies on the host beyond Docker itself.
+
+### One-liner
+
+Run this on any Swarm **manager** node:
+
+```bash
+docker run -it --rm \
+  --name resma-installer \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  resmaswarm/resma-install:latest
+```
+
+The installer will:
+
+1. Validate that Docker Swarm is active and the node is a manager
+2. Generate the `resma_jwt_secret` and `resma_agent_token` Docker secrets
+3. Pull the 3 runtime images (`resma-api`, `resma-ml`, `resma-agent`)
+4. Deploy the stack via `docker stack deploy`
+5. Wait for the API healthcheck to pass
+6. Print the dashboard URL
+
+### Non-interactive mode
+
+For automation or CI, use environment variables instead of prompts:
+
+```bash
+docker run -it --rm \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  -e INTERACTIVE=0 \
+  -e STACK_NAME=resma \
+  -e APP_PORT=8080 \
+  resmaswarm/resma-install:latest
+```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `INTERACTIVE` | `1` | Set to `0` for non-interactive mode |
+| `STACK_NAME` | `resma` | Docker Swarm stack name |
+| `APP_PORT` | `8080` | Published port for the dashboard |
+| `IMAGE_PREFIX` | `docker.io/resmaswarm` | Image namespace (for custom registries) |
+
+### Verify
+
+```bash
+docker service ls
+curl http://localhost:8080/health
+```
+
+The API should respond with `{"status":"ok"}`. The dashboard is available at
+`http://localhost:8080/`.
+
+### Stopping / Removing
+
+```bash
+docker stack rm resma
+docker secret rm resma_jwt_secret resma_agent_token
+```
+
+---
+
+## Method 2: Manual Docker Swarm (Production)
+
+If you prefer to control each step manually instead of using the installer
+container.
 
 ### 1. Initialize Swarm (if not already)
 
@@ -26,85 +92,31 @@ This is the recommended deployment for production clusters.
 docker swarm init
 ```
 
-### 2. Create the RESMA network
+### 2. Create required secrets
 
 ```bash
-docker network create --driver overlay resma-net
+# JWT secret (for auth tokens)
+openssl rand -base64 32 | docker secret create resma_jwt_secret -
+
+# Agent token (for multi-node agents to push metrics)
+openssl rand -hex 32 | docker secret create resma_agent_token -
 ```
 
-### 3. Create required secrets and configs
-
-RESMA needs a JWT secret and an admin password. Create them as Docker secrets:
+### 3. Pull the images
 
 ```bash
-# Generate a random JWT secret
-openssl rand -hex 32 | docker secret create resma_jwt_secret -
-
-# Set the admin password (change this!)
-echo "ChangeMeInProduction!" | docker secret create resma_admin_password -
+docker pull docker.io/resmaswarm/resma-api:latest
+docker pull docker.io/resmaswarm/resma-ml:latest
+docker pull docker.io/resmaswarm/resma-agent:latest
 ```
 
 ### 4. Deploy the stack
 
-Create a `resma-stack.yml` file:
-
-```yaml
-version: "3.8"
-
-services:
-  resma-api:
-    image: docker.io/resmaswarm/resma:latest
-    environment:
-      - RESMA_JWT_SECRET_FILE=/run/secrets/resma_jwt_secret
-      - RESMA_ADMIN_PASSWORD_FILE=/run/secrets/resma_admin_password
-      - RESMA_DUCKDB_PATH=/data/resma.duckdb
-      - RESMA_COLLECTOR_INTERVAL=15s
-      - RESMA_ML_SIDECAR_URL=http://resma-ml:8081
-    secrets:
-      - resma_jwt_secret
-      - resma_admin_password
-    volumes:
-      - resma-data:/data
-    ports:
-      - target: 8080
-        published: 8080
-        mode: ingress
-    networks:
-      - resma-net
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-
-  resma-ml:
-    image: docker.io/resmaswarm/resma-ml:latest
-    networks:
-      - resma-net
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-
-secrets:
-  resma_jwt_secret:
-    external: true
-  resma_admin_password:
-    external: true
-
-volumes:
-  resma-data:
-
-networks:
-  resma-net:
-    external: true
-```
-
-Deploy:
+Download the stack file and deploy:
 
 ```bash
-docker stack deploy -c resma-stack.yml resma
+curl -fsSL https://raw.githubusercontent.com/resma-swarm/resma/main/docker-stack.yml -o docker-stack.yml
+docker stack deploy -c docker-stack.yml resma
 ```
 
 ### 5. Verify
@@ -114,14 +126,17 @@ docker service ls
 curl http://localhost:8080/health
 ```
 
-The API should respond with `{"status":"ok"}`. The dashboard is available at
-`http://localhost:8080/` (served by the API in production mode).
+### Stopping
+
+```bash
+docker stack rm resma
+```
 
 ---
 
-## Method 2: Docker Compose (Single-node / Testing)
+## Method 3: Docker Compose (Dev / Single-node)
 
-For single-node deployments or local testing without Swarm.
+For development or single-node testing with local image builds.
 
 ### 1. Clone the repository
 
@@ -167,7 +182,7 @@ docker stack rm resma
 
 ---
 
-## Method 3: Local Development
+## Method 4: Local Development
 
 For contributing to RESMA or running it outside Docker.
 
