@@ -1,0 +1,168 @@
+# RESMA test-env — serviços para validar coleta de métricas, OOMs, leaks e drifts.
+#
+# Build:   docker compose -f test-env/docker-compose.yml build
+# Deploy:  docker stack deploy -c test-env/docker-compose.yml resma-test
+# Remove:  docker stack rm resma-test
+#
+# Serviços:
+#   dotnet-api / node-api / python-api / web-frontend — APIs reais com limits
+#   load-generator — gera tráfego contra as APIs
+#   leaky-service — simula memory leak (crescimento contínuo de memória)
+#   oom-prone-service — simula OOM (aloca memória até ser morto pelo kernel)
+#   drift-service — simula resource drift (variação de CPU/memória ao longo do tempo)
+#   scenario-simulator — orquestra cenários de teste
+services:
+  dotnet-api:
+    build: ./dotnet-api
+    image: resma-test-dotnet-api:latest
+    ports:
+      - "5001:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+        reservations:
+          cpus: "0.10"
+          memory: 64M
+
+  node-api:
+    build: ./node-api
+    image: resma-test-node-api:latest
+    ports:
+      - "5002:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.30"
+          memory: 128M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+
+  python-api:
+    build: ./python-api
+    image: resma-test-python-api:latest
+    ports:
+      - "5003:5000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:5000/health')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.30"
+          memory: 128M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+
+  web-frontend:
+    build: ./web-frontend
+    image: resma-test-web-frontend:latest
+    ports:
+      - "5174:5174"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.20"
+          memory: 64M
+        reservations:
+          cpus: "0.05"
+          memory: 16M
+
+  load-generator:
+    build: ./load-generator
+    image: resma-test-load-generator:latest
+    depends_on:
+      - dotnet-api
+      - node-api
+      - python-api
+    restart: unless-stopped
+
+  leaky-service:
+    build: ./leaky-service
+    image: resma-test-leaky-service:latest
+    ports:
+      - "5011:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:8080/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.20"
+          memory: 128M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+
+  oom-prone-service:
+    build: ./oom-prone-service
+    image: resma-test-oom-prone-service:latest
+    ports:
+      - "5012:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8080/health')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.20"
+          memory: 64M
+        reservations:
+          cpus: "0.05"
+          memory: 16M
+
+  drift-service:
+    build: ./drift-service
+    image: resma-test-drift-service:latest
+    ports:
+      - "5013:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:8080/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.30"
+          memory: 128M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+
+  scenario-simulator:
+    build: ./scenario-simulator
+    image: resma-test-scenario-simulator:latest
+    depends_on:
+      - leaky-service
+      - oom-prone-service
+      - drift-service
+    restart: unless-stopped
+    environment:
+      # Cadência de OOM: ~2-3 OOMs/hora (intervalo base 1500s = 25min,
+      # jitter ±50% → intervalos entre 12.5 e 37.5 min, média ~2.4 OOMs/hora).
+      # Default anterior era 600s (~6 OOMs/hora) — reduzido para menos agressivo.
+      - OOM_INTERVAL=1500
+      - OOM_JITTER=0.5
+      - OOM_COOLDOWN=60
+      - CYCLE_INTERVAL=8

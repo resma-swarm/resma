@@ -1,0 +1,379 @@
+basePath: /api/v1
+host: localhost:8080
+info:
+  contact: {}
+  description: RESource MAnager for Docker Swarm — API Go com coleta de métricas,
+    ML para recomendações e detecção de memory leaks.
+  title: RESMA API
+  version: "1.0"
+paths:
+  /v1/cluster:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Get cluster info
+      tags:
+      - cluster
+  /v1/containers/{id}/metrics:
+    get:
+      parameters:
+      - description: Container ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 7d
+        description: Time range (e.g. 7d)
+        in: query
+        name: range
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      security:
+      - APIKeyAuth: []
+      summary: Get container metrics
+      tags:
+      - containers
+  /v1/containers/{id}/stats:
+    get:
+      parameters:
+      - description: Container ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Get container statistics
+      tags:
+      - containers
+  /v1/nodes:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      security:
+      - APIKeyAuth: []
+      summary: List all nodes
+      tags:
+      - nodes
+  /v1/nodes/{id}:
+    get:
+      parameters:
+      - description: Node ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Get node details
+      tags:
+      - nodes
+  /v1/nodes/{id}/metrics:
+    get:
+      parameters:
+      - description: Node ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      security:
+      - APIKeyAuth: []
+      summary: Get node metrics
+      tags:
+      - nodes
+  /v1/nodes/{id}/services:
+    get:
+      parameters:
+      - description: Node ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      security:
+      - APIKeyAuth: []
+      summary: Get services running on a node
+      tags:
+      - nodes
+  /v1/recommendations:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      security:
+      - APIKeyAuth: []
+      summary: List all recommendations
+      tags:
+      - recommendations
+  /v1/recommendations/{service}:
+    get:
+      parameters:
+      - description: Service name
+        in: path
+        name: service
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Get recommendation for a service
+      tags:
+      - recommendations
+  /v1/recommendations/storage:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Get storage recommendations
+      tags:
+      - recommendations
+  /v1/services:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      security:
+      - APIKeyAuth: []
+      summary: List all services
+      tags:
+      - services
+  /v1/services/{name}/containers:
+    get:
+      parameters:
+      - description: Service name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      security:
+      - APIKeyAuth: []
+      summary: Get service containers
+      tags:
+      - services
+  /v1/services/{name}/metrics:
+    get:
+      parameters:
+      - description: Service name
+        in: path
+        name: name
+        required: true
+        type: string
+      - default: 7d
+        description: Time range (e.g. 7d)
+        in: query
+        name: range
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      security:
+      - APIKeyAuth: []
+      summary: Get service metrics
+      tags:
+      - services
+  /v1/services/{name}/stats:
+    get:
+      parameters:
+      - description: Service name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - APIKeyAuth: []
+      summary: Get service statistics
+      tags:
+      - services
+  /v1/storage/trend:
+    get:
+      parameters:
+      - default: 7
+        description: Number of days
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      security:
+      - APIKeyAuth: []
+      summary: Get storage trend
+      tags:
+      - storage
+  /v1/storage/volumes/{name}/growth:
+    get:
+      parameters:
+      - description: Volume name
+        in: path
+        name: name
+        required: true
+        type: string
+      - default: 7
+        description: Number of days
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      security:
+      - APIKeyAuth: []
+      summary: Get volume growth (specific volume)
+      tags:
+      - storage
+  /v1/storage/volumes/growth:
+    get:
+      parameters:
+      - default: 7
+        description: Number of days
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      security:
+      - APIKeyAuth: []
+      summary: Get volume growth (all volumes)
+      tags:
+      - storage
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: X-API-Key
+    type: apiKey
+swagger: "2.0"

@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.env
+*.duckdb
+*.duckdb.wal
+data/
+.pnpm-store/
+
+# AI Engineering Framework (local dev only — not part of RESMA product)
+.ai/
+
+# Devin local config (personal overrides)
+.devin/config.local.json
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+go.work.sum
+/app/api/bin/
+/app/api/dist/
+vendor/
+
+build-prod.log
+frontend-dev.log
+
+# Docusaurus
+docs-site/.docusaurus/
+docs-site/build/
+
+# Playwright MCP
+.playwright-mcp/
+
+# Air (Go hot reload)
+app/api/tmp/
+app/api/air-errors.log
+
+# Go binaries (smoke-test, verify-agent, etc.)
+app/api/smoke-test
+app/api/verify-agent
+
+# TypeScript build info
+*.tsbuildinfo
+
+# pnpm artifacts (we use pnpm-lock.yaml, not package-lock.json)
+frontend/package-lock.json
+frontend/pnpm-workspace.yaml

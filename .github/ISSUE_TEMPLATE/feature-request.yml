@@ -1,0 +1,80 @@
+name: Feature Request
+description: Sugira uma nova feature ou melhoria para o RESMA
+title: "[feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Feature Request — RESMA
+
+        Sugira uma nova funcionalidade ou melhoria. Seja específico sobre o problema que resolve.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema / motivação
+      description: Qual problema esta feature resolve? Quem é impactado?
+      placeholder: "Ex: Não consigo ver histórico de mudanças de role de usuários, dificultando auditoria."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Solução proposta
+      description: Descreva o que você gostaria que acontecesse.
+      placeholder: "Ex: Adicionar uma tab 'Audit Log' em /settings/users mostrando mudanças de role com timestamp e autor."
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+      placeholder: "Ex: Exportar change_log via API, mas não é prático para auditoria visual."
+  - type: dropdown
+    id: component
+    attributes:
+      label: Componente principal
+      options:
+        - API Go
+        - Frontend React
+        - ML sidecar
+        - Agent
+        - Docker / Infra
+        - Documentação
+        - Cross-cutting
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - RBAC / Auth
+        - Monitoring
+        - Recommendations / ML
+        - Templates
+        - Schedules
+        - Data retention / Prune
+        - Settings / Config
+        - UI/UX
+        - Performance
+        - Security
+        - Outro
+    validations:
+      required: true
+  - type: dropdown
+    id: roles-affected
+    attributes:
+      label: Roles que se beneficiam
+      multiple: true
+      options:
+        - owner
+        - admin
+        - user
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      options:
+        - label: Concordo em seguir o código de conduta do projeto
+          required: true

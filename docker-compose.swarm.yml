@@ -1,0 +1,120 @@
+# RESMA — Docker Swarm Compose (produção)
+#
+# Arquivo dedicado para deploy via `docker stack deploy`.
+# NÃO usar `docker compose up` com este arquivo — use `docker stack deploy`.
+#
+# Diferenças vs docker-compose.yml (dev):
+#   - Sem `build:` (Swarm não builda — imagens devem ser pré-buildadas)
+#   - Sem `depends_on` (Swarm não suporta — orquestração via restart_policy)
+#   - Com `deploy:` (placement, resources, restart_policy, mode: global)
+#
+# Workflow de deploy (ver scripts/deploy-swarm.ps1 para automação):
+#   1. Build das imagens:  .\scripts\deploy-swarm.ps1
+#      (ou manual: docker build -t resma-api:latest -f app/api/Dockerfile --target runtime .)
+#   2. Deploy do stack:    docker stack deploy -c docker-compose.swarm.yml resma
+#   3. Verificar:          docker stack services resma
+#   4. Logs:               docker service logs resma_api --tail 50 -f
+#   5. Remover:            docker stack rm resma
+#
+# Pré-requisitos:
+#   - Docker Swarm ativo: docker swarm init (manager) ou docker swarm join (worker)
+#   - Imagens buildadas:  .\scripts\deploy-swarm.ps1 (ou docker build manual)
+
+version: "3.8"
+
+services:
+  # ---- Go API runtime (só roda em manager nodes) ----
+  api:
+    image: resma-api:latest
+    ports:
+      - target: 8080
+        published: 8080
+        mode: host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - resma-data:/data
+    environment:
+      - RESMA_DB_PATH=/data/resma.duckdb
+      - RESMA_HTTP_ADDR=:8080
+      - RESMA_ML_URL=http://resma-ml:8081
+      - RESMA_JWT_SECRET=${RESMA_JWT_SECRET:-dev-secret-change-me}
+      - RESMA_COLLECT_INTERVAL=1
+      - RESMA_RETENTION_DAYS=30
+      - RESMA_OUTLIER_THRESHOLD=3.0
+      - RESMA_LEAK_R2_THRESHOLD=0.7
+      - RESMA_LEAK_DAILY_MB_THRESHOLD=10.0
+      - RESMA_ANALYSIS_WINDOW_DAYS=7
+      - RESMA_JWT_ACCESS_TTL_MINUTES=15
+      - RESMA_JWT_REFRESH_TTL_DAYS=7
+      - RESMA_BCRYPT_COST=12
+      - RESMA_LOGIN_RATE_LIMIT=5
+      - RESMA_ML_ENABLED=true
+      - RESMA_EXCLUDED_IMAGES=resma-api:latest
+      - RESMA_CLUSTER_INTERVAL=60
+      - RESMA_STORAGE_INTERVAL=300
+      - RESMA_AGENT_TOKEN=${RESMA_AGENT_TOKEN:-dev-agent-token-change-me}
+      - RESMA_AGENT_TASK_POLL_INTERVAL=15
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+
+  # ---- ML sidecar Python runtime ----
+  # NÃO monta resma-data — o ML sidecar não acessa o DuckDB diretamente.
+  # Ele solicita dados via HTTP ao Go API (/api/internal/*).
+  resma-ml:
+    image: resma-ml:latest
+    environment:
+      - RESMA_API_URL=http://api:8080
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+        reservations:
+          cpus: "0.10"
+          memory: 64M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+
+  # ---- RESMA Agent runtime (global: 1 por node) ----
+  # deploy.mode: global faz 1 replica por node (manager + workers).
+  # Cada agent coleta stats dos containers LOCAIS via Docker socket.
+  resma-agent:
+    image: resma-agent:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - resma-agent-data:/data
+    environment:
+      - RESMA_API_URL=http://api:8080
+      - RESMA_AGENT_TOKEN=${RESMA_AGENT_TOKEN:-dev-agent-token-change-me}
+      - RESMA_COLLECT_INTERVAL=1
+      - RESMA_HEARTBEAT_INTERVAL=60
+      - RESMA_OOM_EVENTS_FILE=/data/events.pending.jsonl
+    deploy:
+      mode: global
+      resources:
+        limits:
+          cpus: "0.10"
+          memory: 32M
+        reservations:
+          cpus: "0.02"
+          memory: 16M
+      restart_policy:
+        condition: on-failure
+        max_attempts: 5
+
+volumes:
+  resma-data:
+  resma-agent-data:
