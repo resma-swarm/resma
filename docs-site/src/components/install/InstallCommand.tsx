@@ -25,10 +25,10 @@ import {Check, Copy} from 'lucide-react';
 import clsx from 'clsx';
 
 type InstallTab = {
-  id: 'installer' | 'swarm' | 'compose' | 'standalone';
+  id: 'installer' | 'standalone';
   label: string;
   /** Linguagem Prism para highlight. */
-  language: 'bash' | 'yaml';
+  language: 'bash';
   /** Comando bruto copiado para o clipboard (sem $ prefix). */
   command: string;
   /** Marca o método recomendado (badge no tab). */
@@ -47,23 +47,17 @@ const tabs: InstallTab[] = [
   resmaswarm/resma-install:latest`,
   },
   {
-    id: 'swarm',
-    label: 'Swarm',
-    language: 'bash',
-    command: 'docker stack deploy -c resma.yml resma',
-  },
-  {
-    id: 'compose',
-    label: 'Compose',
-    language: 'bash',
-    command: 'docker compose up -d',
-  },
-  {
     id: 'standalone',
     label: 'Standalone',
     language: 'bash',
-    command:
-      'git clone https://github.com/resma-swarm/resma.git && cd resma && docker compose -f docker-compose.standalone.yml up -d',
+    command: `# 1. Clone o repositório
+git clone https://github.com/resma-swarm/resma.git
+cd resma
+
+# 2. Suba o stack standalone (sem workers)
+docker compose -f docker-compose.standalone.yml up -d
+
+# 3. Acesse o dashboard em http://localhost:8080`,
   },
 ];
 
@@ -91,7 +85,8 @@ export default function InstallCommand(): React.JSX.Element {
             Install
           </h2>
           <p className="mb-8 text-center text-sm text-muted">
-            One command to deploy RESMA on Docker Swarm, Compose, or standalone.
+            One command to deploy RESMA — installer container (recommended) or
+            standalone dev setup.
           </p>
 
           <div className="rounded-lg border border-hairline bg-surface-2 overflow-hidden">
