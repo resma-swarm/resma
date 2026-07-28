@@ -19,6 +19,9 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/resma/api/internal/auth"
@@ -115,8 +118,38 @@ func (s *Server) Handler() http.Handler {
 		httpSwagger.URL("/swagger/swagger.json"),
 	))
 
+	// --- SPA frontend (estático) ---
+	// Serve o frontend React buildado de /app/web (embutido na imagem Docker).
+	// Em dev, o Vite roda separado na porta 5173 e o diretório não existe.
+	if webDir := cfg.WebDir; webDir != "" {
+		if _, err := os.Stat(webDir); err == nil {
+			mux.Handle("/", s.spaHandler(webDir))
+			s.log.Info("frontend estático servido", "dir", webDir)
+		}
+	}
+
 	// Security headers em todas as respostas (Fase 2.7)
 	return s.securityHeadersMiddleware(mux)
+}
+
+// spaHandler serve arquivos estáticos de um diretório com fallback para
+// index.html (Single Page Application). Rotas /api/*, /health, /swagger/ já
+// estão registradas no mux e têm precedência sobre o catch-all "/".
+func (s *Server) spaHandler(webDir string) http.Handler {
+	fs := http.FileServer(http.Dir(webDir))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := filepath.Join(webDir, filepath.Clean(r.URL.Path))
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			// Arquivo não existe — serve index.html (SPA routing)
+			http.ServeFile(w, r, filepath.Join(webDir, "index.html"))
+			return
+		}
+		// Desabilitar cache para index.html (sempre fresh); assets têm hash no nome
+		if strings.HasSuffix(r.URL.Path, "index.html") {
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		}
+		fs.ServeHTTP(w, r)
+	})
 }
 
 // Start inicia o HTTP server em cfg.HTTPAddr.

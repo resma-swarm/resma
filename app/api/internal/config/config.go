@@ -51,6 +51,7 @@ type Config struct {
 
 	// Server
 	HTTPAddr string // RESMA_HTTP_ADDR — default :8080
+	WebDir   string // RESMA_WEB_DIR — diretório do frontend buildado (produção). Vazio em dev.
 
 	// Security (Fase 2)
 	Env                  string   // RESMA_ENV — "production" | "dev" (default)
@@ -88,6 +89,7 @@ func Load() (*Config, error) {
 		StorageInterval:       getDurationSecs("RESMA_STORAGE_INTERVAL", 300),
 		StaleServiceDays:      getInt("RESMA_STALE_SERVICE_DAYS", 7),
 		HTTPAddr:              getenv("RESMA_HTTP_ADDR", ":8080"),
+		WebDir:                getenv("RESMA_WEB_DIR", ""),
 		Env:                   getenv("RESMA_ENV", "dev"),
 		CORSOrigins:           getCSV("RESMA_CORS_ORIGINS", []string{"http://localhost:5173", "http://localhost:8080"}),
 		DefaultAdminPassword:  getenv("RESMA_DEFAULT_ADMIN_PASSWORD", ""),

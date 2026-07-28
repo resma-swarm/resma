@@ -1,13 +1,12 @@
 # syntax=docker/dockerfile:1.7
 #
-# RESMA API — Go binary (multi-stage, single Dockerfile for dev + prod).
+# RESMA API — Go binary + frontend estático (multi-stage, dev + prod).
 #
 # Targets:
-#   builder  — base compartilhada: compila o binário Go com CGO (go-duckdb)
-#   dev      — herda builder + ferramentas de desenvolvimento (air, delve).
-#              Source montado via volume no compose; iteração rápida sem
-#              rebuildar imagem.
-#   runtime  — produção: debian-slim + binário + libs C mínimas.
+#   frontend  — builda o React app (pnpm) → /out/web (dist estático)
+#   builder   — compila o binário Go com CGO (go-duckdb)
+#   dev       — herda builder + ferramentas de desenvolvimento (air, delve)
+#   runtime   — produção: debian-slim + binário + frontend + libs C mínimas
 #
 # CGO é obrigatório: o driver go-duckdb linka contra a engine C do DuckDB
 # (libduckdb.a prebuilt exige gcc + libstdc++ GNU ABI). O builder usa
@@ -18,9 +17,20 @@
 #   docker build -t resma-api-dev --target dev -f app/api/Dockerfile .
 
 ARG GO_VERSION=1.26
+ARG NODE_VERSION=22
 ARG DEBIAN_TAG=bookworm-slim
 
-# ---------- builder (base compartilhada) ----------
+# ---------- frontend (builda React com pnpm) ----------
+FROM node:${NODE_VERSION}-slim AS frontend
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile || pnpm install
+COPY frontend/ ./
+RUN pnpm build
+# dist/ fica em /app/frontend/dist
+
+# ---------- builder (base compartilhada Go) ----------
 FROM golang:${GO_VERSION}-bookworm AS builder
 
 # gcc já vem na imagem golang:*-bookworm; garantimos apenas libstdc++ dev
@@ -76,7 +86,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder /out/resma-api /usr/local/bin/resma-api
 
+# Frontend estático buildado (React + Vite)
+COPY --from=frontend /app/frontend/dist /app/web
+
 ENV RESMA_HTTP_ADDR=:8080
+ENV RESMA_WEB_DIR=/app/web
 EXPOSE 8080
 
 # Healthcheck via /health (liveness probe — não requer deps)
