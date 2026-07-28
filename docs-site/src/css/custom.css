@@ -98,3 +98,30 @@ html[data-theme='dark'] {
     animation: none !important;
   }
 }
+
+/* T11 (uiux): rede de segurança global prefers-reduced-motion.
+ *
+ * Garante que NENHUMA animação/transição escape do fallback, mesmo se um
+ * componente individual não tratar o caso. Reduz duração a ~0 e desabilita
+ * scroll-behavior suave. Esta regra vem depois dos resets do Infima e do
+ * Tailwind preflight, vencendo por ordem de carga. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* T11 (uiux): focus visible — outline consistente para navegação por teclado.
+ *
+ * Outline brand (azul) com offset 2px. Aparece apenas em navegação por teclado
+ * (:focus-visible), não em clique de mouse (:focus). Garante acessibilidade
+ * WCAG 2.1 AA (criterio 2.4.7 Focus Visible). */
+*:focus-visible {
+  outline: 2px solid var(--resma-brand);
+  outline-offset: 2px;
+}
