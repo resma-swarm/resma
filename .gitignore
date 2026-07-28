@@ -58,3 +58,7 @@ frontend/pnpm-workspace.yaml
 
 # Specs (local working docs — not tracked in git)
 docs/specs/
+
+# Python venv (ML sidecar local dev)
+.venv/
+venv/

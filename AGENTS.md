@@ -3,6 +3,15 @@
 > **RESMA** — RESource MAnager for Docker Swarm.
 > App para gerenciar recursos (CPU/memória) de containers no Docker Swarm com coleta de métricas, análise estatística, ML para recomendações de limites e detecção de memory leaks.
 
+> **AMBIENTE DE DEPLOY (OBRIGATÓRIO):** o RESMA roda em **Docker Swarm**. Em produção,
+> o deploy é feito como **stack** via `docker stack deploy` (ver `scripts/deploy-swarm.ps1`),
+> **NUNCA** como container isolado ou standalone via `docker compose up`. O
+> `docker-compose.yml` (com profiles `dev`/`prod`) e o `docker-compose.standalone.yml`
+> são **apenas para desenvolvimento local** — não são a forma de publicação. Qualquer
+> instrução de deploy, documentação ou script deve tratar o sistema como uma **stack
+> Swarm** (serviços replicados/global, multi-node, rede overlay), não como container
+> único ou compose-up standalone.
+
 ## AI Engineering Framework
 
 **Bootstrap obrigatório:** ler [.ai/AGENTS.md](.ai/AGENTS.md) e executar `.ai/skills/orchestrator/SKILL.md` antes de qualquer tarefa.
