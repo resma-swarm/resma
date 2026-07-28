@@ -121,7 +121,7 @@ func (s *Server) Handler() http.Handler {
 	// --- SPA frontend (estático) ---
 	// Serve o frontend React buildado de /app/web (embutido na imagem Docker).
 	// Em dev, o Vite roda separado na porta 5173 e o diretório não existe.
-	if webDir := cfg.WebDir; webDir != "" {
+	if webDir := s.cfg.WebDir; webDir != "" {
 		if _, err := os.Stat(webDir); err == nil {
 			mux.Handle("/", s.spaHandler(webDir))
 			s.log.Info("frontend estático servido", "dir", webDir)
