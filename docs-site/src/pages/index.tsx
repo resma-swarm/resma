@@ -4,22 +4,46 @@ import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
 import Link from '@docusaurus/Link';
 import Heading from '@theme/Heading';
+import {
+  Activity,
+  BrainCircuit,
+  LayoutDashboard,
+  SearchCheck,
+  Unlock,
+  Webhook,
+} from 'lucide-react';
+import type {LucideIcon} from 'lucide-react';
 
 import AuroraBackground from '../components/hero/AuroraBackground';
 import BadgeStack from '../components/hero/BadgeStack';
 import TerminalMockup from '../components/hero/TerminalMockup';
 import styles from './index.module.css';
 
+// T3 (uiux): Feature cards — bento grid assimétrico com Lucide icons.
+//
+// Substitui os 6 cards antigos (emojis + Infima grid) por um bento grid
+// Tailwind (1 col mobile / 2 col md / 4 col lg) com hairline borders e
+// surface ladder, inspirado em Linear/Komodo. O card "ML Recommendations"
+// é o destaque (2 col x 2 row no desktop) e inclui um callout mono com
+// exemplo de recomendação.
+
 type FeatureItem = {
   title: string;
   description: ReactNode;
-  icon: string;
+  icon: LucideIcon;
+  /** Classes responsivas de col-span/row-span (Tailwind). */
+  span: string;
 };
 
-const features: FeatureItem[] = [
+type LargeFeatureItem = FeatureItem & {
+  callout: ReactNode;
+};
+
+const smallFeatures: FeatureItem[] = [
   {
     title: 'Metrics',
-    icon: '📊',
+    icon: Activity,
+    span: 'col-span-1 md:col-span-1 lg:col-span-2',
     description: (
       <>
         Continuous collection of CPU and memory metrics from Docker Swarm
@@ -29,19 +53,9 @@ const features: FeatureItem[] = [
     ),
   },
   {
-    title: 'ML Recommendations',
-    icon: '🤖',
-    description: (
-      <>
-        Statistical analysis and machine learning models (scikit-learn) suggest
-        optimal resource limits based on historical usage patterns, reducing
-        waste and preventing OOM kills.
-      </>
-    ),
-  },
-  {
     title: 'Leak Detection',
-    icon: '🔍',
+    icon: SearchCheck,
+    span: 'col-span-1 md:col-span-1 lg:col-span-2',
     description: (
       <>
         Automated detection of memory leak signatures using trend analysis and
@@ -52,7 +66,8 @@ const features: FeatureItem[] = [
   },
   {
     title: 'Dashboard',
-    icon: '📈',
+    icon: LayoutDashboard,
+    span: 'col-span-1 md:col-span-1 lg:col-span-1',
     description: (
       <>
         Real-time React dashboard with Server-Sent Events (SSE) streaming.
@@ -63,7 +78,8 @@ const features: FeatureItem[] = [
   },
   {
     title: 'API',
-    icon: '🔌',
+    icon: Webhook,
+    span: 'col-span-1 md:col-span-1 lg:col-span-1',
     description: (
       <>
         Go API with JWT auth for the internal UI and API-key + scopes for the
@@ -74,7 +90,8 @@ const features: FeatureItem[] = [
   },
   {
     title: 'Open Source',
-    icon: '🔓',
+    icon: Unlock,
+    span: 'col-span-1 md:col-span-2 lg:col-span-2',
     description: (
       <>
         MIT-licensed and fully open source. Deploy on Docker Swarm or Docker
@@ -84,15 +101,88 @@ const features: FeatureItem[] = [
   },
 ];
 
-function Feature({title, description, icon}: FeatureItem) {
+const largeFeature: LargeFeatureItem = {
+  title: 'ML Recommendations',
+  icon: BrainCircuit,
+  span: 'col-span-1 md:col-span-2 lg:col-span-2 row-span-1 md:row-span-2 lg:row-span-2',
+  description: (
+    <>
+      Statistical analysis and machine learning models (scikit-learn) suggest
+      optimal resource limits based on historical usage patterns, reducing
+      waste and preventing OOM kills.
+    </>
+  ),
+  callout: (
+    <>
+      Service <span className="text-ink">api</span> should set{' '}
+      <span className="text-accent">memory_limit</span> to 512MB
+      <br />
+      <span className="text-muted">
+        current p95: 420MB · trend: +2.1%/week
+      </span>
+    </>
+  ),
+};
+
+function FeatureIcon({
+  icon: Icon,
+  large = false,
+}: {
+  icon: LucideIcon;
+  large?: boolean;
+}) {
   return (
-    <div className={clsx('col col--4', styles.feature)}>
-      <div className={styles.featureCard}>
-        <div className={styles.featureIcon}>{icon}</div>
-        <Heading as="h3" className={styles.featureTitle}>
-          {title}
-        </Heading>
-        <p className={styles.featureDescription}>{description}</p>
+    <div
+      className={clsx(
+        'mb-4 flex h-10 w-10 items-center justify-center rounded-lg',
+        large
+          ? 'bg-accent/10 text-accent'
+          : 'bg-brand/10 text-brand',
+      )}>
+      <Icon className="h-5 w-5" aria-hidden="true" />
+    </div>
+  );
+}
+
+function FeatureCard({title, description, icon, span}: FeatureItem) {
+  return (
+    <div
+      className={clsx(
+        'group flex flex-col rounded-xl border border-hairline bg-surface-2 p-6',
+        'transition-[border-color,transform] duration-200 ease-out',
+        'hover:border-hairline-strong hover:-translate-y-0.5',
+        span,
+      )}>
+      <FeatureIcon icon={icon} />
+      <Heading
+        as="h3"
+        className="mb-2 text-lg font-semibold tracking-tight text-ink">
+        {title}
+      </Heading>
+      <p className="text-sm leading-relaxed text-body">{description}</p>
+    </div>
+  );
+}
+
+function FeatureCardLarge({title, description, icon, span, callout}: LargeFeatureItem) {
+  return (
+    <div
+      className={clsx(
+        'group flex flex-col rounded-xl border border-hairline p-6',
+        styles.featureCardLarge,
+        'transition-[border-color,transform] duration-200 ease-out',
+        'hover:border-hairline-strong hover:-translate-y-0.5',
+        span,
+      )}>
+      <FeatureIcon icon={icon} large />
+      <Heading
+        as="h3"
+        className="mb-2 text-xl font-semibold tracking-tight text-ink">
+        {title}
+      </Heading>
+      <p className="text-sm leading-relaxed text-body">{description}</p>
+      <div className="mt-4 rounded border border-hairline bg-surface-1 p-3 font-mono text-xs leading-relaxed text-body">
+        {callout}
       </div>
     </div>
   );
@@ -100,11 +190,17 @@ function Feature({title, description, icon}: FeatureItem) {
 
 function HomepageFeatures() {
   return (
-    <section className={styles.features}>
+    <section className="py-20 lg:py-28">
       <div className="container">
-        <div className="row">
-          {features.map((props, idx) => (
-            <Feature key={idx} {...props} />
+        <Heading
+          as="h2"
+          className="mb-12 text-center text-3xl font-semibold tracking-tight text-ink lg:text-4xl">
+          Everything you need to manage Swarm resources
+        </Heading>
+        <div className="grid grid-cols-1 gap-4 auto-rows-fr md:grid-cols-2 lg:grid-cols-4">
+          <FeatureCardLarge {...largeFeature} />
+          {smallFeatures.map((props) => (
+            <FeatureCard key={props.title} {...props} />
           ))}
         </div>
       </div>

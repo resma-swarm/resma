@@ -156,44 +156,24 @@
   }
 }
 
-/* === Features (mantido de T1, será substituído em T3) === */
+/* === Features (T3 — bento grid com Lucide icons) ===
+ *
+ * A maior parte do estilo dos cards vive em utilities Tailwind no JSX
+ * (bg-surface-2, border-hairline, hover:-translate-y-0.5, etc.). Aqui fica
+ * apenas o gradiente do card grande (ML Recommendations), que combina duas
+ * surfaces e não cabe bem em uma utility inline. */
 
-.features {
-  display: flex;
-  align-items: center;
-  padding: 3rem 0;
-  width: 100%;
+.featureCardLarge {
+  background: linear-gradient(
+    135deg,
+    var(--resma-surface-2),
+    var(--resma-surface-3)
+  );
 }
 
-.feature {
-  margin-bottom: 2rem;
-}
-
-.featureCard {
-  height: 100%;
-  padding: 1.5rem;
-  border-radius: 12px;
-  border: 1px solid var(--ifm-color-emphasis-300);
-  background-color: var(--ifm-card-background-color, var(--ifm-background-color));
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.featureCard:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
-
-.featureIcon {
-  font-size: 2.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.featureTitle {
-  margin-bottom: 0.5rem;
-}
-
-.featureDescription {
-  font-size: 0.95rem;
-  line-height: 1.6;
-  color: var(--ifm-color-emphasis-700);
+/* prefers-reduced-motion: desabilitar transform no hover dos cards. */
+@media (prefers-reduced-motion: reduce) {
+  .featureCardLarge {
+    transition: none;
+  }
 }
