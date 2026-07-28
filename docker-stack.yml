@@ -30,18 +30,18 @@ services:
       - RESMA_ML_ENABLED=true
       - RESMA_JWT_SECRET_FILE=/run/secrets/resma_jwt_secret
       - RESMA_CORS_ORIGINS=${RESMA_CORS_ORIGINS:-http://localhost:8080}
-      - RESMA_EXCLUDED_IMAGES=docker.io/resmaswarm/resma-api:latest,docker.io/resmaswarm/resma-ml:latest
-      - RESMA_COLLECT_INTERVAL=1
+      - RESMA_EXCLUDED_IMAGES=docker.io/resmaswarm/resma-api:latest,docker.io/resmaswarm/resma-ml:latest,docker.io/resmaswarm/resma-agent:latest
+      - RESMA_COLLECT_INTERVAL=15
       - RESMA_RETENTION_DAYS=30
-      - RESMA_CLUSTER_INTERVAL=60
-      - RESMA_STORAGE_INTERVAL=300
+      - RESMA_CLUSTER_INTERVAL=300
+      - RESMA_STORAGE_INTERVAL=600
       - RESMA_ANALYSIS_WINDOW_DAYS=7
       - RESMA_BCRYPT_COST=12
       - RESMA_LOGIN_RATE_LIMIT=5
       - RESMA_API_KEY_DEFAULT_SCOPES=read
       - RESMA_API_KEY_RATE_LIMIT=100
       - RESMA_AGENT_TOKEN_FILE=/run/secrets/resma_agent_token
-      - RESMA_AGENT_TASK_POLL_INTERVAL=15
+      - RESMA_AGENT_TASK_POLL_INTERVAL=30
     secrets:
       - resma_jwt_secret
       - resma_agent_token
@@ -51,11 +51,11 @@ services:
           - node.role == manager
       resources:
         limits:
-          cpus: "0.25"
-          memory: 128M
+          cpus: "0.50"
+          memory: 256M
         reservations:
-          cpus: "0.05"
-          memory: 32M
+          cpus: "0.10"
+          memory: 64M
       restart_policy:
         condition: on-failure
         max_attempts: 3
@@ -83,7 +83,7 @@ services:
     # NÃO monta resma-data — o ML sidecar não acessa o DuckDB diretamente.
     # Ele solicita dados via HTTP ao Go API (/api/internal/*).
     environment:
-      - RESMA_API_URL=http://api:8080
+      - RESMA_API_URL=http://resma-api:8080
     deploy:
       resources:
         limits:
@@ -115,7 +115,7 @@ services:
     environment:
       - RESMA_API_URL=http://resma-api:8080
       - RESMA_AGENT_TOKEN_FILE=/run/secrets/resma_agent_token
-      - RESMA_COLLECT_INTERVAL=1
+      - RESMA_COLLECT_INTERVAL=15
       - RESMA_HEARTBEAT_INTERVAL=60
       - RESMA_OOM_EVENTS_FILE=/data/events.pending.jsonl
     secrets:
