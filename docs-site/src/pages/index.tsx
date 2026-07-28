@@ -19,6 +19,7 @@ import BadgeStack from '../components/hero/BadgeStack';
 import TerminalMockup from '../components/hero/TerminalMockup';
 import InstallCommand from '../components/install/InstallCommand';
 import BrowserMockup from '../components/dashboard/BrowserMockup';
+import CodeBlock from '../components/code/CodeBlock';
 import styles from './index.module.css';
 
 // T3 (uiux): Feature cards — bento grid assimétrico com Lucide icons.
@@ -240,6 +241,55 @@ function HomepageDashboard() {
   );
 }
 
+// T6 (uiux): Code Example section — request/response lado a lado.
+//
+// Mostra a API surface do RESMA com 2 CodeBlocks (request.http + response.json)
+// usando prism-react-renderer para syntax highlighting e copy button. O
+// objetivo e comunicar que a API e "automation-friendly": API key + scopes,
+// JSON previsivel, recomendacoes de ML e flag de leak detectado.
+//
+// Grid 1 col no mobile, 2 col no desktop. Posicionado apos Dashboard Mockup
+// (T5) e antes da Comparison Table (T7).
+const requestCode = `GET /api/v1/services/payment-api/recommendations
+Authorization: Bearer resma_ak_XXXXX`;
+
+const responseCode = `{
+  "service": "payment-api",
+  "memory_limit": "512MB",
+  "current_p95": "420MB",
+  "trend": "+2.1%/week",
+  "confidence": 0.94,
+  "leak_detected": false
+}`;
+
+function HomepageCodeExample() {
+  return (
+    <section className="py-20 lg:py-28">
+      <div className="container">
+        <div className="mx-auto max-w-4xl">
+          <Heading
+            as="h2"
+            className="mb-4 text-center text-3xl font-semibold tracking-tight text-ink lg:text-4xl">
+            API designed for automation
+          </Heading>
+          <p className="mx-auto mb-12 max-w-2xl text-center text-body">
+            Public REST API with API key + scopes. Get ML recommendations,
+            metrics, and leak alerts programmatically.
+          </p>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <CodeBlock title="request.http" code={requestCode} language="http" />
+            <CodeBlock
+              title="response.json"
+              code={responseCode}
+              language="json"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function HomepageHeader() {
   const {siteConfig} = useDocusaurusContext();
   return (
@@ -292,6 +342,7 @@ export default function Home(): ReactNode {
         <InstallCommand />
         <HomepageFeatures />
         <HomepageDashboard />
+        <HomepageCodeExample />
       </main>
     </Layout>
   );
