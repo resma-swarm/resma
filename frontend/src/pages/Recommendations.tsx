@@ -26,47 +26,20 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { Input } from "@/components/ui/input"
 import { useFilterStore } from "@/stores/filter-store"
 import { format, parseISO } from "date-fns"
+import { HeroMetric } from "@/components/right-sizing/HeroMetric"
+import { LayerToggle } from "@/components/right-sizing/LayerToggle"
+import { ExplainabilityPanel } from "@/components/right-sizing/ExplainabilityPanel"
+import {
+  calculateHero,
+  riskColorClasses,
+  riskLevelLabel,
+  patternLabel as rsPatternLabel,
+  type Recommendation,
+  type ResourceValues,
+  type TierName,
+} from "@/components/right-sizing/types"
 
-export interface ResourceValues {
-  cpu_limit: number
-  mem_limit: number
-  cpu_reservation: number
-  mem_reservation: number
-}
-
-interface MemoryTrend {
-  slope_bytes_per_hour: number
-  daily_growth_mb: number
-  r_squared: number
-  has_leak: boolean
-}
-
-interface Forecast {
-  days_ahead: number
-  projected_mem: number
-  projected_mem_p99: number
-  slope_bytes_per_hour: number
-}
-
-export interface Recommendation {
-  service: string
-  samples: number
-  status: string
-  stack?: string
-  preset?: string
-  current?: ResourceValues
-  outliers_removed?: number
-  cpu?: { p50: number; p95: number }
-  mem?: { p50: number; p99: number }
-  oom_events?: number
-  has_drift?: boolean
-  pattern?: string
-  memory_trend?: MemoryTrend
-  forecast?: Forecast
-  suggested?: ResourceValues
-  suggested_apply_time?: string | null
-  confidence?: string
-}
+export type { Recommendation, ResourceValues }
 
 interface Schedule {
   id: number
@@ -89,12 +62,7 @@ const confidenceLabel = (conf?: string) => {
   return "Baixa"
 }
 
-const patternLabel = (p?: string) => {
-  if (p === "business_hours") return "Business Hours"
-  if (p === "constant") return "Constante"
-  if (p === "batch") return "Batch"
-  return "Desconhecido"
-}
+const patternLabel = rsPatternLabel
 
 const statusConfig: Record<string, { icon: typeof AlertTriangle; border: string; label: string; labelClass: string }> = {
   unconfigured: { icon: Settings, border: "border-l-warning", label: "Sem configuração", labelClass: "text-warning" },
@@ -502,10 +470,17 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
   const navigate = useNavigate()
   const [editOpen, setEditOpen] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [selectedTier, setSelectedTier] = useState<TierName>("balanced")
   const suggested = rec.suggested ?? { cpu_limit: 0, mem_limit: 0, cpu_reservation: 0, mem_reservation: 0 }
   const current = rec.current ?? { cpu_limit: 0, mem_limit: 0, cpu_reservation: 0, mem_reservation: 0 }
   const sc = getStatusConfig(rec.status)
   const StatusIcon = sc.icon
+
+  // Right-Sizing Studio: tier selecionado determina os valores exibidos
+  const tiers = rec.suggested_tiers
+  const activeTier = tiers ? tiers[selectedTier] : null
+  const displaySuggested = activeTier ?? suggested
+  const displayFreed = activeTier?.resources_freed ?? rec.resources_freed?.balanced
 
   if (rec.status === "collecting_data" || !rec.suggested) {
     return (
@@ -599,6 +574,14 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
                 <span className="text-muted-foreground">{patternLabel(rec.pattern)}</span>
               </>
             )}
+            {rec.risk && (
+              <>
+                <span className="text-muted-foreground/50">·</span>
+                <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded border", riskColorClasses[rec.risk.color])}>
+                  Risco: {riskLevelLabel[rec.risk.level]}
+                </span>
+              </>
+            )}
             {pendingSchedule && (
               <>
                 <span className="text-muted-foreground/50">·</span>
@@ -612,6 +595,34 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
         </CardHeader>
 
         <CardContent className="space-y-2 pt-0">
+          {/* Right-Sizing Studio: LayerToggle (3 camadas) */}
+          {tiers && (
+            <div className="py-1">
+              <LayerToggle
+                value={selectedTier}
+                onChange={setSelectedTier}
+                suggestedTiers={tiers}
+              />
+            </div>
+          )}
+
+          {/* Right-Sizing Studio: Resources freed badge */}
+          {displayFreed && (displayFreed.cpu_cores > 0 || displayFreed.mem_bytes > 0) && (
+            <div className="flex items-center gap-2 text-[11px] bg-primary/5 rounded px-2 py-1">
+              <TrendingDown className="h-3 w-3 text-primary" />
+              <span className="text-muted-foreground">Libera:</span>
+              <span className="font-medium text-primary tabular-nums">
+                {displayFreed.cpu_cores > 0 && `${displayFreed.cpu_cores.toFixed(1)} cores`}
+                {displayFreed.cpu_cores > 0 && displayFreed.mem_bytes > 0 && " · "}
+                {displayFreed.mem_bytes > 0 && formatBytes(displayFreed.mem_bytes)}
+              </span>
+              {displayFreed.cpu_pct > 0 && (
+                <span className="text-muted-foreground text-[10px]">
+                  (CPU -{displayFreed.cpu_pct}% · Mem -{displayFreed.mem_pct}%)
+                </span>
+              )}
+            </div>
+          )}
           {(hasOom || hasLeak || hasDrift) && (
             <div className="space-y-1">
               {hasOom && (
@@ -644,28 +655,50 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
             <CompareRow
               label="CPU Lim"
               currentVal={current.cpu_limit}
-              suggestedVal={suggested.cpu_limit}
+              suggestedVal={displaySuggested.cpu_limit}
               formatVal={(v) => v.toFixed(2)}
             />
             <CompareRow
               label="Mem Lim"
               currentVal={current.mem_limit}
-              suggestedVal={suggested.mem_limit}
+              suggestedVal={displaySuggested.mem_limit}
               formatVal={formatBytes}
             />
             <CompareRow
               label="CPU Res"
               currentVal={current.cpu_reservation}
-              suggestedVal={suggested.cpu_reservation}
+              suggestedVal={displaySuggested.cpu_reservation}
               formatVal={(v) => v.toFixed(2)}
             />
             <CompareRow
               label="Mem Res"
               currentVal={current.mem_reservation}
-              suggestedVal={suggested.mem_reservation}
+              suggestedVal={displaySuggested.mem_reservation}
               formatVal={formatBytes}
             />
           </div>
+
+          {/* Right-Sizing Studio: ExplainabilityPanel */}
+          {rec.explainability && rec.memory_trend && rec.forecast && (
+            <ExplainabilityPanel
+              explainability={rec.explainability}
+              histograms={rec.histograms ?? null}
+              cpuStats={{
+                p50: rec.cpu?.p50 ?? 0,
+                p95: rec.cpu?.p95 ?? 0,
+                p99: rec.cpu?.p99,
+              }}
+              memStats={{
+                p50: rec.mem?.p50 ?? 0,
+                p95: rec.mem?.p95,
+                p99: rec.mem?.p99 ?? 0,
+              }}
+              memoryTrend={rec.memory_trend}
+              forecast={rec.forecast}
+              suggestedMemLimit={displaySuggested.mem_limit}
+              selectedTier={selectedTier}
+            />
+          )}
 
           <div className="flex items-center gap-3 text-[10px] text-muted-foreground border-t pt-2">
             <span><span className="font-medium text-foreground">{rec.samples.toLocaleString()}</span> amostras</span>
@@ -934,6 +967,12 @@ export default function Recommendations() {
           {healthyCount > 0 && <Badge variant="success">{healthyCount} saudáveis</Badge>}
         </div>
       </PageHeader>
+
+      {/* Right-Sizing Studio: Hero Metric */}
+      <HeroMetric
+        data={calculateHero(recs)}
+        loading={isLoading}
+      />
 
       {pendingSchedules && pendingSchedules.length > 0 && (
         <div className="space-y-2">
