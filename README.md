@@ -60,6 +60,28 @@ docker run -it --rm \
   resmaswarm/resma-install:latest
 ```
 
+### Desinstalar
+
+```bash
+docker run -it --rm \
+  --name resma-uninstaller \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  -e MODE=uninstall \
+  resmaswarm/resma-install:latest
+```
+
+Remove o stack, os secrets e a network. Volumes são preservados por padrão
+(prompt pergunta se quer remover). Modo não-interativo com remoção de volumes:
+
+```bash
+docker run -it --rm \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  -e MODE=uninstall \
+  -e INTERACTIVE=0 \
+  -e REMOVE_VOLUMES=1 \
+  resmaswarm/resma-install:latest
+```
+
 ### Docker Compose (dev local)
 
 ```bash

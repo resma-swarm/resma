@@ -239,6 +239,71 @@ curl http://localhost:8080/health
 
 ---
 
+## Uninstall
+
+Remove RESMA from your Docker Swarm cluster using the same installer container
+with `MODE=uninstall`:
+
+### Interactive (recommended)
+
+```bash
+docker run -it --rm \
+  --name resma-uninstaller \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  -e MODE=uninstall \
+  resmaswarm/resma-install:latest
+```
+
+The uninstaller will:
+
+1. Ask for the stack name (default: `resma`)
+2. Ask whether to remove Docker volumes (data will be lost)
+3. Remove the stack via `docker stack rm`
+4. Wait for all services to stop
+5. Remove the `resma_jwt_secret` and `resma_agent_token` Docker secrets
+6. Remove the overlay network (if unused)
+7. Optionally remove the volumes
+
+### Non-interactive (with volume removal)
+
+```bash
+docker run -it --rm \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  -e MODE=uninstall \
+  -e INTERACTIVE=0 \
+  -e STACK_NAME=resma \
+  -e REMOVE_VOLUMES=1 \
+  resmaswarm/resma-install:latest
+```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MODE` | `install` | Set to `uninstall` to remove RESMA |
+| `INTERACTIVE` | `1` | Set to `0` for non-interactive mode |
+| `STACK_NAME` | `resma` | Docker Swarm stack name to remove |
+| `REMOVE_VOLUMES` | `0` | Set to `1` to also remove Docker volumes (data lost) |
+
+### Manual uninstall
+
+```bash
+docker stack rm resma
+docker secret rm resma_jwt_secret resma_agent_token
+docker network rm resma_resma-net  # if exists
+# Optional: remove volumes (data lost)
+docker volume rm resma_resma-data resma_resma-agent-data
+```
+
+Docker images remain on the node after uninstall. Remove them manually if
+needed:
+
+```bash
+docker rmi docker.io/resmaswarm/resma-api:latest
+docker rmi docker.io/resmaswarm/resma-ml:latest
+docker rmi docker.io/resmaswarm/resma-agent:latest
+```
+
+---
+
 ## Post-Install Setup
 
 Regardless of the deployment method, after RESMA is running:

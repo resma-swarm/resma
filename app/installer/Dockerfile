@@ -1,19 +1,25 @@
 # syntax=docker/dockerfile:1.7
 #
-# RESMA Installer — Container installer (padrão SwarmPit).
+# RESMA Installer — Container installer/uninstaller (padrão SwarmPit).
 #
 # Roda isolado num container com Docker CLI + docker.sock montado do host.
 # Gera secrets, faz pull das imagens, deploya o stack e aguarda healthcheck.
 #
-# Uso:
+# Instalar:
 #   docker run -it --rm \
 #     --name resma-installer \
 #     --volume /var/run/docker.sock:/var/run/docker.sock \
 #     resmaswarm/resma-install:latest
 #
+# Desinstalar:
+#   docker run -it --rm \
+#     --name resma-uninstaller \
+#     --volume /var/run/docker.sock:/var/run/docker.sock \
+#     -e MODE=uninstall \
+#     resmaswarm/resma-install:latest
+#
 # Modo não-interativo (env vars):
 #   docker run -it --rm \
-#     --name resma-installer \
 #     --volume /var/run/docker.sock:/var/run/docker.sock \
 #     -e INTERACTIVE=0 \
 #     -e STACK_NAME=resma \
@@ -33,8 +39,10 @@ WORKDIR /install
 # para o stack file (só para pull das imagens de runtime).
 COPY docker-stack.yml ./docker-stack.yml
 COPY app/installer/install.sh ./install.sh
+COPY app/installer/uninstall.sh ./uninstall.sh
+COPY app/installer/entrypoint.sh ./entrypoint.sh
 COPY app/installer/logo.txt ./logo.txt
 
-RUN chmod +x install.sh
+RUN chmod +x install.sh uninstall.sh entrypoint.sh
 
-CMD ["bash", "/install/install.sh"]
+ENTRYPOINT ["/install/entrypoint.sh"]
