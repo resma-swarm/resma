@@ -98,8 +98,10 @@ func (b *Buffer) Cap() int {
 	return b.cap
 }
 
-// Drain retorna todos os pontos em ordem FIFO e limpa o buffer.
-// O caller deve chamar Ack() após confirmar o push bem-sucedido.
+// Drain retorna uma cópia de todos os pontos em ordem FIFO, sem limpar o buffer.
+// O caller deve chamar Ack(n) após confirmar o push bem-sucedido para remover
+// os n pontos mais antigos. Se o push falhar, NÃO chamar Ack — os pontos
+// permanecem no buffer e serão reenviados no próximo ciclo (requeue automático).
 func (b *Buffer) Drain() []MetricPoint {
 	b.mu.Lock()
 	defer b.mu.Unlock()

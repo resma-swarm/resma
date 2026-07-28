@@ -36,7 +36,7 @@ ALERT_DRIFT_THRESHOLD = float(os.environ.get("RESMA_ALERT_DRIFT_THRESHOLD", "0.3
 ALERT_ACTIVE_WINDOW_MIN = int(os.environ.get("RESMA_ALERT_ACTIVE_WINDOW_MIN", "5"))
 
 # URL do Go API para endpoints internos (nome do serviço Docker)
-API_URL = os.environ.get("RESMA_API_URL", "http://go-dev:8080")
+API_URL = os.environ.get("RESMA_API_URL", "http://api:8080")
 
 
 class ResourceRecommender:

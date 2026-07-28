@@ -147,8 +147,8 @@ curl --version
 docker stack deploy -c docker-compose.swarm.yml resma
 
 # Opção B: Docker dev (se precisar de iteração)
-docker compose up -d go-dev
-docker compose exec go-dev go run ./cmd/server
+docker compose up -d api
+docker compose exec api go run ./cmd/server
 ```
 
 Verificar que está rodando:

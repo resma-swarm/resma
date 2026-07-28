@@ -14,6 +14,8 @@
 #   2. Deploy do stack:    docker stack deploy -c docker-compose.swarm.yml resma
 #   3. Verificar:          docker stack services resma
 #   4. Logs:               docker service logs resma_api --tail 50 -f
+#   4b. Logs do agent:     docker service logs resma_agent --tail 50 -f
+#   4c. Logs do ML:        docker service logs resma_ml --tail 50 -f
 #   5. Remover:            docker stack rm resma
 #
 # Pré-requisitos:
@@ -36,9 +38,9 @@ services:
     environment:
       - RESMA_DB_PATH=/data/resma.duckdb
       - RESMA_HTTP_ADDR=:8080
-      - RESMA_ML_URL=http://resma-ml:8081
+      - RESMA_ML_URL=http://ml:8081
       - RESMA_JWT_SECRET=${RESMA_JWT_SECRET:-dev-secret-change-me}
-      - RESMA_COLLECT_INTERVAL=1
+      - RESMA_COLLECT_INTERVAL=10
       - RESMA_RETENTION_DAYS=30
       - RESMA_OUTLIER_THRESHOLD=3.0
       - RESMA_LEAK_R2_THRESHOLD=0.7
@@ -72,7 +74,7 @@ services:
   # ---- ML sidecar Python runtime ----
   # NÃO monta resma-data — o ML sidecar não acessa o DuckDB diretamente.
   # Ele solicita dados via HTTP ao Go API (/api/internal/*).
-  resma-ml:
+  ml:
     image: resma-ml:latest
     environment:
       - RESMA_API_URL=http://api:8080
@@ -91,11 +93,11 @@ services:
   # ---- RESMA Agent runtime (global: 1 por node) ----
   # deploy.mode: global faz 1 replica por node (manager + workers).
   # Cada agent coleta stats dos containers LOCAIS via Docker socket.
-  resma-agent:
+  agent:
     image: resma-agent:latest
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - resma-agent-data:/data
+      - agent-data:/data
     environment:
       - RESMA_API_URL=http://api:8080
       - RESMA_AGENT_TOKEN=${RESMA_AGENT_TOKEN:-dev-agent-token-change-me}
@@ -117,4 +119,4 @@ services:
 
 volumes:
   resma-data:
-  resma-agent-data:
+  agent-data:

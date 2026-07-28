@@ -1,6 +1,6 @@
 #!/bin/sh
 # Teste de integração SSE — verifica que eventos reais chegam nos tópicos.
-# Uso: docker compose exec go-dev sh /src/scripts/test-sse.sh
+# Uso: docker compose exec api sh /src/scripts/test-sse.sh
 set -e
 BASE=http://localhost:8080
 COOKIE_JAR=/tmp/sse-cookies.txt

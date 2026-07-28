@@ -36,7 +36,7 @@ type Config struct {
 	LoginRateLimit int           // RESMA_LOGIN_RATE_LIMIT (tentativas/min)
 
 	// ML sidecar
-	MLURL     string // RESMA_ML_URL — ex: http://resma-ml:8081
+	MLURL     string // RESMA_ML_URL — ex: http://ml:8081
 	MLEnabled bool   // RESMA_ML_ENABLED
 
 	// Docker
@@ -71,7 +71,7 @@ type Config struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		DBPath:                getenv("RESMA_DB_PATH", "data/resma.duckdb"),
-		CollectInterval:       getDurationSecs("RESMA_COLLECT_INTERVAL", 1),
+		CollectInterval:       getDurationSecs("RESMA_COLLECT_INTERVAL", 10),
 		RetentionDays:         getInt("RESMA_RETENTION_DAYS", 30),
 		OutlierThreshold:      getFloat("RESMA_OUTLIER_THRESHOLD", 3.0),
 		LeakR2Threshold:       getFloat("RESMA_LEAK_R2_THRESHOLD", 0.7),

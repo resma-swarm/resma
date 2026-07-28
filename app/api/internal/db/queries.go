@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/marcboeker/go-duckdb"
 )
 
 // ---------------------------------------------------------------------------
@@ -809,17 +811,70 @@ type ContainerNodeMapRow struct {
 }
 
 // UpsertContainerNodeMapBatch faz upsert em lote de mapeamentos container→nó.
+//
+// Pattern: temp table + Appender + MERGE INTO (bypassa SQL parser no insert,
+// faz upsert em single statement). ~10x-180x mais rápido que INSERT 1-por-1.
+// Ver docs/specs/oss/phase-perf-ingest/spec.md seção 3.1.
 func (s *Store) UpsertContainerNodeMapBatch(ctx context.Context, rows []ContainerNodeMapRow) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	for _, r := range rows {
-		if _, err := s.db.ExecContext(ctx,
-			`INSERT OR REPLACE INTO container_node_map (container_id, node_id, service, updated_at)
-			 VALUES (?, ?, ?, now())`,
-			r.ContainerID, r.NodeID, r.Service); err != nil {
-			return err
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire conn for upsert: %w", err)
+	}
+	defer conn.Close()
+
+	// Temp table é session-scoped (dropped on conn close). Criar/clear por batch.
+	if _, err := conn.ExecContext(ctx,
+		`CREATE TEMP TABLE IF NOT EXISTS _cnm_staging (
+			container_id VARCHAR,
+			node_id      VARCHAR,
+			service      VARCHAR,
+			updated_at   TIMESTAMP
+		)`); err != nil {
+		return fmt.Errorf("create staging: %w", err)
+	}
+	if _, err := conn.ExecContext(ctx, `DELETE FROM _cnm_staging`); err != nil {
+		return fmt.Errorf("clear staging: %w", err)
+	}
+
+	// Appender para popular staging (ultra rápido, bypassa SQL parser).
+	now := time.Now()
+	if err := func() error {
+		var app *duckdb.Appender
+		if err := conn.Raw(func(driverConn any) error {
+			dc, ok := driverConn.(*duckdb.Conn)
+			if !ok {
+				return fmt.Errorf("driver conn is %T, not *duckdb.Conn", driverConn)
+			}
+			var aerr error
+			app, aerr = duckdb.NewAppenderFromConn(dc, "", "_cnm_staging")
+			return aerr
+		}); err != nil {
+			return fmt.Errorf("new appender for staging: %w", err)
 		}
+		defer app.Close()
+		for _, r := range rows {
+			if err := app.AppendRow(r.ContainerID, r.NodeID, r.Service, now); err != nil {
+				return fmt.Errorf("append staging row: %w", err)
+			}
+		}
+		return app.Flush()
+	}(); err != nil {
+		return err
+	}
+
+	// MERGE: insere novos, atualiza existentes (single statement, usa PK).
+	_, err = conn.ExecContext(ctx,
+		`INSERT INTO container_node_map (container_id, node_id, service, updated_at)
+		 SELECT container_id, node_id, service, updated_at FROM _cnm_staging
+		 ON CONFLICT (container_id) DO UPDATE SET
+		     node_id = excluded.node_id,
+		     service = excluded.service,
+		     updated_at = excluded.updated_at`)
+	if err != nil {
+		return fmt.Errorf("merge into container_node_map: %w", err)
 	}
 	return nil
 }

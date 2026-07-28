@@ -20,7 +20,7 @@ Usuários adicionais são criados via UI em Configurações → Usuários ou via
 
 > **Nota:** O usuário `admin` com senha `admin123` (Fase 2) foi substituído
 > pelo role `owner` na Fase 8 (RBAC). O onboarding agora cria `owner` em vez
-> de `admin`. Para resetar o DB e fazer onboarding fresh, pare o go-dev,
+> de `admin`. Para resetar o DB e fazer onboarding fresh, pare o api,
 > apague `data/resma.duckdb` e `data/resma.duckdb.wal`, e reinicie.
 
 ## Stack

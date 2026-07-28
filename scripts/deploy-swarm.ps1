@@ -70,6 +70,7 @@ docker service ls | Where-Object { $_ -match $StackName }
 Write-Host "`n[DEPLOY] Concluido. Comandos uteis:" -ForegroundColor Cyan
 Write-Host "  docker service ls                              # ver todos services"
 Write-Host "  docker stack services $StackName               # ver services do stack"
-Write-Host "  docker service logs ${StackName}_api --tail 50 -f   # logs da API"
-Write-Host "  docker service logs ${StackName}_resma-agent --tail 50 -f  # logs do agent"
+Write-Host "  docker service logs ${StackName}_api --tail 50 -f        # logs da API"
+Write-Host "  docker service logs ${StackName}_agent --tail 50 -f      # logs do agent"
+Write-Host "  docker service logs ${StackName}_ml --tail 50 -f         # logs do ML"
 Write-Host "  docker stack rm $StackName                     # remover stack"

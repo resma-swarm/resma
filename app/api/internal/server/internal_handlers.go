@@ -3,7 +3,7 @@
 // Estes endpoints (/api/internal/*) expõem dados do DuckDB para o ML sidecar
 // Python via HTTP, evitando o lock exclusivo do DuckDB quando ambos processos
 // sobem juntos. As rotas NÃO usam JWT — são acessadas apenas dentro da rede
-// Docker pelo ML sidecar (http://go-dev:8080/api/internal/*).
+// Docker pelo ML sidecar (http://api:8080/api/internal/*).
 package server
 
 import (

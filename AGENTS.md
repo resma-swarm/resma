@@ -56,21 +56,21 @@ O Go API expõe endpoints internos (`/api/internal/*`) sem JWT (apenas rede Dock
 | Área | Comando | Onde rodar |
 |------|---------|------------|
 | **Tudo (dev multi-node)** | `docker compose up -d` | Host — sobe API + ML + frontend + 5 agents (default) |
-| API Go dev (Docker) | `docker compose up -d go-dev` | Host — go-dev inicia automaticamente com air (hot reload) |
-| API Go build (Docker) | `docker compose exec go-dev go build ./...` | Container go-dev |
-| API Go test (Docker) | `docker compose exec go-dev go test ./...` | Container go-dev |
-| API Go logs | `docker compose logs -f go-dev` | Host |
+| API Go dev (Docker) | `docker compose up -d api` | Host — api inicia automaticamente com air (hot reload) |
+| API Go build (Docker) | `docker compose exec api go build ./...` | Container api |
+| API Go test (Docker) | `docker compose exec api go test ./...` | Container api |
+| API Go logs | `docker compose logs -f api` | Host |
 | Frontend logs | `docker compose logs -f frontend-dev` | Host |
 | API Go prod (Swarm) | `.\scripts\deploy-swarm.ps1` | Host — build + docker stack deploy |
 | Frontend dev (host) | `pnpm dev` (em `frontend/`) | Host — alternativa ao container frontend-dev |
 | Frontend build | `pnpm build` (em `frontend/`) | Host |
 | Docs-site dev | `pnpm start` (em `docs-site/`) | Host |
 | Docs-site build | `pnpm build` (em `docs-site/`) | Host |
-| **RESMA Agent dev** | `docker compose up -d agent-dev` | Host — agent-dev coleta stats locais e faz push para go-dev |
+| **RESMA Agent dev** | `docker compose up -d agent-dev` | Host — agent-dev coleta stats locais e faz push para api |
 | **Dev standalone** | `docker compose -f docker-compose.standalone.yml up -d` | Host — dev sem workers (1 agent apenas) |
-| **Smoke test** | `docker compose exec go-dev go run ./cmd/smoke-test` | Container go-dev — 32 testes end-to-end |
+| **Smoke test** | `docker compose exec api go run ./cmd/smoke-test` | Container api — 32 testes end-to-end |
 
-> **Go é buildado e executado PRIMARIAMENTE em Docker** (container `go-dev` no profile `dev`). O Go instalado no host Windows (`C:\Program Files\Go\bin\go.exe`) é apenas fallback para validações rápidas. O motivo: go-duckdb requer CGO + gcc com ABI GNU libstdc++ (Debian), que não está disponível no Windows nativo. Sempre prefira Docker para build/test/run do Go.
+> **Go é buildado e executado PRIMARIAMENTE em Docker** (container `api` no profile `dev`). O Go instalado no host Windows (`C:\Program Files\Go\bin\go.exe`) é apenas fallback para validações rápidas. O motivo: go-duckdb requer CGO + gcc com ABI GNU libstdc++ (Debian), que não está disponível no Windows nativo. Sempre prefira Docker para build/test/run do Go.
 
 ## Contexto do projeto
 
@@ -110,16 +110,16 @@ containers locais via Docker socket e faz push HTTP para o Go API no manager.
 
 ### 1. Go é executado em Docker, não no host
 
-- **Build, test e run do Go acontecem dentro do container `go-dev`** (profile `dev` do docker-compose.yml)
-- O container `go-dev` herda do target `dev` do `app/api/Dockerfile` (golang:1.26-bookworm + gcc para CGO)
+- **Build, test e run do Go acontecem dentro do container `api`** (profile `dev` do docker-compose.yml)
+- O container `api` herda do target `dev` do `app/api/Dockerfile` (golang:1.26-bookworm + gcc para CGO)
 - **Nunca** tente buildar o Go localmente no Windows como passo principal — go-duckdb requer CGO com ABI GNU libstdc++ que não existe no Windows nativo
 - O Go no host (`C:\Program Files\Go\bin\go.exe`) é apenas para validações rápidas de sintaxe (`go vet`, `gofmt`) — não para build/test completos
 - Comandos padrão:
   ```bash
-  docker compose up -d go-dev          # sobe container
-  docker compose exec go-dev go build ./...   # build
-  docker compose exec go-dev go test ./...    # test
-  docker compose exec go-dev go run ./cmd/server  # run
+  docker compose up -d api          # sobe container
+  docker compose exec api go build ./...   # build
+  docker compose exec api go test ./...    # test
+  docker compose exec api go run ./cmd/server  # run
   ```
 
 ### 2. Use subagents sempre que possível
@@ -231,9 +231,9 @@ Dentro da Fase 0b, a ordem é:
 ### 7. Validação obrigatória após cada tarefa
 
 Após completar cada tarefa (0b.2, 0b.3, etc.):
-1. `docker compose exec go-dev go build ./...` — deve compilar sem erros
-2. `docker compose exec go-dev go vet ./...` — sem warnings
-3. `docker compose exec go-dev gofmt -l .` — sem arquivos não formatados
+1. `docker compose exec api go build ./...` — deve compilar sem erros
+2. `docker compose exec api go vet ./...` — sem warnings
+3. `docker compose exec api gofmt -l .` — sem arquivos não formatados
 4. Smoke test dos endpoints implementados (curl dentro do container ou do host)
 5. Atualizar o checkbox da tarefa na spec 0b
 

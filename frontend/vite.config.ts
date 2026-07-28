@@ -3,7 +3,7 @@ import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
-// Quando rodando em Docker, o target do proxy deve ser o nome do serviço (go-dev:8080).
+// Quando rodando em Docker, o target do proxy deve ser o nome do serviço (api:8080).
 // Quando rodando no host, deve ser localhost:8080.
 const apiTarget = process.env.VITE_PROXY_TARGET || "http://localhost:8080"
 
