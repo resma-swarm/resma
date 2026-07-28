@@ -20,7 +20,7 @@ import {
   CalendarClock, Calendar as CalendarIcon, Trash2, Database, HardDrive,
 } from "lucide-react"
 import { toast } from "sonner"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
@@ -29,6 +29,8 @@ import { format, parseISO } from "date-fns"
 import { HeroMetric } from "@/components/right-sizing/HeroMetric"
 import { LayerToggle } from "@/components/right-sizing/LayerToggle"
 import { ExplainabilityPanel } from "@/components/right-sizing/ExplainabilityPanel"
+import { ResourceSlider } from "@/components/right-sizing/ResourceSlider"
+import { WhatIfPanel } from "@/components/right-sizing/WhatIfPanel"
 import {
   calculateHero,
   riskColorClasses,
@@ -471,6 +473,7 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
   const [editOpen, setEditOpen] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [selectedTier, setSelectedTier] = useState<TierName>("balanced")
+  const [showWhatIf, setShowWhatIf] = useState(false)
   const suggested = rec.suggested ?? { cpu_limit: 0, mem_limit: 0, cpu_reservation: 0, mem_reservation: 0 }
   const current = rec.current ?? { cpu_limit: 0, mem_limit: 0, cpu_reservation: 0, mem_reservation: 0 }
   const sc = getStatusConfig(rec.status)
@@ -481,6 +484,18 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
   const activeTier = tiers ? tiers[selectedTier] : null
   const displaySuggested = activeTier ?? suggested
   const displayFreed = activeTier?.resources_freed ?? rec.resources_freed?.balanced
+
+  // What-if state: inicializa com o tier selecionado, reseta ao trocar tier
+  const [whatIfCpu, setWhatIfCpu] = useState(displaySuggested.cpu_limit)
+  const [whatIfMem, setWhatIfMem] = useState(displaySuggested.mem_limit)
+  // Reset when tier changes (useEffect via key trick — simpler: derive from displaySuggested)
+  const whatIfKey = `${selectedTier}-${rec.service}`
+  const whatIfKeyRef = useRef(whatIfKey)
+  if (whatIfKeyRef.current !== whatIfKey) {
+    whatIfKeyRef.current = whatIfKey
+    setWhatIfCpu(displaySuggested.cpu_limit)
+    setWhatIfMem(displaySuggested.mem_limit)
+  }
 
   if (rec.status === "collecting_data" || !rec.suggested) {
     return (
@@ -698,6 +713,53 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
               suggestedMemLimit={displaySuggested.mem_limit}
               selectedTier={selectedTier}
             />
+          )}
+
+          {/* Right-Sizing Studio: What-If toggle + sliders + panel */}
+          {rec.cpu && rec.mem && (current.cpu_limit > 0 || current.mem_limit > 0) && (
+            <div className="space-y-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-between text-xs"
+                onClick={() => setShowWhatIf(!showWhatIf)}
+              >
+                <span className="text-muted-foreground">
+                  {showWhatIf ? "Ocultar simulação" : "Simular configuração"}
+                </span>
+                {showWhatIf ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              </Button>
+              {showWhatIf && (
+                <>
+                  <ResourceSlider
+                    cpuCores={whatIfCpu}
+                    memBytes={whatIfMem}
+                    cpuMin={0.1}
+                    cpuMax={Math.max(current.cpu_limit * 2, displaySuggested.cpu_limit * 2, 1)}
+                    memMin={16 * 1e6}
+                    memMax={Math.max(current.mem_limit * 2, displaySuggested.mem_limit * 2, 256 * 1e6)}
+                    cpuCurrent={current.cpu_limit}
+                    memCurrent={current.mem_limit}
+                    cpuSuggested={displaySuggested.cpu_limit}
+                    memSuggested={displaySuggested.mem_limit}
+                    onCpuChange={setWhatIfCpu}
+                    onMemChange={setWhatIfMem}
+                  />
+                  <WhatIfPanel
+                    service={rec.service}
+                    whatIfCpu={whatIfCpu}
+                    whatIfMem={whatIfMem}
+                    currentCpu={current.cpu_limit}
+                    currentMem={current.mem_limit}
+                    p95Cpu={rec.cpu.p95}
+                    p99Mem={rec.mem.p99}
+                    forecastP99={rec.forecast?.projected_mem_p99 ?? 0}
+                    oomEvents={rec.oom_events ?? 0}
+                    hasLeak={rec.memory_trend?.has_leak ?? false}
+                  />
+                </>
+              )}
+            </div>
           )}
 
           <div className="flex items-center gap-3 text-[10px] text-muted-foreground border-t pt-2">
