@@ -1,52 +1,74 @@
-// T4 (uiux): Seção Install com tabs Swarm/Compose/Standalone e copy button.
+// T4 (uiux): Seção Install com tabs Installer/Swarm/Compose/Standalone e copy button.
 //
-// Bloco copiável que reduz barreira de entrada: 3 tabs para os métodos de
-// deploy (Docker Swarm default, Docker Compose, Standalone dev) e um botão
-// de copiar com feedback visual (Copy -> Check por 2s).
+// Bloco copiável que reduz barreira de entrada. O método recomendado é o
+// installer container (docker run resmaswarm/resma-install:latest), que
+// aparece como primeira tab. Os demais métodos (Swarm, Compose, Standalone)
+// ficam como alternativas.
+//
+// Syntax highlighting via prism-react-renderer (já é dependência do
+// Docusaurus) com tema dracula — mesmo darkTheme configurado em
+// docusaurus.config.ts. A linguagem por tab é declarada em `language` e
+// o Prism tokeniza o comando; o copy button copia o texto bruto.
 //
 // Estilo segue a surface ladder do redesign (canvas -> surface-1 -> surface-2
 // -> surface-3) com hairline borders. Sem animação de typewriter (T9) e sem
 // tracking de evento (T10) — fora de escopo desta task.
 //
 // Referências:
-//   - react-install-command (https://github.com/TimMikeladze/react-install-command)
+//   - prism-react-renderer (https://github.com/FormidableLabs/prism-react-renderer)
 //   - Coolify install section (https://coolify.io)
 //   - shadcn Tabs pattern (https://ui.shadcn.com/docs/components/tabs)
-//
-// Decisão: implementar tabs custom com shadcn pattern + navigator.clipboard
-// (não usar a lib react-install-command para evitar dependência extra).
 
 import {useState} from 'react';
+import {Highlight, themes} from 'prism-react-renderer';
 import {Check, Copy} from 'lucide-react';
 import clsx from 'clsx';
 
 type InstallTab = {
-  id: 'swarm' | 'compose' | 'standalone';
+  id: 'installer' | 'swarm' | 'compose' | 'standalone';
   label: string;
+  /** Linguagem Prism para highlight. */
+  language: 'bash' | 'yaml';
+  /** Comando bruto copiado para o clipboard (sem $ prefix). */
   command: string;
+  /** Marca o método recomendado (badge no tab). */
+  recommended?: boolean;
 };
 
 const tabs: InstallTab[] = [
   {
+    id: 'installer',
+    label: 'Installer',
+    language: 'bash',
+    recommended: true,
+    command: `docker run -it --rm \\
+  --name resma-installer \\
+  --volume /var/run/docker.sock:/var/run/docker.sock \\
+  resmaswarm/resma-install:latest`,
+  },
+  {
     id: 'swarm',
     label: 'Swarm',
+    language: 'bash',
     command: 'docker stack deploy -c resma.yml resma',
   },
   {
     id: 'compose',
     label: 'Compose',
+    language: 'bash',
     command: 'docker compose up -d',
   },
   {
     id: 'standalone',
     label: 'Standalone',
+    language: 'bash',
     command:
       'git clone https://github.com/resma-swarm/resma.git && cd resma && docker compose -f docker-compose.standalone.yml up -d',
   },
 ];
 
 export default function InstallCommand(): React.JSX.Element {
-  const [active, setActive] = useState<InstallTab['id']>('swarm');
+  const [active, setActive] = useState<InstallTab['id']>('installer');
   const [copied, setCopied] = useState(false);
 
   const activeTab = tabs.find((t) => t.id === active) ?? tabs[0];
@@ -90,33 +112,36 @@ export default function InstallCommand(): React.JSX.Element {
                     id={`install-tab-${tab.id}`}
                     onClick={() => setActive(tab.id)}
                     className={clsx(
-                      'flex-shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                      'flex-shrink-0 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
                       isActive
                         ? 'bg-surface-3 text-ink'
                         : 'text-muted hover:text-body',
                     )}>
                     {tab.label}
+                    {tab.recommended && (
+                      <span
+                        className="rounded bg-brand-accent/15 px-1 py-px text-[10px] font-semibold uppercase tracking-wide text-brand-accent"
+                        title="Recommended">
+                        rec
+                      </span>
+                    )}
                   </button>
                 );
               })}
             </div>
 
-            {/* Command + copy */}
+            {/* Command + copy com syntax highlight */}
             <div
               role="tabpanel"
               id={`install-panel-${activeTab.id}`}
               aria-labelledby={`install-tab-${activeTab.id}`}
-              className="flex items-center gap-3 px-4 py-4 font-mono text-sm">
-              <span className="flex-shrink-0 text-brand-accent">$</span>
-              <code className="flex-1 break-all text-body">
-                {activeTab.command}
-              </code>
+              className="relative">
               <button
                 type="button"
                 onClick={handleCopy}
                 aria-label={copied ? 'Copied' : 'Copy command'}
                 className={clsx(
-                  'flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-md',
+                  'absolute top-3 right-3 z-10 flex items-center justify-center h-8 w-8 rounded-md',
                   'border border-hairline bg-surface-3 text-muted',
                   'hover:text-ink hover:border-hairline-strong transition-colors',
                   copied && 'text-success border-success/40',
@@ -127,6 +152,43 @@ export default function InstallCommand(): React.JSX.Element {
                   <Copy className="h-4 w-4" aria-hidden="true" />
                 )}
               </button>
+              <Highlight
+                theme={themes.dracula}
+                code={activeTab.command}
+                language={activeTab.language}>
+                {({className, style, tokens, getLineProps, getTokenProps}) => (
+                  <pre
+                    className={clsx(
+                      className,
+                      'px-4 py-4 pr-12 overflow-x-auto font-mono text-sm leading-relaxed',
+                      // override fundo do tema dracula para surface-2 do redesign
+                      '!bg-transparent',
+                    )}
+                    style={{...style, background: 'transparent'}}>
+                    {tokens.map((line, i) => {
+                      const lineProps = getLineProps({line});
+                      return (
+                        <div
+                          key={i}
+                          {...lineProps}
+                          className={clsx(lineProps.className, 'table-row')}>
+                          <span
+                            aria-hidden="true"
+                            className="table-cell select-none pr-4 text-right text-muted/60">
+                            {i + 1}
+                          </span>
+                          <span className="table-cell">
+                            {line.map((token, key) => {
+                              const tokenProps = getTokenProps({token});
+                              return <span key={key} {...tokenProps} />;
+                            })}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </pre>
+                )}
+              </Highlight>
             </div>
           </div>
         </div>
