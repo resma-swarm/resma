@@ -70,3 +70,31 @@ html[data-theme='dark'] {
   --ifm-footer-background-color: var(--resma-surface-1);
   --docusaurus-highlighted-code-line-bg: rgba(37, 99, 235, 0.25);
 }
+
+/* T8 (uiux): Border Beam keyframes + @property.
+ *
+ * @property registra --beam-angle como <angle> animável, permitindo ao
+ * navegador interpolá-la no keyframe beam-rotate. Suporte: Chrome 85+,
+ * Firefox 128+, Safari 16.4+. Fallback: se @property não for suportado,
+ * o beam aparece estático (arco fixo na borda) — graceful degradation.
+ *
+ * prefers-reduced-motion: desabilita a rotação para usuários sensíveis a
+ * movimento (acessibilidade). O beam some (animation: none) em vez de
+ * congelar em um frame arbitrário. */
+@property --beam-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes beam-rotate {
+  to {
+    --beam-angle: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [style*='beam-rotate'] {
+    animation: none !important;
+  }
+}

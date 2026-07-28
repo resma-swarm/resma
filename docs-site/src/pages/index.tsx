@@ -23,6 +23,7 @@ import TerminalMockup from '../components/hero/TerminalMockup';
 import InstallCommand from '../components/install/InstallCommand';
 import BrowserMockup from '../components/dashboard/BrowserMockup';
 import CodeBlock from '../components/code/CodeBlock';
+import GlowingCard from '../components/effects/GlowingCard';
 import styles from './index.module.css';
 
 // T3 (uiux): Feature cards — bento grid assimétrico com Lucide icons.
@@ -172,9 +173,9 @@ function FeatureCard({title, description, icon, span}: FeatureItem) {
 
 function FeatureCardLarge({title, description, icon, span, callout}: LargeFeatureItem) {
   return (
-    <div
+    <GlowingCard
       className={clsx(
-        'group flex flex-col rounded-xl border border-hairline p-6',
+        'flex flex-col rounded-xl border border-hairline p-6',
         styles.featureCardLarge,
         'transition-[border-color,transform] duration-200 ease-out',
         'hover:border-hairline-strong hover:-translate-y-0.5',
@@ -190,7 +191,7 @@ function FeatureCardLarge({title, description, icon, span, callout}: LargeFeatur
       <div className="mt-4 rounded border border-hairline bg-surface-1 p-3 font-mono text-xs leading-relaxed text-body">
         {callout}
       </div>
-    </div>
+    </GlowingCard>
   );
 }
 

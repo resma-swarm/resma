@@ -2,11 +2,13 @@
 //
 // Layout split do hero — lado direito mostra um terminal estilizado com a
 // saída de `docker stack deploy -c resma.yml resma`. Sem animação de
-// typewriter nesta task (T9 adiciona). Border beam fica para T8.
+// typewriter nesta task (T9 adiciona). Border beam (T8) aplicado na borda.
 //
 // Estrutura:
 //   header  -> 3 dots (red/yellow/green) + título ~/resma -- zsh
 //   body    -> prompt $ em accent green + output em text-body + success em --resma-success
+
+import BorderBeam from '../effects/BorderBeam';
 
 type TerminalLine = {
   text: string;
@@ -30,7 +32,9 @@ const dotStyles: Record<'red' | 'yellow' | 'green', string> = {
 
 export default function TerminalMockup(): React.JSX.Element {
   return (
-    <div className="rounded-lg border border-hairline bg-surface-2 shadow-2xl shadow-black/40 overflow-hidden font-mono text-sm">
+    <div className="relative rounded-lg border border-hairline bg-surface-2 shadow-2xl shadow-black/40 overflow-hidden font-mono text-sm">
+      {/* T8: border beam — beam de luz viajando na borda. */}
+      <BorderBeam />
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-hairline bg-surface-3">
         <span className={`h-3 w-3 rounded-full ${dotStyles.red}`} />
