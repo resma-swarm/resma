@@ -24,6 +24,7 @@ import InstallCommand from '../components/install/InstallCommand';
 import BrowserMockup from '../components/dashboard/BrowserMockup';
 import CodeBlock from '../components/code/CodeBlock';
 import GlowingCard from '../components/effects/GlowingCard';
+import Reveal from '../components/animations/Reveal';
 import styles from './index.module.css';
 
 // T3 (uiux): Feature cards — bento grid assimétrico com Lucide icons.
@@ -462,11 +463,21 @@ export default function Home(): ReactNode {
       description="RESource MAnager for Docker Swarm — metrics, ML recommendations, and memory leak detection.">
       <HomepageHeader />
       <main>
-        <InstallCommand />
-        <HomepageFeatures />
-        <HomepageDashboard />
-        <HomepageCodeExample />
-        <HomepageComparisonTable />
+        <Reveal>
+          <InstallCommand />
+        </Reveal>
+        <Reveal delay={0.1}>
+          <HomepageFeatures />
+        </Reveal>
+        <Reveal>
+          <HomepageDashboard />
+        </Reveal>
+        <Reveal delay={0.1}>
+          <HomepageCodeExample />
+        </Reveal>
+        <Reveal>
+          <HomepageComparisonTable />
+        </Reveal>
       </main>
     </Layout>
   );

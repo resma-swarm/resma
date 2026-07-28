@@ -1,14 +1,18 @@
 // T2 (uiux): Terminal mockup estático para o hero.
 //
 // Layout split do hero — lado direito mostra um terminal estilizado com a
-// saída de `docker stack deploy -c resma.yml resma`. Sem animação de
-// typewriter nesta task (T9 adiciona). Border beam (T8) aplicado na borda.
+// saída de `docker stack deploy -c resma.yml resma`. T9 adiciona animação
+// de typewriter (digitação) iniciada quando o terminal entra no viewport.
+// T8 adiciona border beam na borda.
 //
 // Estrutura:
 //   header  -> 3 dots (red/yellow/green) + título ~/resma -- zsh
 //   body    -> prompt $ em accent green + output em text-body + success em --resma-success
 
+import {useRef} from 'react';
+import {useInView} from 'framer-motion';
 import BorderBeam from '../effects/BorderBeam';
+import Typewriter from '../animations/Typewriter';
 
 type TerminalLine = {
   text: string;
@@ -30,9 +34,29 @@ const dotStyles: Record<'red' | 'yellow' | 'green', string> = {
   green: 'bg-[#3ecf8e]',
 };
 
+function renderLine(line: TerminalLine): React.JSX.Element {
+  if (line.variant === 'prompt') {
+    return (
+      <span className="text-body">
+        <span className="text-[#3ecf8e]">$</span>{' '}
+        <span>{line.text}</span>
+      </span>
+    );
+  }
+  if (line.variant === 'success') {
+    return <span className="text-success">{line.text}</span>;
+  }
+  return <span className="text-body">{line.text}</span>;
+}
+
 export default function TerminalMockup(): React.JSX.Element {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, {once: true, margin: '-50px'});
+
   return (
-    <div className="relative rounded-lg border border-hairline bg-surface-2 shadow-2xl shadow-black/40 overflow-hidden font-mono text-sm">
+    <div
+      ref={ref}
+      className="relative rounded-lg border border-hairline bg-surface-2 shadow-2xl shadow-black/40 overflow-hidden font-mono text-sm">
       {/* T8: border beam — beam de luz viajando na borda. */}
       <BorderBeam />
       {/* Header */}
@@ -42,26 +66,9 @@ export default function TerminalMockup(): React.JSX.Element {
         <span className={`h-3 w-3 rounded-full ${dotStyles.green}`} />
         <span className="ml-2 text-xs text-muted">~/resma -- zsh</span>
       </div>
-      {/* Body */}
-      <div className="px-4 py-4 space-y-1.5">
-        {lines.map((line, idx) => {
-          if (line.variant === 'prompt') {
-            return (
-              <div key={idx} className="text-body">
-                <span className="text-[#3ecf8e]">$</span>{' '}
-                <span>{line.text}</span>
-              </div>
-            );
-          }
-          if (line.variant === 'success') {
-            return (
-              <div key={idx} className="text-success">
-                {line.text}
-              </div>
-            );
-          }
-          return <div key={idx} className="text-body">{line.text}</div>;
-        })}
+      {/* Body — T9: typewriter iniciado quando in-view. */}
+      <div className="px-4 py-4">
+        <Typewriter lines={lines} start={inView} renderLine={renderLine} />
       </div>
     </div>
   );
