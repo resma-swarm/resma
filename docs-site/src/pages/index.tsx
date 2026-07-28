@@ -18,6 +18,7 @@ import AuroraBackground from '../components/hero/AuroraBackground';
 import BadgeStack from '../components/hero/BadgeStack';
 import TerminalMockup from '../components/hero/TerminalMockup';
 import InstallCommand from '../components/install/InstallCommand';
+import BrowserMockup from '../components/dashboard/BrowserMockup';
 import styles from './index.module.css';
 
 // T3 (uiux): Feature cards — bento grid assimétrico com Lucide icons.
@@ -209,6 +210,36 @@ function HomepageFeatures() {
   );
 }
 
+// T5 (uiux): Dashboard browser mockup section.
+//
+// Mostra o produto em ação dentro de um browser frame custom. Screenshot
+// estático (SVG) do dashboard RESMA — sidebar, KPIs, time-series chart,
+// ML recommendations panel e services table. Posicionado após Features.
+function HomepageDashboard() {
+  return (
+    <section className="py-20 lg:py-28">
+      <div className="container">
+        <div className="mx-auto max-w-4xl">
+          <Heading
+            as="h2"
+            className="mb-4 text-center text-3xl font-semibold tracking-tight text-ink lg:text-4xl">
+            Real-time dashboard
+          </Heading>
+          <p className="mx-auto mb-12 max-w-2xl text-center text-body">
+            Visualize resource trends, ML recommendations, and leak alerts
+            across all Swarm services. Updates in real-time via SSE.
+          </p>
+          <BrowserMockup
+            url="resma.local:8080/dashboard"
+            screenshot="/img/dashboard-screenshot.svg"
+            alt="RESMA dashboard showing CPU and memory time-series, ML recommendations, and services table"
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function HomepageHeader() {
   const {siteConfig} = useDocusaurusContext();
   return (
@@ -260,6 +291,7 @@ export default function Home(): ReactNode {
       <main>
         <InstallCommand />
         <HomepageFeatures />
+        <HomepageDashboard />
       </main>
     </Layout>
   );

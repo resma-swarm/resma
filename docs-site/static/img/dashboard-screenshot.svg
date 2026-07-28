@@ -1,0 +1,243 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" width="1280" height="800" role="img" aria-label="RESMA dashboard preview">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a0a0f"/>
+      <stop offset="1" stop-color="#0f1014"/>
+    </linearGradient>
+    <linearGradient id="brandLine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2563eb" stop-opacity="0.1"/>
+      <stop offset="0.5" stop-color="#2563eb" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#3ecf8e" stop-opacity="0.9"/>
+    </linearGradient>
+    <linearGradient id="memLine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3ecf8e" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#3ecf8e" stop-opacity="0.9"/>
+    </linearGradient>
+    <linearGradient id="areaCpu" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2563eb" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#2563eb" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="areaMem" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3ecf8e" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#3ecf8e" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Canvas -->
+  <rect width="1280" height="800" fill="url(#bg)"/>
+
+  <!-- Sidebar -->
+  <rect x="0" y="0" width="220" height="800" fill="#0f1014"/>
+  <rect x="220" y="0" width="1" height="800" fill="#23252a"/>
+
+  <!-- Sidebar logo -->
+  <g transform="translate(24,28)">
+    <rect width="28" height="28" rx="7" fill="#2563eb"/>
+    <path d="M8 14 L14 8 L20 14 L14 20 Z" fill="#0a0a0f"/>
+    <text x="40" y="20" font-family="Inter,system-ui,sans-serif" font-size="15" font-weight="600" fill="#f4f4f6">RESMA</text>
+  </g>
+
+  <!-- Sidebar nav items -->
+  <g font-family="Inter,system-ui,sans-serif" font-size="13" fill="#878787">
+    <g transform="translate(24,90)">
+      <rect x="-8" y="-4" width="188" height="32" rx="7" fill="#18191d"/>
+      <rect x="-8" y="-4" width="3" height="32" rx="2" fill="#2563eb"/>
+      <text x="8" y="16" fill="#f4f4f6" font-weight="500">Dashboard</text>
+    </g>
+    <text x="24" y="146">Services</text>
+    <text x="24" y="180">Tasks</text>
+    <text x="24" y="214">Agents</text>
+    <text x="24" y="248">Recommendations</text>
+    <text x="24" y="282">Leak Alerts</text>
+    <text x="24" y="316">Settings</text>
+  </g>
+
+  <!-- Sidebar footer (node status) -->
+  <g transform="translate(24,750)" font-family="Inter,system-ui,sans-serif" font-size="11" fill="#878787">
+    <circle cx="4" cy="4" r="4" fill="#3ecf8e"/>
+    <text x="16" y="8">5 nodes · 12 services</text>
+  </g>
+
+  <!-- Top bar -->
+  <rect x="220" y="0" width="1060" height="56" fill="#0f1014"/>
+  <rect x="220" y="56" width="1060" height="1" fill="#23252a"/>
+  <text x="248" y="34" font-family="Inter,system-ui,sans-serif" font-size="16" font-weight="600" fill="#f4f4f6">Dashboard</text>
+  <text x="248" y="50" font-family="Inter,system-ui,sans-serif" font-size="11" fill="#878787">Real-time resource overview · SSE live</text>
+
+  <!-- Top right: search + avatar -->
+  <rect x="1100" y="16" width="160" height="24" rx="6" fill="#18191d" stroke="#23252a"/>
+  <text x="1112" y="32" font-family="Inter,system-ui,sans-serif" font-size="11" fill="#878787">Search services...</text>
+  <circle cx="1080" cy="28" r="12" fill="#2563eb"/>
+  <text x="1080" y="32" font-family="Inter,system-ui,sans-serif" font-size="11" font-weight="600" fill="#0a0a0f" text-anchor="middle">R</text>
+
+  <!-- KPI cards row -->
+  <g transform="translate(248,80)">
+    <!-- Card 1: Services -->
+    <rect width="240" height="92" rx="10" fill="#141519" stroke="#23252a"/>
+    <text x="16" y="28" font-family="Inter,system-ui,sans-serif" font-size="11" fill="#878787">SERVICES</text>
+    <text x="16" y="62" font-family="Inter,system-ui,sans-serif" font-size="28" font-weight="600" fill="#f4f4f6">12</text>
+    <text x="16" y="80" font-family="Inter,system-ui,sans-serif" font-size="11" fill="#3ecf8e">+2 this week</text>
+
+    <!-- Card 2: CPU p95 -->
+    <rect x="256" width="240" height="92" rx="10" fill="#141519" stroke="#23252a"/>
+    <text x="272" y="28" font-family="Inter,system-ui,sans-serif" font-size="11" fill="#878787">CPU p95</text>
+    <text x="272" y="62" font-family="Inter,system-ui,sans-serif" font-size="28" font-weight="600" fill="#f4f4f6">38%</text>
+    <text x="272" y="80" font-family="Inter,system-ui,sans-serif" font-size="11" fill="#878787">across swarm</text>
+
+    <!-- Card 3: Memory p95 -->
+    <rect x="512" width="240" height="92" rx="10" fill="#141519" stroke="#23252a"/>
+    <text x="528" y="28" font-family="Inter,system-ui,sans-serif" font-size="11" fill="#878787">MEMORY p95</text>
+    <text x="528" y="62" font-family="Inter,system-ui,sans-serif" font-size="28" font-weight="600" fill="#f4f4f6">4.2 GB</text>
+    <text x="528" y="80" font-family="Inter,system-ui,sans-serif" font-size="11" fill="#f59e0b">+2.1% / week</text>
+
+    <!-- Card 4: OOM risk -->
+    <rect x="768" width="240" height="92" rx="10" fill="#141519" stroke="#23252a"/>
+    <text x="784" y="28" font-family="Inter,system-ui,sans-serif" font-size="11" fill="#878787">OOM RISK</text>
+    <text x="784" y="62" font-family="Inter,system-ui,sans-serif" font-size="28" font-weight="600" fill="#f4f4f6">1</text>
+    <text x="784" y="80" font-family="Inter,system-ui,sans-serif" font-size="11" fill="#ef4444">api · leak suspected</text>
+  </g>
+
+  <!-- Main chart: CPU & Memory time-series -->
+  <g transform="translate(248,196)">
+    <rect width="780" height="280" rx="10" fill="#141519" stroke="#23252a"/>
+    <text x="20" y="32" font-family="Inter,system-ui,sans-serif" font-size="14" font-weight="600" fill="#f4f4f6">CPU &amp; Memory · last 24h</text>
+
+    <!-- Legend -->
+    <g transform="translate(640,22)" font-family="Inter,system-ui,sans-serif" font-size="11">
+      <rect width="10" height="10" rx="2" fill="#2563eb"/>
+      <text x="16" y="9" fill="#cdcdcd">CPU %</text>
+      <rect x="62" width="10" height="10" rx="2" fill="#3ecf8e"/>
+      <text x="78" y="9" fill="#cdcdcd">Mem MB</text>
+    </g>
+
+    <!-- Grid lines -->
+    <g stroke="#23252a" stroke-width="1">
+      <line x1="40" y1="70" x2="760" y2="70"/>
+      <line x1="40" y1="120" x2="760" y2="120"/>
+      <line x1="40" y1="170" x2="760" y2="170"/>
+      <line x1="40" y1="220" x2="760" y2="220"/>
+    </g>
+
+    <!-- Y axis labels -->
+    <g font-family="Inter,system-ui,sans-serif" font-size="10" fill="#878787" text-anchor="end">
+      <text x="34" y="74">100</text>
+      <text x="34" y="124">75</text>
+      <text x="34" y="174">50</text>
+      <text x="34" y="224">25</text>
+      <text x="34" y="254">0</text>
+    </g>
+
+    <!-- CPU area + line -->
+    <path d="M40,220 L100,200 L160,210 L220,180 L280,190 L340,160 L400,170 L460,150 L520,140 L580,160 L640,130 L700,120 L760,140 L760,250 L40,250 Z" fill="url(#areaCpu)"/>
+    <path d="M40,220 L100,200 L160,210 L220,180 L280,190 L340,160 L400,170 L460,150 L520,140 L580,160 L640,130 L700,120 L760,140" fill="none" stroke="#2563eb" stroke-width="2"/>
+
+    <!-- Memory area + line -->
+    <path d="M40,180 L100,175 L160,170 L220,165 L280,160 L340,150 L400,145 L460,140 L520,130 L580,125 L640,115 L700,110 L760,100 L760,250 L40,250 Z" fill="url(#areaMem)"/>
+    <path d="M40,180 L100,175 L160,170 L220,165 L280,160 L340,150 L400,145 L460,140 L520,130 L580,125 L640,115 L700,110 L760,100" fill="none" stroke="#3ecf8e" stroke-width="2"/>
+
+    <!-- X axis labels -->
+    <g font-family="Inter,system-ui,sans-serif" font-size="10" fill="#878787" text-anchor="middle">
+      <text x="40" y="268">00:00</text>
+      <text x="220" y="268">06:00</text>
+      <text x="400" y="268">12:00</text>
+      <text x="580" y="268">18:00</text>
+      <text x="760" y="268">now</text>
+    </g>
+  </g>
+
+  <!-- Right panel: ML recommendations -->
+  <g transform="translate(1044,196)">
+    <rect width="188" height="280" rx="10" fill="#141519" stroke="#23252a"/>
+    <text x="16" y="28" font-family="Inter,system-ui,sans-serif" font-size="13" font-weight="600" fill="#f4f4f6">ML Recs</text>
+
+    <!-- Rec item 1 -->
+    <g transform="translate(16,48)">
+      <rect width="156" height="64" rx="7" fill="#18191d" stroke="#23252a"/>
+      <text x="10" y="20" font-family="JetBrains Mono,monospace" font-size="11" fill="#f4f4f6">api</text>
+      <text x="10" y="36" font-family="JetBrains Mono,monospace" font-size="10" fill="#3ecf8e">mem → 512MB</text>
+      <text x="10" y="52" font-family="Inter,system-ui,sans-serif" font-size="9" fill="#878787">p95 420 · +2.1%/w</text>
+    </g>
+
+    <!-- Rec item 2 -->
+    <g transform="translate(16,124)">
+      <rect width="156" height="64" rx="7" fill="#18191d" stroke="#23252a"/>
+      <text x="10" y="20" font-family="JetBrains Mono,monospace" font-size="11" fill="#f4f4f6">worker</text>
+      <text x="10" y="36" font-family="JetBrains Mono,monospace" font-size="10" fill="#3ecf8e">cpu → 250m</text>
+      <text x="10" y="52" font-family="Inter,system-ui,sans-serif" font-size="9" fill="#878787">p95 180m · stable</text>
+    </g>
+
+    <!-- Rec item 3 -->
+    <g transform="translate(16,200)">
+      <rect width="156" height="64" rx="7" fill="#18191d" stroke="#23252a"/>
+      <text x="10" y="20" font-family="JetBrains Mono,monospace" font-size="11" fill="#f4f4f6">ml-sidecar</text>
+      <text x="10" y="36" font-family="JetBrains Mono,monospace" font-size="10" fill="#3ecf8e">mem → 1GB</text>
+      <text x="10" y="52" font-family="Inter,system-ui,sans-serif" font-size="9" fill="#878787">p95 880 · +0.4%/w</text>
+    </g>
+  </g>
+
+  <!-- Bottom: services table -->
+  <g transform="translate(248,496)">
+    <rect width="1008" height="268" rx="10" fill="#141519" stroke="#23252a"/>
+    <text x="20" y="32" font-family="Inter,system-ui,sans-serif" font-size="14" font-weight="600" fill="#f4f4f6">Services</text>
+
+    <!-- Table header -->
+    <g transform="translate(20,52)" font-family="Inter,system-ui,sans-serif" font-size="11" fill="#878787">
+      <text x="0" y="12">SERVICE</text>
+      <text x="200" y="12">CPU</text>
+      <text x="320" y="12">MEMORY</text>
+      <text x="480" y="12">OOM</text>
+      <text x="560" y="12">RECOMMENDATION</text>
+      <text x="900" y="12">STATUS</text>
+    </g>
+    <line x1="20" y1="76" x2="988" y2="76" stroke="#23252a"/>
+
+    <!-- Rows -->
+    <g font-family="Inter,system-ui,sans-serif" font-size="12" fill="#cdcdcd">
+      <g transform="translate(20,96)">
+        <text x="0" y="0" font-family="JetBrains Mono,monospace" fill="#f4f4f6">api</text>
+        <text x="200" y="0">42%</text>
+        <text x="320" y="0">420 MB</text>
+        <text x="480" y="0" fill="#ef4444">2</text>
+        <text x="560" y="0" fill="#3ecf8e">mem_limit → 512MB</text>
+        <circle cx="908" cy="-4" r="4" fill="#f59e0b"/>
+        <text x="918" y="0" fill="#f59e0b">leak</text>
+      </g>
+      <g transform="translate(20,128)">
+        <text x="0" y="0" font-family="JetBrains Mono,monospace" fill="#f4f4f6">worker</text>
+        <text x="200" y="0">18%</text>
+        <text x="320" y="0">180 MB</text>
+        <text x="480" y="0" fill="#3ecf8e">0</text>
+        <text x="560" y="0" fill="#3ecf8e">cpu_limit → 250m</text>
+        <circle cx="908" cy="-4" r="4" fill="#3ecf8e"/>
+        <text x="918" y="0" fill="#3ecf8e">ok</text>
+      </g>
+      <g transform="translate(20,160)">
+        <text x="0" y="0" font-family="JetBrains Mono,monospace" fill="#f4f4f6">ml-sidecar</text>
+        <text x="200" y="0">31%</text>
+        <text x="320" y="0">880 MB</text>
+        <text x="480" y="0" fill="#3ecf8e">0</text>
+        <text x="560" y="0" fill="#3ecf8e">mem_limit → 1GB</text>
+        <circle cx="908" cy="-4" r="4" fill="#3ecf8e"/>
+        <text x="918" y="0" fill="#3ecf8e">ok</text>
+      </g>
+      <g transform="translate(20,192)">
+        <text x="0" y="0" font-family="JetBrains Mono,monospace" fill="#f4f4f6">agent</text>
+        <text x="200" y="0">6%</text>
+        <text x="320" y="0">48 MB</text>
+        <text x="480" y="0" fill="#3ecf8e">0</text>
+        <text x="560" y="0" fill="#878787">—</text>
+        <circle cx="908" cy="-4" r="4" fill="#3ecf8e"/>
+        <text x="918" y="0" fill="#3ecf8e">ok</text>
+      </g>
+      <g transform="translate(20,224)">
+        <text x="0" y="0" font-family="JetBrains Mono,monospace" fill="#f4f4f6">frontend</text>
+        <text x="200" y="0">12%</text>
+        <text x="320" y="0">96 MB</text>
+        <text x="480" y="0" fill="#3ecf8e">0</text>
+        <text x="560" y="0" fill="#878787">—</text>
+        <circle cx="908" cy="-4" r="4" fill="#3ecf8e"/>
+        <text x="918" y="0" fill="#3ecf8e">ok</text>
+      </g>
+    </g>
+  </g>
+</svg>
