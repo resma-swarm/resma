@@ -5,6 +5,9 @@ import Layout from '@theme/Layout';
 import Link from '@docusaurus/Link';
 import Heading from '@theme/Heading';
 
+import AuroraBackground from '../components/hero/AuroraBackground';
+import BadgeStack from '../components/hero/BadgeStack';
+import TerminalMockup from '../components/hero/TerminalMockup';
 import styles from './index.module.css';
 
 type FeatureItem = {
@@ -112,23 +115,38 @@ function HomepageFeatures() {
 function HomepageHeader() {
   const {siteConfig} = useDocusaurusContext();
   return (
-    <header className={clsx('hero hero--primary', styles.heroBanner)}>
-      <div className="container">
-        <Heading as="h1" className="hero__title">
-          {siteConfig.title}
-        </Heading>
-        <p className="hero__subtitle">{siteConfig.tagline}</p>
-        <div className={styles.buttons}>
-          <Link
-            className="button button--secondary button--lg"
-            to="/docs/introduction">
-            Get Started 🚀
-          </Link>
-          <Link
-            className="button button--outline button--lg"
-            href="https://github.com/resma-swarm/resma">
-            GitHub ⭐
-          </Link>
+    <header className={clsx(styles.heroSplit, 'hero')}>
+      <AuroraBackground />
+      <div className={clsx('container', styles.heroContainer)}>
+        <div className={styles.heroGrid}>
+          {/* Coluna esquerda: badges + H1 + subheadline + CTAs */}
+          <div className={styles.heroLeft}>
+            <BadgeStack />
+            <Heading as="h1" className={styles.heroTitle}>
+              {siteConfig.title}
+            </Heading>
+            <p className={styles.heroSubtitle}>{siteConfig.tagline}</p>
+            <p className={styles.heroTagline}>
+              Metrics, ML-driven resource recommendations, and memory leak
+              detection for Docker Swarm — open source and self-hosted.
+            </p>
+            <div className={styles.heroButtons}>
+              <Link
+                className={clsx(styles.ctaPrimary, 'button')}
+                to="/docs/introduction">
+                Get Started
+              </Link>
+              <Link
+                className={clsx(styles.ctaSecondary, 'button')}
+                href="https://github.com/resma-swarm/resma">
+                Star on GitHub
+              </Link>
+            </div>
+          </div>
+          {/* Coluna direita: terminal mockup (oculto no mobile) */}
+          <div className={styles.heroRight}>
+            <TerminalMockup />
+          </div>
         </div>
       </div>
     </header>

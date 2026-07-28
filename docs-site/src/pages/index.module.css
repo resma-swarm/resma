@@ -1,22 +1,162 @@
 /**
  * CSS files with the .module.css suffix will be treated as CSS modules
  * and scoped locally.
+ *
+ * T2 (uiux): hero split layout. Substitui o `.heroBanner` default do Infima
+ * por um layout split (texto à esquerda, terminal à direita) com aurora bg.
+ * As utilities do Tailwind cuidam da maior parte do estilo dentro do JSX;
+ * aqui ficam apenas regras que precisam de CSS variables/pseudo-classes que
+ * não cabem bem em utilities inline (CTAs pill com hover/glow, grid responsivo).
  */
 
-.heroBanner {
-  padding: 4rem 0;
-  text-align: center;
+.heroSplit {
   position: relative;
   overflow: hidden;
+  padding: 5rem 0 4rem;
+  background: var(--resma-canvas);
 }
 
-.buttons {
+@media (min-width: 1024px) {
+  .heroSplit {
+    padding: 7rem 0 6rem;
+  }
+}
+
+.heroContainer {
+  position: relative;
+  z-index: 1;
+}
+
+.heroGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.5rem;
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  .heroGrid {
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 3rem;
+  }
+}
+
+.heroLeft {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.heroTitle {
+  margin: 0.5rem 0 0;
+  font-size: 3rem;
+  line-height: 1.05;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--resma-ink);
+}
+
+@media (min-width: 1024px) {
+  .heroTitle {
+    font-size: 3.75rem;
+  }
+}
+
+.heroSubtitle {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--resma-ink);
+}
+
+@media (min-width: 1024px) {
+  .heroSubtitle {
+    font-size: 1.5rem;
+  }
+}
+
+.heroTagline {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: var(--resma-body);
+  max-width: 36rem;
+}
+
+.heroButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+/* CTAs estilo pill — spec T2. */
+.ctaPrimary {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
-  margin-top: 2rem;
+  background: var(--resma-brand);
+  color: #ffffff;
+  padding: 0.75rem 1.5rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 1rem;
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
+
+.ctaPrimary:hover {
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 0 20px rgba(37, 99, 235, 0.4);
+  text-decoration: none;
+}
+
+.ctaSecondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--resma-ink);
+  padding: 0.75rem 1.5rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 1rem;
+  border: 1px solid var(--resma-hairline-strong);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.ctaSecondary:hover {
+  color: var(--resma-ink);
+  background: var(--resma-surface-2);
+  border-color: var(--resma-brand);
+  text-decoration: none;
+}
+
+/* Terminal mockup: oculto no mobile (< 1024px) — foco no texto + CTAs. */
+.heroRight {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .heroRight {
+    display: block;
+  }
+}
+
+/* prefers-reduced-motion: desabilitar transform/glow nos CTAs. */
+@media (prefers-reduced-motion: reduce) {
+  .ctaPrimary,
+  .ctaSecondary {
+    transition: none;
+  }
+  .ctaPrimary:hover {
+    transform: none;
+  }
+}
+
+/* === Features (mantido de T1, será substituído em T3) === */
 
 .features {
   display: flex;
