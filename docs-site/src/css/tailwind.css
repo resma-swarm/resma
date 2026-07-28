@@ -26,6 +26,10 @@
 
   --color-brand: #2563eb;
   --color-brand-accent: #3ecf8e;
+  /* Alias semântico "accent" (verde de destaque) usado por T3/T7 para destacar
+   * a coluna RESMA, callouts de ML e ícones de destaque. Mesmo valor que
+   * brand-accent para evitar divergência visual. */
+  --color-accent: #3ecf8e;
 
   --color-hairline: #23252a;
   --color-hairline-strong: #3e3e44;

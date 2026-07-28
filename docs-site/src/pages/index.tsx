@@ -7,10 +7,13 @@ import Heading from '@theme/Heading';
 import {
   Activity,
   BrainCircuit,
+  Check,
   LayoutDashboard,
+  Minus,
   SearchCheck,
   Unlock,
   Webhook,
+  X,
 } from 'lucide-react';
 import type {LucideIcon} from 'lucide-react';
 
@@ -290,6 +293,125 @@ function HomepageCodeExample() {
   );
 }
 
+// T7 (uiux): Comparison Table — RESMA vs Portainer vs Swarmpit.
+//
+// Tabela semântica HTML + Tailwind destacando onde RESMA brilha (ML, leak
+// detection, right-sizing, SSE, DuckDB embedded) e sendo honesto sobre onde
+// não é o melhor fit (GUI richness, Kubernetes). Coluna RESMA destacada com
+// text-accent; ícones Lucide Check/X/Minus em vez de emojis. Posicionado
+// após Code Example (T6) e antes do Final CTA (T10).
+type CellStatus = 'sim' | 'nao' | 'parcial';
+
+type ComparisonRow = {
+  feature: string;
+  resma: CellStatus;
+  portainer: CellStatus;
+  swarmpit: CellStatus;
+};
+
+const comparisonRows: ComparisonRow[] = [
+  {feature: 'ML resource recommendations', resma: 'sim', portainer: 'nao', swarmpit: 'nao'},
+  {feature: 'Memory leak detection', resma: 'sim', portainer: 'nao', swarmpit: 'nao'},
+  {feature: 'Right-size suggestions', resma: 'sim', portainer: 'nao', swarmpit: 'nao'},
+  {feature: 'Per-container metrics history', resma: 'sim', portainer: 'sim', swarmpit: 'parcial'},
+  {feature: 'Real-time SSE dashboard', resma: 'sim', portainer: 'nao', swarmpit: 'nao'},
+  {feature: 'Docker Swarm native', resma: 'sim', portainer: 'sim', swarmpit: 'sim'},
+  {feature: 'Multi-node agent', resma: 'sim', portainer: 'sim', swarmpit: 'sim'},
+  {feature: 'RBAC', resma: 'parcial', portainer: 'sim', swarmpit: 'parcial'},
+  {feature: 'GUI richness', resma: 'parcial', portainer: 'sim', swarmpit: 'sim'},
+  {feature: 'Kubernetes support', resma: 'nao', portainer: 'sim', swarmpit: 'nao'},
+  {feature: 'External DB required', resma: 'nao', portainer: 'sim', swarmpit: 'sim'},
+  {feature: 'License', resma: 'sim', portainer: 'sim', swarmpit: 'sim'},
+];
+
+function StatusCell({status}: {status: CellStatus}) {
+  if (status === 'sim') {
+    return (
+      <span className="inline-flex items-center justify-center text-success">
+        <Check className="h-4 w-4" aria-label="yes" />
+      </span>
+    );
+  }
+  if (status === 'parcial') {
+    return (
+      <span className="inline-flex items-center justify-center text-warning">
+        <Minus className="h-4 w-4" aria-label="partial" />
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center justify-center text-muted">
+      <X className="h-4 w-4" aria-label="no" />
+    </span>
+  );
+}
+
+function HomepageComparisonTable() {
+  return (
+    <section className="py-20 lg:py-28">
+      <div className="container">
+        <Heading
+          as="h2"
+          className="mb-4 text-center text-3xl font-semibold tracking-tight text-ink lg:text-4xl">
+          How RESMA compares
+        </Heading>
+        <p className="mx-auto mb-12 max-w-2xl text-center text-body">
+          RESMA focuses on resource optimization. It&apos;s not a full cluster
+          manager — it&apos;s the missing piece for teams that already use
+          Portainer or Swarmpit.
+        </p>
+        <div className="mx-auto max-w-4xl overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-hairline">
+                <th className="py-3 px-4 text-left font-semibold text-ink">
+                  Feature
+                </th>
+                <th className="py-3 px-4 text-center font-semibold text-accent bg-accent/5">
+                  RESMA
+                </th>
+                <th className="py-3 px-4 text-center font-medium text-muted">
+                  Portainer
+                </th>
+                <th className="py-3 px-4 text-center font-medium text-muted">
+                  Swarmpit
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {comparisonRows.map((row, idx) => (
+                <tr
+                  key={row.feature}
+                  className={clsx(
+                    'border-b border-hairline',
+                    idx % 2 === 0 ? 'bg-surface-1' : 'bg-surface-2',
+                  )}>
+                  <td className="py-3 px-4 text-left text-body">
+                    {row.feature}
+                  </td>
+                  <td className="py-3 px-4 text-center bg-accent/5">
+                    <StatusCell status={row.resma} />
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <StatusCell status={row.portainer} />
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <StatusCell status={row.swarmpit} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-6 text-center text-xs text-muted">
+          RESMA is complementary, not a replacement. Use it alongside your
+          existing Swarm manager.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function HomepageHeader() {
   const {siteConfig} = useDocusaurusContext();
   return (
@@ -343,6 +465,7 @@ export default function Home(): ReactNode {
         <HomepageFeatures />
         <HomepageDashboard />
         <HomepageCodeExample />
+        <HomepageComparisonTable />
       </main>
     </Layout>
   );
