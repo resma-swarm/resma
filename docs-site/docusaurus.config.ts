@@ -59,6 +59,36 @@ const config: Config = {
       disableSwitch: false,
       respectPrefersColorScheme: true,
     },
+    // T10 (uiux): metadados SEO — OG + Twitter cards.
+    // URL de produção alinhada com o repo github.com/resma-swarm/resma.
+    metadata: [
+      {name: 'og:title', content: 'RESMA — RESource MAnager for Docker Swarm'},
+      {
+        name: 'og:description',
+        content:
+          'Metrics, ML recommendations, and memory leak detection for Docker Swarm. Open-source, self-hosted.',
+      },
+      {
+        name: 'og:image',
+        content: 'https://resma-swarm.github.io/resma/img/og-image.png',
+      },
+      {name: 'og:type', content: 'website'},
+      {name: 'og:url', content: 'https://resma-swarm.github.io/resma/'},
+      {name: 'twitter:card', content: 'summary_large_image'},
+      {
+        name: 'twitter:title',
+        content: 'RESMA — RESource MAnager for Docker Swarm',
+      },
+      {
+        name: 'twitter:description',
+        content:
+          'Metrics, ML recommendations, and memory leak detection for Docker Swarm.',
+      },
+      {
+        name: 'twitter:image',
+        content: 'https://resma-swarm.github.io/resma/img/og-image.png',
+      },
+    ],
     navbar: {
       title: 'RESMA',
       logo: {

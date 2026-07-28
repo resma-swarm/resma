@@ -25,6 +25,7 @@ import BrowserMockup from '../components/dashboard/BrowserMockup';
 import CodeBlock from '../components/code/CodeBlock';
 import GlowingCard from '../components/effects/GlowingCard';
 import Reveal from '../components/animations/Reveal';
+import FinalCTA from '../components/cta/FinalCTA';
 import styles from './index.module.css';
 
 // T3 (uiux): Feature cards — bento grid assimétrico com Lucide icons.
@@ -461,6 +462,23 @@ export default function Home(): ReactNode {
     <Layout
       title={`${siteConfig.title} — ${siteConfig.tagline}`}
       description="RESource MAnager for Docker Swarm — metrics, ML recommendations, and memory leak detection.">
+      {/* T10 (uiux): structured data SoftwareApplication (JSON-LD). */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'SoftwareApplication',
+            name: 'RESMA',
+            applicationCategory: 'DeveloperApplication',
+            operatingSystem: 'Docker',
+            license: 'https://opensource.org/licenses/MIT',
+            offers: {'@type': 'Offer', price: '0', priceCurrency: 'USD'},
+            description:
+              'RESource MAnager for Docker Swarm — metrics, ML recommendations, and memory leak detection.',
+          }),
+        }}
+      />
       <HomepageHeader />
       <main>
         <Reveal>
@@ -477,6 +495,9 @@ export default function Home(): ReactNode {
         </Reveal>
         <Reveal>
           <HomepageComparisonTable />
+        </Reveal>
+        <Reveal>
+          <FinalCTA />
         </Reveal>
       </main>
     </Layout>
