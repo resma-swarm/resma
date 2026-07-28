@@ -17,6 +17,7 @@ import type {LucideIcon} from 'lucide-react';
 import AuroraBackground from '../components/hero/AuroraBackground';
 import BadgeStack from '../components/hero/BadgeStack';
 import TerminalMockup from '../components/hero/TerminalMockup';
+import InstallCommand from '../components/install/InstallCommand';
 import styles from './index.module.css';
 
 // T3 (uiux): Feature cards — bento grid assimétrico com Lucide icons.
@@ -257,6 +258,7 @@ export default function Home(): ReactNode {
       description="RESource MAnager for Docker Swarm — metrics, ML recommendations, and memory leak detection.">
       <HomepageHeader />
       <main>
+        <InstallCommand />
         <HomepageFeatures />
       </main>
     </Layout>
