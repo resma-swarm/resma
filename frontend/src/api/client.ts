@@ -99,6 +99,27 @@ export const api = {
       method: "PATCH",
       body: body ? JSON.stringify(body) : undefined,
     }),
+  blob: async (path: string) => {
+    const { access } = getTokens()
+    const headers: Record<string, string> = {}
+    if (access) headers["Authorization"] = `Bearer ${access}`
+    let res = await fetch(`${API_BASE}${path}`, { headers, credentials: "include" })
+    if (res.status === 401 && access) {
+      if (!isRefreshing) {
+        isRefreshing = true
+        refreshPromise = doRefresh().finally(() => { isRefreshing = false })
+      }
+      await refreshPromise
+      const { access: newAccess } = getTokens()
+      if (newAccess) headers["Authorization"] = `Bearer ${newAccess}`
+      res = await fetch(`${API_BASE}${path}`, { headers, credentials: "include" })
+    }
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new Error(error.detail || `HTTP ${res.status}`)
+    }
+    return res.blob()
+  },
 }
 
 export { getTokens, setTokens, clearTokens }

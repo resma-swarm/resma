@@ -31,6 +31,7 @@ import { LayerToggle } from "@/components/right-sizing/LayerToggle"
 import { ExplainabilityPanel } from "@/components/right-sizing/ExplainabilityPanel"
 import { ResourceSlider } from "@/components/right-sizing/ResourceSlider"
 import { WhatIfPanel } from "@/components/right-sizing/WhatIfPanel"
+import { ExportYamlButton } from "@/components/right-sizing/ExportYamlButton"
 import {
   calculateHero,
   riskColorClasses,
@@ -1020,13 +1021,18 @@ export default function Recommendations() {
   return (
     <div className="space-y-6">
       <PageHeader title="Recomendações" description="Sugestões de limites baseadas em dados">
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           {unconfiguredCount > 0 && <Badge variant="warning">{unconfiguredCount} sem config</Badge>}
           {alertedCount > 0 && <Badge variant="danger">{alertedCount} críticos</Badge>}
           {underProvCount > 0 && <Badge variant="warning">{underProvCount} atenção</Badge>}
           {overProvCount > 0 && <Badge variant="secondary">{overProvCount} otimizar</Badge>
           }
           {healthyCount > 0 && <Badge variant="success">{healthyCount} saudáveis</Badge>}
+          <ExportYamlButton
+            services={recs.map(r => r.service)}
+            tier="balanced"
+            disabled={recs.length === 0}
+          />
         </div>
       </PageHeader>
 

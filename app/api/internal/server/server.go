@@ -206,6 +206,9 @@ func (s *Server) registerInternalRoutes(mux *http.ServeMux) {
 	// Right-Sizing Studio R5 — rollback watches admin
 	s.registerRollbackWatchRoutes(mux)
 
+	// Right-Sizing Studio R6 — simulate batch + export YAML
+	s.registerSimulateRoutes(mux)
+
 	// schedules
 	s.registerScheduleRoutes(mux)
 
