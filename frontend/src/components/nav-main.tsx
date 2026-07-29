@@ -8,7 +8,6 @@ import {
   Lightbulb,
   FileCode,
   CalendarClock,
-  RotateCcw,
   Layers,
   type LucideIcon,
 } from "lucide-react"
@@ -32,7 +31,6 @@ const navItems: NavItem[] = [
   { to: "/alerts", label: "Alertas", icon: ShieldAlert },
   { to: "/recommendations", label: "Recomendações", icon: Lightbulb },
   { to: "/studio", label: "Right-Sizing Studio", icon: Layers },
-  { to: "/rollback-watches", label: "Rollback Watches", icon: RotateCcw },
   { to: "/templates", label: "Templates", icon: FileCode },
   { to: "/schedules", label: "Agendamentos", icon: CalendarClock },
 ]

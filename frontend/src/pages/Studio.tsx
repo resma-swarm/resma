@@ -241,7 +241,7 @@ export default function Studio() {
             Recalcular
           </Button>
           <Button variant="outline" size="sm" asChild>
-            <Link to="/rollback-watches">
+            <Link to="/studio/rollback-watches">
               <RotateCcw className="mr-2 h-4 w-4" />
               Rollback Watches
             </Link>

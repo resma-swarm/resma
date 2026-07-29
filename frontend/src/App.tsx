@@ -77,12 +77,12 @@ function AppGate() {
 
           {/* Less frequent routes — lazy loaded with Suspense */}
           <Route path="/studio" element={<Suspense fallback={<RouteSpinner />}><Studio /></Suspense>} />
+          <Route path="/studio/rollback-watches" element={<Suspense fallback={<RouteSpinner />}><RollbackWatches /></Suspense>} />
           <Route path="/recommendations" element={<Suspense fallback={<RouteSpinner />}><Recommendations /></Suspense>} />
           <Route path="/templates" element={<Suspense fallback={<RouteSpinner />}><Templates /></Suspense>} />
           <Route path="/schedules" element={<Suspense fallback={<RouteSpinner />}><Schedules /></Suspense>} />
           <Route path="/tasks" element={<Suspense fallback={<RouteSpinner />}><Tasks /></Suspense>} />
           <Route path="/alerts" element={<Suspense fallback={<RouteSpinner />}><Alerts /></Suspense>} />
-          <Route path="/rollback-watches" element={<Suspense fallback={<RouteSpinner />}><RollbackWatches /></Suspense>} />
 
           {/* Fase 8 — Settings area (nested routes, lazy) */}
           <Route path="/settings" element={<Suspense fallback={<RouteSpinner />}><Settings /></Suspense>}>

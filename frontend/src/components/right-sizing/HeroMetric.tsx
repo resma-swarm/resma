@@ -38,8 +38,8 @@ export function HeroMetric({ data, loading }: HeroMetricProps) {
   return (
     <Card className="mb-4">
       <CardContent className="flex items-center gap-6 p-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-primary" />
+        <div className="flex items-center gap-3">
+          <TrendingUp className="h-8 w-8 text-primary" />
           <div>
             <p className="text-xs text-muted-foreground">Pode liberar</p>
             <p className="text-2xl font-bold tabular-nums">
@@ -51,8 +51,8 @@ export function HeroMetric({ data, loading }: HeroMetricProps) {
 
         <Separator orientation="vertical" className="h-12" />
 
-        <div className="flex items-center gap-2">
-          <Cpu className="h-5 w-5 text-chart-2" />
+        <div className="flex items-center gap-3">
+          <Cpu className="h-8 w-8 text-chart-2" />
           <div>
             <p className="text-xs text-muted-foreground">CPU liberada</p>
             <p className="text-2xl font-bold tabular-nums">
@@ -64,8 +64,8 @@ export function HeroMetric({ data, loading }: HeroMetricProps) {
 
         <Separator orientation="vertical" className="h-12" />
 
-        <div className="flex items-center gap-2">
-          <MemoryStick className="h-5 w-5 text-chart-3" />
+        <div className="flex items-center gap-3">
+          <MemoryStick className="h-8 w-8 text-chart-3" />
           <div>
             <p className="text-xs text-muted-foreground">RAM liberada</p>
             <p className="text-2xl font-bold tabular-nums">{formatBytes(data.mem_bytes)}</p>
