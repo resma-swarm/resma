@@ -9,6 +9,7 @@ import {
   FileCode,
   CalendarClock,
   RotateCcw,
+  Layers,
   type LucideIcon,
 } from "lucide-react"
 import {
@@ -30,6 +31,7 @@ const navItems: NavItem[] = [
   { to: "/tasks", label: "Tasks", icon: ListTodo },
   { to: "/alerts", label: "Alertas", icon: ShieldAlert },
   { to: "/recommendations", label: "Recomendações", icon: Lightbulb },
+  { to: "/studio", label: "Right-Sizing Studio", icon: Layers },
   { to: "/rollback-watches", label: "Rollback Watches", icon: RotateCcw },
   { to: "/templates", label: "Templates", icon: FileCode },
   { to: "/schedules", label: "Agendamentos", icon: CalendarClock },

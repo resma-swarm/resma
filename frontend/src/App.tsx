@@ -20,6 +20,7 @@ const Templates = lazy(() => import("@/pages/Templates"))
 const Schedules = lazy(() => import("@/pages/Schedules"))
 const Tasks = lazy(() => import("@/pages/Tasks"))
 const Alerts = lazy(() => import("@/pages/Alerts"))
+const Studio = lazy(() => import("@/pages/Studio"))
 const RollbackWatches = lazy(() => import("@/pages/RollbackWatches").then(m => ({ default: m.RollbackWatches })))
 const Settings = lazy(() => import("@/pages/Settings").then(m => ({ default: m.Settings })))
 const UsersPage = lazy(() => import("@/pages/settings/UsersPage").then(m => ({ default: m.UsersPage })))
@@ -75,6 +76,7 @@ function AppGate() {
           <Route path="/nodes/:nodeId" element={<NodeDetail />} />
 
           {/* Less frequent routes — lazy loaded with Suspense */}
+          <Route path="/studio" element={<Suspense fallback={<RouteSpinner />}><Studio /></Suspense>} />
           <Route path="/recommendations" element={<Suspense fallback={<RouteSpinner />}><Recommendations /></Suspense>} />
           <Route path="/templates" element={<Suspense fallback={<RouteSpinner />}><Templates /></Suspense>} />
           <Route path="/schedules" element={<Suspense fallback={<RouteSpinner />}><Schedules /></Suspense>} />

@@ -33,6 +33,8 @@ function buildBreadcrumbs(pathname: string) {
     }
   } else if (segments[0] === "recommendations") {
     crumbs.push({ label: "Recomendações", to: "/recommendations" })
+  } else if (segments[0] === "studio") {
+    crumbs.push({ label: "Right-Sizing Studio", to: "/studio" })
   } else if (segments[0] === "schedules") {
     crumbs.push({ label: "Agendamentos", to: "/schedules" })
   } else if (segments[0] === "templates") {
