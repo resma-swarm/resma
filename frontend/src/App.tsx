@@ -105,7 +105,6 @@ export default function App() {
       <AuthProvider>
         <AppGate />
         <Toaster />
-        <RumConsentBanner />
       </AuthProvider>
     </QueryClientProvider>
   )
