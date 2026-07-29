@@ -10,7 +10,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useEventSource } from "@/hooks/use-event-source"
 import { api } from "@/api/client"
 import { toast } from "sonner"
-import { trackRUM } from "@/lib/rum"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
@@ -66,7 +65,6 @@ export function RollbackWatches() {
       if (event.type === "rollback") {
         const payload = event.payload as { service: string; reason: string }
         toast.error(`⚠️ ${payload.service} revertido automaticamente (${payload.reason})`)
-        trackRUM("rec_rollback_triggered", { service: payload.service, reason: payload.reason })
       } else if (event.type === "optimized") {
         const payload = event.payload as { service: string }
         toast.success(`✅ ${payload.service} otimizado com sucesso (janela sem incidente)`)
@@ -90,17 +88,11 @@ export function RollbackWatches() {
 
   const rollbackMutation = useMutation({
     mutationFn: (id: number) => api.post(`/rollback-watches/${id}/rollback`),
-    onSuccess: (_data, _id, ctx) => {
-      const svc = (ctx as { service?: string })?.service ?? ""
+    onSuccess: () => {
       toast.success("Rollback manual executado")
       queryClient.invalidateQueries({ queryKey: ["rollback-watches"] })
-      trackRUM("rec_rollback_manual_success", { service: svc })
     },
-    onError: (err: Error, _id, ctx) => {
-      const svc = (ctx as { service?: string })?.service ?? ""
-      toast.error(`Erro: ${err.message}`)
-      trackRUM("rec_rollback_manual_error", { service: svc, error: err.message })
-    },
+    onError: (err: Error) => toast.error(`Erro: ${err.message}`),
   })
 
   const cancelMutation = useMutation({
@@ -226,10 +218,7 @@ export function RollbackWatches() {
                               variant="ghost"
                               size="sm"
                               className="h-7 text-xs text-orange-600 hover:text-orange-700"
-                              onClick={() => {
-                                trackRUM("rec_rollback_manual_click", { service: w.service })
-                                rollbackMutation.mutate(w.id, { context: { service: w.service } })
-                              }}
+                              onClick={() => rollbackMutation.mutate(w.id)}
                               disabled={rollbackMutation.isPending}
                             >
                               <RotateCcw className="mr-1 h-3 w-3" />

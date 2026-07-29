@@ -9,7 +9,6 @@ import { Download } from "lucide-react"
 import { useState } from "react"
 import { api } from "@/api/client"
 import { toast } from "sonner"
-import { trackRUM } from "@/lib/rum"
 
 interface ExportYamlButtonProps {
   services: string[]

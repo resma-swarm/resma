@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/api/client"
-import { trackRUM } from "@/lib/rum"
 import { Card, CardHeader, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -21,7 +20,7 @@ import {
   CalendarClock, Calendar as CalendarIcon, Trash2, Database, HardDrive,
 } from "lucide-react"
 import { toast } from "sonner"
-import { useState, useMemo, useRef, useEffect } from "react"
+import { useState, useMemo, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
@@ -854,13 +853,6 @@ export default function Recommendations() {
     queryFn: () => api.get<Recommendation[]>("/recommendations"),
   })
 
-  // RUM: page view (conta serviços quando dados carregam)
-  useEffect(() => {
-    if (recs && recs.length > 0) {
-      trackRUM("rec_page_view", { service_count: recs.length })
-    }
-  }, [recs])
-
   const { data: storageRecs } = useQuery<StorageAnalysis>({
     queryKey: ["storage-recommendations"],
     queryFn: () => api.get<StorageAnalysis>("/recommendations/storage"),
@@ -888,12 +880,10 @@ export default function Recommendations() {
       queryClient.invalidateQueries({ queryKey: ["recommendations"] })
       setApplying(null)
       toast.success(`Recomendação aplicada para ${vars.service} com sucesso`)
-      trackRUM("rec_apply_success", { service: vars.service })
     },
-    onError: (error, vars) => {
+    onError: (_error, vars) => {
       setApplying(null)
       toast.error(`Erro ao aplicar recomendação para ${vars.service}`)
-      trackRUM("rec_apply_error", { service: vars.service, error: (error as Error).message })
     },
   })
 
