@@ -896,7 +896,6 @@ export default function Recommendations() {
 
   const handleApply = (service: string, values: ResourceValues) => {
     setApplying(service)
-    trackRUM("rec_apply_click", { service })
     applyMutation.mutate({ service, values })
   }
 

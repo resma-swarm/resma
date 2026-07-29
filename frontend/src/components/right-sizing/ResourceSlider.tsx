@@ -46,9 +46,12 @@ export function ResourceSlider({
   // Slider usa valores inteiros — escalar CPU para mili-cores (x100) e mem para MB
   const cpuStep = 0.05
   const memStepMb = 16
-  const memMinMb = Math.round(memMin / 1e6)
-  const memMaxMb = Math.round(memMax / 1e6)
-  const memValueMb = Math.round(memBytes / 1e6)
+  const memMinMb = Math.round((memMin || 0) / 1e6)
+  const memMaxMb = Math.max(memMinMb + 16, Math.round((memMax || 1e9) / 1e6))
+  const memValueMb = Math.round((memBytes || 0) / 1e6)
+  const cpuCoresSafe = cpuCores || 0
+  const cpuMinSafe = cpuMin || 0
+  const cpuMaxSafe = Math.max(cpuMinSafe + 0.1, cpuMax || 8)
 
   return (
     <div className="space-y-3 rounded-lg border p-3 bg-muted/30">
@@ -68,21 +71,21 @@ export function ResourceSlider({
             <Cpu className="h-3.5 w-3.5 text-chart-2" />
             <Label className="text-xs">CPU (cores)</Label>
           </div>
-          <span className="text-xs font-medium tabular-nums">{cpuCores.toFixed(2)}</span>
+          <span className="text-xs font-medium tabular-nums">{cpuCoresSafe.toFixed(2)}</span>
         </div>
         <Slider
-          value={[cpuCores]}
-          min={cpuMin}
-          max={cpuMax}
+          value={[cpuCoresSafe]}
+          min={cpuMinSafe}
+          max={cpuMaxSafe}
           step={cpuStep}
           onValueChange={(v) => onCpuChange(v[0])}
           className="w-full"
         />
         <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-          <span>Min: {cpuMin.toFixed(1)}</span>
+          <span>Min: {cpuMinSafe.toFixed(1)}</span>
           {cpuCurrent > 0 && <span className="text-chart-5">Atual: {cpuCurrent.toFixed(2)}</span>}
           {cpuSuggested > 0 && <span className="text-primary">Sug: {cpuSuggested.toFixed(2)}</span>}
-          <span>Max: {cpuMax.toFixed(1)}</span>
+          <span>Max: {cpuMaxSafe.toFixed(1)}</span>
         </div>
       </div>
 
@@ -93,7 +96,7 @@ export function ResourceSlider({
             <MemoryStick className="h-3.5 w-3.5 text-chart-3" />
             <Label className="text-xs">Memória</Label>
           </div>
-          <span className="text-xs font-medium tabular-nums">{formatMem(memBytes)}</span>
+          <span className="text-xs font-medium tabular-nums">{formatMem(memBytes || 0)}</span>
         </div>
         <Slider
           value={[memValueMb]}
@@ -104,10 +107,10 @@ export function ResourceSlider({
           className="w-full"
         />
         <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-          <span>Min: {formatMem(memMin)}</span>
+          <span>Min: {formatMem(memMin || 0)}</span>
           {memCurrent > 0 && <span className="text-chart-5">Atual: {formatMem(memCurrent)}</span>}
           {memSuggested > 0 && <span className="text-primary">Sug: {formatMem(memSuggested)}</span>}
-          <span>Max: {formatMem(memMax)}</span>
+          <span>Max: {formatMem(memMax || 1e9)}</span>
         </div>
       </div>
     </div>

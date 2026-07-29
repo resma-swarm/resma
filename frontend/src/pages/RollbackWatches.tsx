@@ -17,9 +17,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatBytes } from "@/lib/utils"
 import {
-  Shield, RotateCcw, X, Clock, CheckCircle2, AlertTriangle, Activity, Ban,
+  Shield, RotateCcw, X, Clock, CheckCircle2, Activity, Ban,
 } from "lucide-react"
 
 interface RollbackWatch {
@@ -229,7 +228,6 @@ export function RollbackWatches() {
                               size="sm"
                               className="h-7 text-xs text-muted-foreground"
                               onClick={() => {
-                                trackRUM("rec_watch_cancel_click", { service: w.service })
                                 cancelMutation.mutate(w.id)
                               }}
                               disabled={cancelMutation.isPending}
