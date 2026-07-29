@@ -89,8 +89,8 @@ const TOPIC_QUERY_MAP: Record<string, string[][]> = {
   metrics: [["dashboard"]],
   // Tópico dashboard: payload = buildDashboardData ou buildStorageSummary.
   dashboard: [["dashboard"], ["storage-summary"]],
-  // Tópico events: payload = buildOOMEvents. oom-events + change-log.
-  events: [["oom-events"], ["change-log"]],
+  // Tópico events: payload = buildOOMEvents. oom-events + change-log + rollback-watches.
+  events: [["oom-events"], ["change-log"], ["rollback-watches"]],
   // Tópico services: payload = buildServicesList. services via setQueryData.
   // recs-summary e service-sparklines NÃO são invalidados aqui — são dados
   // derivados/lentos que só precisam da reconciliação 30s. Invalidar a cada

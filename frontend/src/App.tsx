@@ -20,6 +20,7 @@ const Templates = lazy(() => import("@/pages/Templates"))
 const Schedules = lazy(() => import("@/pages/Schedules"))
 const Tasks = lazy(() => import("@/pages/Tasks"))
 const Alerts = lazy(() => import("@/pages/Alerts"))
+const RollbackWatches = lazy(() => import("@/pages/RollbackWatches").then(m => ({ default: m.RollbackWatches })))
 const Settings = lazy(() => import("@/pages/Settings").then(m => ({ default: m.Settings })))
 const UsersPage = lazy(() => import("@/pages/settings/UsersPage").then(m => ({ default: m.UsersPage })))
 const ApiKeysPage = lazy(() => import("@/pages/settings/ApiKeysPage").then(m => ({ default: m.ApiKeysPage })))
@@ -79,6 +80,7 @@ function AppGate() {
           <Route path="/schedules" element={<Suspense fallback={<RouteSpinner />}><Schedules /></Suspense>} />
           <Route path="/tasks" element={<Suspense fallback={<RouteSpinner />}><Tasks /></Suspense>} />
           <Route path="/alerts" element={<Suspense fallback={<RouteSpinner />}><Alerts /></Suspense>} />
+          <Route path="/rollback-watches" element={<Suspense fallback={<RouteSpinner />}><RollbackWatches /></Suspense>} />
 
           {/* Fase 8 — Settings area (nested routes, lazy) */}
           <Route path="/settings" element={<Suspense fallback={<RouteSpinner />}><Settings /></Suspense>}>

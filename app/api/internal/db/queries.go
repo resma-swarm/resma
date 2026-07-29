@@ -1644,3 +1644,179 @@ func round2(f float64) float64 {
 func round1(f float64) float64 {
 	return float64(int64(f*10+0.5)) / 10
 }
+
+// ---------------------------------------------------------------------------
+// rollback_watches (Right-Sizing Studio R5 — watcher de rollback automático)
+// ---------------------------------------------------------------------------
+
+// RollbackWatch representa uma entrada de rollback_watches.
+type RollbackWatch struct {
+	ID                   int32
+	ChangeLogID          int32
+	Service              string
+	CPULimitBefore       sql.NullFloat64
+	MemLimitBefore       sql.NullInt64
+	CPUReservationBefore sql.NullFloat64
+	MemReservationBefore sql.NullInt64
+	CPULimitAfter        sql.NullFloat64
+	MemLimitAfter        sql.NullInt64
+	CPUReservationAfter  sql.NullFloat64
+	MemReservationAfter  sql.NullInt64
+	Strategy             string
+	ObservationWindow    int
+	Criteria             string // JSON
+	Status               string // monitoring | optimized | rolled_back | expired | cancelled
+	TriggeredCriteria    sql.NullString
+	StartedAt            time.Time
+	ExpiresAt            time.Time
+	RolledBackAt         sql.NullTime
+	CreatedAt            time.Time
+}
+
+const rollbackWatchCols = `id, change_log_id, service,
+	cpu_limit_before, mem_limit_before, cpu_reservation_before, mem_reservation_before,
+	cpu_limit_after, mem_limit_after, cpu_reservation_after, mem_reservation_after,
+	strategy, observation_window, criteria, status, triggered_criteria,
+	started_at, expires_at, rolled_back_at, created_at`
+
+func scanRollbackWatch(rows *sql.Rows) (RollbackWatch, error) {
+	var w RollbackWatch
+	err := rows.Scan(&w.ID, &w.ChangeLogID, &w.Service,
+		&w.CPULimitBefore, &w.MemLimitBefore, &w.CPUReservationBefore, &w.MemReservationBefore,
+		&w.CPULimitAfter, &w.MemLimitAfter, &w.CPUReservationAfter, &w.MemReservationAfter,
+		&w.Strategy, &w.ObservationWindow, &w.Criteria, &w.Status, &w.TriggeredCriteria,
+		&w.StartedAt, &w.ExpiresAt, &w.RolledBackAt, &w.CreatedAt)
+	return w, err
+}
+
+// CreateRollbackWatch insere um novo watch e retorna o id.
+// expires_at é calculado como started_at + observation_window horas.
+func (s *Store) CreateRollbackWatch(ctx context.Context, w RollbackWatch) (int32, error) {
+	var id int32
+	err := s.db.QueryRowContext(ctx,
+		`INSERT INTO rollback_watches (change_log_id, service,
+			cpu_limit_before, mem_limit_before, cpu_reservation_before, mem_reservation_before,
+			cpu_limit_after, mem_limit_after, cpu_reservation_after, mem_reservation_after,
+			strategy, observation_window, criteria, status, started_at, expires_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'monitoring', now(),
+			now() + INTERVAL '`+fmt.Sprintf("%d", w.ObservationWindow)+`' HOUR)
+		 RETURNING id`,
+		w.ChangeLogID, w.Service,
+		w.CPULimitBefore, w.MemLimitBefore, w.CPUReservationBefore, w.MemReservationBefore,
+		w.CPULimitAfter, w.MemLimitAfter, w.CPUReservationAfter, w.MemReservationAfter,
+		w.Strategy, w.ObservationWindow, w.Criteria).Scan(&id)
+	return id, err
+}
+
+// GetActiveRollbackWatches retorna watches com status='monitoring' e não expirados.
+func (s *Store) GetActiveRollbackWatches(ctx context.Context) ([]RollbackWatch, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+rollbackWatchCols+` FROM rollback_watches
+		 WHERE status = 'monitoring' AND expires_at > now()
+		 ORDER BY expires_at`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []RollbackWatch
+	for rows.Next() {
+		w, err := scanRollbackWatch(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, w)
+	}
+	return result, rows.Err()
+}
+
+// GetRollbackWatchByID busca um watch pelo id.
+func (s *Store) GetRollbackWatchByID(ctx context.Context, id int32) (*RollbackWatch, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT `+rollbackWatchCols+` FROM rollback_watches WHERE id = ?`, id)
+	var w RollbackWatch
+	if err := row.Scan(&w.ID, &w.ChangeLogID, &w.Service,
+		&w.CPULimitBefore, &w.MemLimitBefore, &w.CPUReservationBefore, &w.MemReservationBefore,
+		&w.CPULimitAfter, &w.MemLimitAfter, &w.CPUReservationAfter, &w.MemReservationAfter,
+		&w.Strategy, &w.ObservationWindow, &w.Criteria, &w.Status, &w.TriggeredCriteria,
+		&w.StartedAt, &w.ExpiresAt, &w.RolledBackAt, &w.CreatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &w, nil
+}
+
+// ListRollbackWatches lista watches com filtros opcionais (status, service, limit).
+func (s *Store) ListRollbackWatches(ctx context.Context, status, service string, limit int32) ([]RollbackWatch, error) {
+	q := `SELECT ` + rollbackWatchCols + ` FROM rollback_watches WHERE 1=1`
+	args := []any{}
+	if status != "" {
+		q += ` AND status = ?`
+		args = append(args, status)
+	}
+	if service != "" {
+		q += ` AND service = ?`
+		args = append(args, service)
+	}
+	q += ` ORDER BY created_at DESC LIMIT ?`
+	args = append(args, limit)
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []RollbackWatch
+	for rows.Next() {
+		w, err := scanRollbackWatch(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, w)
+	}
+	return result, rows.Err()
+}
+
+// UpdateRollbackWatchStatus atualiza status/triggered_criteria/rolled_back_at.
+func (s *Store) UpdateRollbackWatchStatus(ctx context.Context, id int32,
+	status, reason string, rolledBackAt *time.Time) error {
+	if rolledBackAt != nil {
+		_, err := s.db.ExecContext(ctx,
+			`UPDATE rollback_watches SET status = ?, triggered_criteria = ?,
+			 rolled_back_at = ?, updated_at = now() WHERE id = ?`,
+			status, reason, *rolledBackAt, id)
+		return err
+	}
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE rollback_watches SET status = ?, triggered_criteria = ?,
+		 updated_at = now() WHERE id = ?`, status, reason, id)
+	return err
+}
+
+// GetMetricsSince retorna métricas de um serviço desde um timestamp.
+// Usado pelo watcher para avaliar critérios de throttle e mem_pressure.
+func (s *Store) GetMetricsSince(ctx context.Context, service string, since time.Time) ([]MetricRow, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT ts, cpu_percent, mem_usage, mem_limit, mem_percent,
+				cpu_throttled_periods, cpu_throttled_time
+		 FROM metrics WHERE service = ? AND ts > ? ORDER BY ts`, service, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []MetricRow
+	for rows.Next() {
+		var r MetricRow
+		var memPercent sql.NullFloat64
+		var throttledPeriods, throttledTime sql.NullInt64
+		if err := rows.Scan(&r.TS, &r.CPUPercent, &r.MemUsage, &r.MemLimit,
+			&memPercent, &throttledPeriods, &throttledTime); err != nil {
+			return nil, err
+		}
+		r.MemPercent = memPercent.Float64
+		r.CPUThrottledPeriods = throttledPeriods.Int64
+		r.CPUThrottledTime = throttledTime.Int64
+		result = append(result, r)
+	}
+	return result, rows.Err()
+}

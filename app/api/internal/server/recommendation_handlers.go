@@ -6,12 +6,14 @@
 package server
 
 import (
-	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/resma/api/internal/auth"
-	"github.com/resma/api/internal/docker"
+	"github.com/resma/api/internal/db"
+	"github.com/resma/api/internal/rollback"
 )
 
 // registerRecommendationRoutes registra as rotas de recommendations.
@@ -114,6 +116,7 @@ func (s *Server) handleRecalculateService(w http.ResponseWriter, r *http.Request
 }
 
 // handleApplyRecommendation aplica recomendação de recursos a um serviço.
+// Right-Sizing Studio R5: estendido com change_log + rollback_watches.
 func (s *Server) handleApplyRecommendation(w http.ResponseWriter, r *http.Request) {
 	service := pathValue(r, "service")
 	if err := s.validateService(r, service); err != nil {
@@ -125,6 +128,16 @@ func (s *Server) handleApplyRecommendation(w http.ResponseWriter, r *http.Reques
 		MemLimit       *int64   `json:"mem_limit"`
 		CPUReservation *float64 `json:"cpu_reservation"`
 		MemReservation *int64   `json:"mem_reservation"`
+		Rollback       *struct {
+			Enabled                bool   `json:"enabled"`
+			Strategy               string `json:"strategy"`
+			ObservationWindowHours *int   `json:"observation_window_hours"`
+			Criteria               *struct {
+				OOM         bool `json:"oom"`
+				Throttle    bool `json:"throttle"`
+				MemPressure bool `json:"mem_pressure"`
+			} `json:"criteria"`
+		} `json:"rollback"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return
@@ -132,7 +145,10 @@ func (s *Server) handleApplyRecommendation(w http.ResponseWriter, r *http.Reques
 
 	ctx := r.Context()
 
-	// UpdateServiceResources: cpuLimit, memLimit *float64, cpuReservation, memReservation *int64
+	// 1. Obter valores atuais (snapshot de rollback)
+	current, _ := s.docker.GetServiceResources(ctx, service)
+
+	// 2. Aplicar via Docker
 	var memLimitFloat *float64
 	if req.MemLimit != nil {
 		mlf := float64(*req.MemLimit)
@@ -151,17 +167,104 @@ func (s *Server) handleApplyRecommendation(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// 3. Obter username do contexto (para change_log)
+	username := ""
+	if user := auth.UserFromContext(ctx); user != nil {
+		username = user.Username
+	}
+
+	// 4. Registrar no change_log (action=apply, source=manual)
+	changeLogID, _ := s.db.AddChangeLog(ctx, db.ChangeLogEntry{
+		Service:              service,
+		Action:               "apply",
+		Source:               "manual",
+		CPULimitBefore:       nullFloat(current.CPULimit),
+		MemLimitBefore:       nullInt64(current.MemLimit),
+		CPUReservationBefore: nullFloat(current.CPUReservation),
+		MemReservationBefore: nullInt64(current.MemReservation),
+		CPULimitAfter:        nullFloatPtr(req.CPULimit),
+		MemLimitAfter:        nullInt64Ptr(req.MemLimit),
+		CPUReservationAfter:  nullFloatPtr(req.CPUReservation),
+		MemReservationAfter:  nullInt64Ptr(req.MemReservation),
+		User:                 nullStrPtr(username),
+		Status:               boolStr(result.Success, "completed", "failed"),
+		DockerResponse:       nullStrPtr(result.Error),
+	})
+
+	// 5. Criar watch de rollback se habilitado (opt-in via config OU request body)
+	rollbackEnabled := s.cfg.RollbackEnabled
+	if req.Rollback != nil && req.Rollback.Enabled {
+		rollbackEnabled = true
+	}
+	var watchID *int32
+	if rollbackEnabled && changeLogID > 0 && result.Success {
+		strategy := "deferred"
+		if req.Rollback != nil && req.Rollback.Strategy != "" {
+			strategy = req.Rollback.Strategy
+		}
+		window := s.cfg.RollbackDefaultWindow
+		if req.Rollback != nil && req.Rollback.ObservationWindowHours != nil {
+			window = *req.Rollback.ObservationWindowHours
+		}
+		if window < 1 {
+			window = 1
+		}
+		if window > 168 {
+			window = 168
+		}
+		criteria := rollback.Criteria{OOM: true, Throttle: true}
+		if req.Rollback != nil && req.Rollback.Criteria != nil {
+			criteria = rollback.Criteria{
+				OOM:         req.Rollback.Criteria.OOM,
+				Throttle:    req.Rollback.Criteria.Throttle,
+				MemPressure: req.Rollback.Criteria.MemPressure,
+			}
+		}
+		criteriaJSON, _ := json.Marshal(criteria)
+		id, err := s.db.CreateRollbackWatch(ctx, db.RollbackWatch{
+			ChangeLogID:          changeLogID,
+			Service:              service,
+			CPULimitBefore:       nullFloat(current.CPULimit),
+			MemLimitBefore:       nullInt64(current.MemLimit),
+			CPUReservationBefore: nullFloat(current.CPUReservation),
+			MemReservationBefore: nullInt64(current.MemReservation),
+			CPULimitAfter:        nullFloatPtr(req.CPULimit),
+			MemLimitAfter:        nullInt64Ptr(req.MemLimit),
+			CPUReservationAfter:  nullFloatPtr(req.CPUReservation),
+			MemReservationAfter:  nullInt64Ptr(req.MemReservation),
+			Strategy:             strategy,
+			ObservationWindow:    window,
+			Criteria:             string(criteriaJSON),
+		})
+		if err == nil {
+			watchID = &id
+		}
+	}
+
+	// 6. Publicar SSE change-log (frontend atualiza sem refetch)
+	if entries, err := s.buildChangeLog(ctx, "", 100); err == nil && entries != nil {
+		s.sse.Publish("change-log", "change-log", entries)
+	}
+
 	if result.Success {
+		msg := fmt.Sprintf("Resources applied to '%s'", service)
+		if watchID != nil {
+			msg = fmt.Sprintf("Resources applied to '%s'. Rollback watch active.", service)
+		}
 		writeOK(w, map[string]any{
-			"success": true,
-			"message": fmt.Sprintf("Resources applied to '%s'", service),
+			"success":           true,
+			"message":           msg,
+			"change_log_id":     changeLogID,
+			"rollback_watch_id": watchID,
 		})
 		return
 	}
 
 	writeOK(w, map[string]any{
-		"success": false,
-		"message": fmt.Sprintf("Failed to apply resources to '%s': %s", service, result.Error),
+		"success":           false,
+		"message":           fmt.Sprintf("Failed to apply resources to '%s': %s", service, result.Error),
+		"change_log_id":     changeLogID,
+		"rollback_watch_id": nil,
 	})
 }
 
@@ -185,10 +288,52 @@ func (s *Server) validateService(r *http.Request, service string) error {
 	return nil
 }
 
-// logChangeLog é um helper para registrar mudanças no change_log.
-// TODO 0b.5: implementar com db.AddChangeLog quando ApplyRequest for finalizado
-func (s *Server) logChangeLog(ctx context.Context, service, action, source string,
-	current docker.ServiceResources, cpuLimitAfter, memLimitAfter *float64,
-	cpuResAfter, memResAfter *int64, user, status, errMsg, dockerResp string) {
-	// TODO: implementar com db.AddChangeLog
+// --- helpers para sql.Null* (change_log + rollback_watches) ---
+
+// nullFloat converte float64 em sql.NullFloat64 (valid se != 0).
+func nullFloat(f float64) sql.NullFloat64 {
+	if f == 0 {
+		return sql.NullFloat64{}
+	}
+	return sql.NullFloat64{Float64: f, Valid: true}
+}
+
+// nullFloatPtr converte *float64 em sql.NullFloat64.
+func nullFloatPtr(f *float64) sql.NullFloat64 {
+	if f == nil {
+		return sql.NullFloat64{}
+	}
+	return sql.NullFloat64{Float64: *f, Valid: true}
+}
+
+// nullInt64 converte int64 em sql.NullInt64 (valid if != 0).
+func nullInt64(n int64) sql.NullInt64 {
+	if n == 0 {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: n, Valid: true}
+}
+
+// nullInt64Ptr converte *int64 em sql.NullInt64.
+func nullInt64Ptr(n *int64) sql.NullInt64 {
+	if n == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: *n, Valid: true}
+}
+
+// nullStrPtr converte string em sql.NullString (valid if non-empty).
+func nullStrPtr(s string) sql.NullString {
+	if s == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: s, Valid: true}
+}
+
+// boolStr retorna trueVal se cond, senão falseVal.
+func boolStr(cond bool, trueVal, falseVal string) string {
+	if cond {
+		return trueVal
+	}
+	return falseVal
 }

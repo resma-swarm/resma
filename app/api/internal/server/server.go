@@ -203,6 +203,9 @@ func (s *Server) registerInternalRoutes(mux *http.ServeMux) {
 	// recommendations
 	s.registerRecommendationRoutes(mux)
 
+	// Right-Sizing Studio R5 — rollback watches admin
+	s.registerRollbackWatchRoutes(mux)
+
 	// schedules
 	s.registerScheduleRoutes(mux)
 

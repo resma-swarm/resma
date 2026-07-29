@@ -46,6 +46,8 @@ function buildBreadcrumbs(pathname: string) {
     crumbs.push({ label: "Tasks", to: "/tasks" })
   } else if (segments[0] === "alerts") {
     crumbs.push({ label: "Alertas", to: "/alerts" })
+  } else if (segments[0] === "rollback-watches") {
+    crumbs.push({ label: "Rollback Watches", to: "/rollback-watches" })
   } else if (segments[0] === "settings") {
     crumbs.push({ label: "Configurações", to: "/settings" })
     if (segments[1] === "users") crumbs.push({ label: "Usuários" })

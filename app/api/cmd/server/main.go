@@ -22,6 +22,7 @@ import (
 	"github.com/resma/api/internal/config"
 	"github.com/resma/api/internal/db"
 	resmadocker "github.com/resma/api/internal/docker"
+	"github.com/resma/api/internal/rollback"
 	"github.com/resma/api/internal/scheduler"
 	"github.com/resma/api/internal/server"
 )
@@ -87,6 +88,13 @@ func main() {
 	sch := scheduler.New(store, dockerCli, srv.SSEHandler(), server.NewCollectorDataBuilder(srv))
 	sch.Start(rootCtx)
 	defer sch.Stop()
+
+	// Rollback watcher (Right-Sizing Studio R5 — 1 goroutine de monitoramento pós-apply)
+	// Opt-in via RESMA_ROLLBACK_ENABLED. Monitora applies recentes e reverte
+	// automaticamente se critérios de incidente (OOM/throttle/mem pressure) disparam.
+	rbw := rollback.New(cfg, store, dockerCli, srv.SSEHandler(), server.NewCollectorDataBuilder(srv))
+	rbw.Start(rootCtx)
+	defer rbw.Stop()
 
 	go func() {
 		if err := srv.Start(rootCtx); err != nil && !errors.Is(err, context.Canceled) {
