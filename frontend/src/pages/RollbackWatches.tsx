@@ -8,7 +8,7 @@
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useEventSource } from "@/hooks/use-event-source"
-import { api } from "@/lib/api"
+import { api } from "@/api/client"
 import { toast } from "sonner"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,

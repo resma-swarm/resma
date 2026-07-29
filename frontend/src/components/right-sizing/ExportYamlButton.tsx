@@ -7,7 +7,7 @@
 import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
 import { useState } from "react"
-import { api } from "@/lib/api"
+import { api } from "@/api/client"
 import { toast } from "sonner"
 
 interface ExportYamlButtonProps {
