@@ -24,12 +24,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/resma/api/internal/auth"
-	"github.com/resma/api/internal/config"
-	"github.com/resma/api/internal/db"
-	"github.com/resma/api/internal/docker"
-	"github.com/resma/api/internal/mlclient"
-	"github.com/resma/api/internal/sse"
+	"github.com/resma-swarm/resma/app/api/internal/auth"
+	"github.com/resma-swarm/resma/app/api/internal/config"
+	"github.com/resma-swarm/resma/app/api/internal/db"
+	"github.com/resma-swarm/resma/app/api/internal/docker"
+	"github.com/resma-swarm/resma/app/api/internal/mlclient"
+	"github.com/resma-swarm/resma/app/api/internal/sse"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 

@@ -16,15 +16,15 @@ import (
 	"os/signal"
 	"syscall"
 
-	_ "github.com/resma/api/docs/swagger"
-	"github.com/resma/api/internal/auth"
-	"github.com/resma/api/internal/collector"
-	"github.com/resma/api/internal/config"
-	"github.com/resma/api/internal/db"
-	resmadocker "github.com/resma/api/internal/docker"
-	"github.com/resma/api/internal/rollback"
-	"github.com/resma/api/internal/scheduler"
-	"github.com/resma/api/internal/server"
+	_ "github.com/resma-swarm/resma/app/api/docs/swagger"
+	"github.com/resma-swarm/resma/app/api/internal/auth"
+	"github.com/resma-swarm/resma/app/api/internal/collector"
+	"github.com/resma-swarm/resma/app/api/internal/config"
+	"github.com/resma-swarm/resma/app/api/internal/db"
+	resmadocker "github.com/resma-swarm/resma/app/api/internal/docker"
+	"github.com/resma-swarm/resma/app/api/internal/rollback"
+	"github.com/resma-swarm/resma/app/api/internal/scheduler"
+	"github.com/resma-swarm/resma/app/api/internal/server"
 )
 
 func main() {

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/resma/api/internal/db"
+	"github.com/resma-swarm/resma/app/api/internal/db"
 )
 
 // evaluateOne avalia um watch: se critério disparou → rollback; se expirou → otimizado.

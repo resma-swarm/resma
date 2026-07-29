@@ -10,8 +10,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/resma/api/internal/db"
-	"github.com/resma/api/internal/docker"
+	"github.com/resma-swarm/resma/app/api/internal/db"
+	"github.com/resma-swarm/resma/app/api/internal/docker"
 )
 
 const (

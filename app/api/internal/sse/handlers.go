@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/resma/api/internal/auth"
+	"github.com/resma-swarm/resma/app/api/internal/auth"
 )
 
 // Handler coordena os endpoints SSE e o broker.

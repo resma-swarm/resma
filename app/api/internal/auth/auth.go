@@ -22,8 +22,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/resma/api/internal/config"
-	"github.com/resma/api/internal/db"
+	"github.com/resma-swarm/resma/app/api/internal/config"
+	"github.com/resma-swarm/resma/app/api/internal/db"
 	"golang.org/x/crypto/bcrypt"
 )
 

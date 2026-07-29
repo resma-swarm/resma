@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/resma/api/internal/db"
+	"github.com/resma-swarm/resma/app/api/internal/db"
 )
 
 // Criteria define quais checks estão habilitados para um watch.

@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/resma/api/internal/auth"
-	"github.com/resma/api/internal/docker"
+	"github.com/resma-swarm/resma/app/api/internal/auth"
+	"github.com/resma-swarm/resma/app/api/internal/docker"
 )
 
 // registerServiceRoutes registra as rotas de services no mux interno.

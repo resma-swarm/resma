@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/resma/api/internal/db"
+	"github.com/resma-swarm/resma/app/api/internal/db"
 )
 
 // registerAgentRoutes registra as rotas /api/agent/* no mux informado.

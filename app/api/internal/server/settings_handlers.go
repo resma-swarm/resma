@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/resma/api/internal/auth"
+	"github.com/resma-swarm/resma/app/api/internal/auth"
 )
 
 // settingSpec define um parâmetro operacional persistível em DB.

@@ -1,4 +1,4 @@
-module github.com/resma/api
+module github.com/resma-swarm/resma/app/api
 
 go 1.26.5
 

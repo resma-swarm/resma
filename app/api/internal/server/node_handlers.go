@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/resma/api/internal/db"
+	"github.com/resma-swarm/resma/app/api/internal/db"
 )
 
 // registerNodeRoutes registra as rotas de nodes no mux interno.

@@ -17,8 +17,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/resma/api/internal/db"
-	"github.com/resma/api/internal/docker"
+	"github.com/resma-swarm/resma/app/api/internal/db"
+	"github.com/resma-swarm/resma/app/api/internal/docker"
 )
 
 // buildDashboardData constrói o payload completo de /api/dashboard.

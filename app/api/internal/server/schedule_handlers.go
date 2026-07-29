@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/resma/api/internal/auth"
-	"github.com/resma/api/internal/db"
+	"github.com/resma-swarm/resma/app/api/internal/auth"
+	"github.com/resma-swarm/resma/app/api/internal/db"
 )
 
 // registerScheduleRoutes registra as rotas de schedules.

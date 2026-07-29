@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/resma/api/internal/db"
+	"github.com/resma-swarm/resma/app/api/internal/db"
 )
 
 // contextKey é um tipo privado para keys de contexto.
