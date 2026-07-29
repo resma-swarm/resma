@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<!--
+  Mockup estático do Right-Sizing Studio — referência visual apenas.
+  v2: cards compactos + Sheet (side panel) para edição + HelpIcon em termos técnicos.
+  Regras de implementação: seguir spec.md seção 12.
+-->
+<html lang="pt-BR" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RESMA — Right-Sizing Studio (Mockup v2)</title>
+<style>
+  :root {
+    --background: oklch(0.16 0.005 260);
+    --foreground: oklch(0.96 0.003 260);
+    --card: oklch(0.19 0.006 260);
+    --card-foreground: oklch(0.96 0.003 260);
+    --primary: oklch(0.62 0.19 255);
+    --primary-foreground: oklch(0.98 0 0);
+    --secondary: oklch(0.24 0.006 260);
+    --muted: oklch(0.22 0.005 260);
+    --muted-foreground: oklch(0.62 0.01 260);
+    --accent: oklch(0.26 0.008 260);
+    --destructive: oklch(0.58 0.2 25);
+    --success: oklch(0.6 0.15 160);
+    --warning: oklch(0.7 0.16 70);
+    --border: oklch(0.26 0.006 260 / 0.6);
+    --chart-1: oklch(0.62 0.19 255);
+    --chart-2: oklch(0.6 0.15 160);
+    --chart-3: oklch(0.7 0.16 70);
+    --chart-4: oklch(0.58 0.2 25);
+    --chart-5: oklch(0.65 0.18 300);
+    --radius: 0.625rem;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--background); color: var(--foreground);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 14px; -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: oklch(0.62 0.19 255 / 0.3); border-radius: 3px; }
+
+  .app { display: flex; min-height: 100vh; }
+  .sidebar { width: 220px; background: oklch(0.17 0.005 260); border-right: 1px solid var(--border); padding: 16px 12px; flex-shrink: 0; }
+  .logo { font-size: 18px; font-weight: 700; letter-spacing: 0.05em; color: var(--primary); margin-bottom: 24px; padding: 0 8px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; color: var(--muted-foreground); cursor: pointer; font-size: 13px; margin-bottom: 2px; transition: all 0.15s; }
+  .nav-item:hover { background: var(--accent); color: var(--foreground); }
+  .nav-item.active { background: var(--accent); color: var(--primary); font-weight: 600; }
+  .nav-icon { width: 16px; text-align: center; }
+
+  .main { flex: 1; padding: 24px 32px; overflow-x: auto; }
+  .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .page-title { font-size: 22px; font-weight: 700; }
+  .page-actions { display: flex; gap: 8px; }
+  .btn { padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--secondary); color: var(--foreground); font-size: 13px; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+  .btn:hover { background: var(--accent); }
+  .btn-primary { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-ghost { background: transparent; border-color: transparent; }
+  .btn-ghost:hover { background: var(--accent); }
+
+  /* Hero */
+  .hero { background: linear-gradient(135deg, oklch(0.19 0.02 255), oklch(0.19 0.01 260)); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 16px; display: flex; gap: 32px; align-items: center; }
+  .hero-metric { display: flex; align-items: center; gap: 10px; }
+  .hero-icon { font-size: 28px; }
+  .hero-text { display: flex; flex-direction: column; }
+  .hero-label { font-size: 11px; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.05em; }
+  .hero-value { font-size: 28px; font-weight: 700; color: var(--success); font-variant-numeric: tabular-nums; }
+  .hero-delta { font-size: 12px; color: var(--success); margin-top: 2px; }
+  .hero-divider { width: 1px; height: 48px; background: var(--border); }
+  .hero-meta { display: flex; flex-direction: column; gap: 2px; }
+  .hero-meta-val { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .hero-meta-label { font-size: 11px; color: var(--muted-foreground); }
+
+  /* Filters */
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; padding: 12px 16px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); }
+  .filter-chip { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--secondary); font-size: 12px; cursor: pointer; transition: all 0.15s; color: var(--muted-foreground); }
+  .filter-chip:hover { border-color: var(--primary); }
+  .filter-chip.active { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+  .filter-chip .count { opacity: 0.7; margin-left: 4px; }
+  .filter-sep { color: var(--muted-foreground); margin: 0 4px; }
+  .filter-select { padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--secondary); color: var(--foreground); font-size: 12px; }
+
+  /* Cards (compactos — sem expand inline) */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; transition: border-color 0.2s; }
+  .card:hover { border-color: oklch(0.62 0.19 255 / 0.4); }
+  .card-header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; }
+  .card-status-icon { font-size: 18px; }
+  .card-service { font-weight: 600; font-size: 14px; }
+  .card-pattern { padding: 2px 8px; border-radius: 999px; background: var(--secondary); font-size: 11px; color: var(--muted-foreground); }
+  .card-meta { color: var(--muted-foreground); font-size: 12px; }
+  .card-spacer { flex: 1; }
+  .card-savings { font-weight: 600; color: var(--success); font-variant-numeric: tabular-nums; }
+  .card-savings.neg { color: var(--warning); }
+  .card-savings.config { color: var(--primary); }
+  .badge { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .badge-over { background: oklch(0.62 0.19 255 / 0.15); color: var(--primary); }
+  .badge-under { background: oklch(0.7 0.16 70 / 0.15); color: var(--warning); }
+  .badge-healthy { background: oklch(0.6 0.15 160 / 0.15); color: var(--success); }
+  .badge-leak { background: oklch(0.58 0.2 25 / 0.15); color: var(--destructive); }
+  .badge-unconfig { background: var(--muted); color: var(--muted-foreground); }
+  .badge-collecting { background: oklch(0.62 0.19 255 / 0.1); color: var(--muted-foreground); border: 1px dashed var(--border); }
+  .badge-confidence { background: var(--secondary); color: var(--muted-foreground); border: 1px solid var(--border); }
+  .btn-configure { padding: 5px 12px; border-radius: 6px; border: 1px solid var(--primary); background: oklch(0.62 0.19 255 / 0.1); color: var(--primary); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .btn-configure:hover { background: var(--primary); color: var(--primary-foreground); }
+
+  /* HelpIcon — círculo ? com tooltip */
+  .help-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; border-radius: 50%;
+    color: var(--muted-foreground); cursor: help; font-size: 10px;
+    border: 1px solid var(--muted-foreground); opacity: 0.5;
+    transition: opacity 0.15s; position: relative; flex-shrink: 0;
+  }
+  .help-icon:hover { opacity: 1; color: var(--primary); border-color: var(--primary); }
+  .help-icon .tooltip {
+    display: none; position: absolute; bottom: 100%; left: 50%;
+    transform: translateX(-50%); margin-bottom: 8px;
+    background: oklch(0.12 0.005 260); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 12px; font-size: 12px; font-weight: 400;
+    color: var(--foreground); white-space: nowrap; max-width: 320px;
+    z-index: 200; line-height: 1.5; text-transform: none; letter-spacing: 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .help-icon .tooltip strong { color: var(--primary); display: block; margin-bottom: 2px; }
+  .help-icon .tooltip.wide { white-space: normal; width: 280px; }
+  .help-icon:hover .tooltip { display: block; }
+
+  /* Sheet (side panel) */
+  .sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; z-index: 90; }
+  .sheet-overlay.open { display: block; }
+  .sheet {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 560px; max-width: 90vw;
+    background: var(--card); border-left: 1px solid var(--border);
+    z-index: 100; transform: translateX(100%); transition: transform 0.3s ease;
+    overflow-y: auto; display: flex; flex-direction: column;
+  }
+  .sheet.open { transform: translateX(0); }
+  .sheet-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: start; justify-content: space-between; }
+  .sheet-title { font-size: 18px; font-weight: 700; }
+  .sheet-sub { font-size: 13px; color: var(--muted-foreground); margin-top: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .sheet-close { background: none; border: none; color: var(--muted-foreground); font-size: 22px; cursor: pointer; padding: 0; line-height: 1; }
+  .sheet-close:hover { color: var(--foreground); }
+  .sheet-body { padding: 20px 24px; flex: 1; overflow-y: auto; }
+  .sheet-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* Info banners */
+  .info-banner { display: flex; align-items: flex-start; gap: 8px; padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 12px; line-height: 1.5; }
+  .info-banner.info { background: oklch(0.62 0.19 255 / 0.08); border: 1px solid oklch(0.62 0.19 255 / 0.2); }
+  .info-banner.warning { background: oklch(0.7 0.16 70 / 0.08); border: 1px solid oklch(0.7 0.16 70 / 0.2); }
+  .info-banner.danger { background: oklch(0.58 0.2 25 / 0.08); border: 1px solid oklch(0.58 0.2 25 / 0.2); }
+  .info-banner .info-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .info-banner strong { color: var(--primary); }
+
+  /* Section label */
+  .section-label { font-size: 11px; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; display: flex; align-items: center; gap: 4px; }
+
+  /* Layer toggle */
+  .layer-toggle { display: flex; gap: 0; margin-bottom: 16px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; width: fit-content; }
+  .layer-opt { padding: 8px 18px; font-size: 13px; cursor: pointer; transition: all 0.15s; background: var(--secondary); color: var(--muted-foreground); border-right: 1px solid var(--border); }
+  .layer-opt:last-child { border-right: none; }
+  .layer-opt:hover { background: var(--accent); }
+  .layer-opt.active { background: var(--primary); color: var(--primary-foreground); font-weight: 600; }
+  .layer-opt .desc { font-size: 10px; opacity: 0.8; display: block; }
+
+  /* Sliders */
+  .slider-row { margin-bottom: 16px; }
+  .slider-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted-foreground); margin-bottom: 6px; }
+  .slider-label .ic { color: var(--primary); }
+  .slider-label .ic.mem { color: var(--chart-2); }
+  .slider-line { display: flex; align-items: center; gap: 12px; }
+  .slider-track { flex: 1; height: 6px; background: var(--muted); border-radius: 3px; position: relative; cursor: pointer; }
+  .slider-current { position: absolute; top: -3px; width: 2px; height: 12px; background: var(--muted-foreground); }
+  .slider-suggested { position: absolute; top: -3px; width: 2px; height: 12px; background: var(--primary); }
+  .slider-fill { position: absolute; top: 0; height: 6px; background: var(--primary); border-radius: 3px; }
+  .slider-thumb { position: absolute; top: -5px; width: 16px; height: 16px; border-radius: 50%; background: var(--primary); border: 2px solid var(--card); cursor: grab; transform: translateX(-50%); }
+  .slider-delta { font-size: 12px; font-weight: 600; min-width: 48px; text-align: right; font-variant-numeric: tabular-nums; }
+  .slider-delta.down { color: var(--success); }
+  .slider-delta.up { color: var(--warning); }
+  .slider-values { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+  .slider-val-suggested { color: var(--primary); font-weight: 600; }
+  .slider-val-current { color: var(--muted-foreground); }
+
+  /* What-if */
+  .whatif { background: oklch(0.17 0.006 260); border: 1px dashed var(--border); border-radius: 8px; padding: 14px; margin-bottom: 16px; }
+  .whatif-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 4px; }
+  .whatif-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .whatif-cell { display: flex; flex-direction: column; gap: 2px; }
+  .whatif-cell-label { font-size: 10px; color: var(--muted-foreground); display: flex; align-items: center; gap: 3px; }
+  .whatif-cell-value { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .risk-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .risk-green { background: var(--success); }
+  .risk-yellow { background: var(--warning); }
+  .risk-red { background: var(--destructive); }
+
+  /* Explainability */
+  .explain { margin-top: 16px; }
+  .explain-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--primary); cursor: pointer; padding: 8px 0; user-select: none; }
+  .explain-content { background: oklch(0.17 0.006 260); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-top: 8px; display: none; }
+  .explain-content.open { display: block; }
+  .explain-text { font-size: 13px; line-height: 1.7; margin-bottom: 16px; }
+  .explain-text strong { color: var(--primary); }
+  .explain-text .calc { color: var(--muted-foreground); font-family: monospace; font-size: 12px; }
+  .factors { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .factor-chip { padding: 3px 10px; border-radius: 999px; background: var(--secondary); border: 1px solid var(--border); font-size: 11px; color: var(--muted-foreground); display: flex; align-items: center; gap: 3px; }
+
+  /* Charts */
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .chart-title { font-size: 11px; color: var(--muted-foreground); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .bar-chart { display: flex; flex-direction: column; gap: 6px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+  .bar-label { width: 32px; color: var(--muted-foreground); }
+  .bar-track { flex: 1; height: 14px; background: var(--muted); border-radius: 3px; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+  .bar-val { width: 56px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted-foreground); }
+  .spark { display: flex; align-items: flex-end; gap: 2px; height: 48px; margin-top: 4px; }
+  .spark-bar { flex: 1; background: var(--chart-2); border-radius: 1px; opacity: 0.7; }
+  .spark-forecast { flex: 1; background: var(--chart-3); border-radius: 1px; opacity: 0.5; }
+  .spark-legend { display: flex; gap: 12px; font-size: 10px; color: var(--muted-foreground); margin-top: 6px; }
+  .spark-legend span { display: flex; align-items: center; gap: 4px; }
+  .spark-legend .dot { width: 8px; height: 8px; border-radius: 2px; }
+
+  /* Modal (bulk) */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 100; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); width: 720px; max-height: 90vh; overflow-y: auto; padding: 24px; }
+  .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .modal-sub { font-size: 13px; color: var(--muted-foreground); margin-bottom: 20px; }
+  .bulk-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+  .bulk-table th { text-align: left; font-size: 11px; color: var(--muted-foreground); text-transform: uppercase; padding: 8px; border-bottom: 1px solid var(--border); }
+  .bulk-table td { padding: 8px; font-size: 13px; border-bottom: 1px solid var(--border); }
+  .bulk-table tr.total td { font-weight: 700; border-top: 2px solid var(--border); }
+  .bulk-summary { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .bulk-summary-cell { background: var(--secondary); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .bulk-summary-label { font-size: 11px; color: var(--muted-foreground); }
+  .bulk-summary-val { font-size: 16px; font-weight: 700; margin-top: 2px; }
+  .risk-bar { display: flex; gap: 2px; height: 6px; border-radius: 3px; overflow: hidden; margin-bottom: 16px; }
+  .risk-bar-seg { flex: 1; }
+  .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+  .note { margin-top: 24px; padding: 12px 16px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); font-size: 12px; color: var(--muted-foreground); line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">RESMA</div>
+    <div class="nav-item"><span class="nav-icon">▦</span> Dashboard</div>
+    <div class="nav-item"><span class="nav-icon">⚙</span> Serviços</div>
+    <div class="nav-item"><span class="nav-icon">▣</span> Nodes</div>
+    <div class="nav-item"><span class="nav-icon">☰</span> Tasks</div>
+    <div class="nav-item active"><span class="nav-icon">✦</span> Right-Sizing Studio</div>
+    <div class="nav-item"><span class="nav-icon">⚠</span> Alertas</div>
+    <div class="nav-item"><span class="nav-icon">⚙</span> Configurações</div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="page-header">
+      <div class="page-title">Right-Sizing Studio</div>
+      <div class="page-actions">
+        <button class="btn" onclick="openBulk()">⬡ Simulação em Lote</button>
+        <button class="btn" onclick="recalc()">↻ Recalcular</button>
+        <button class="btn">↩ Rollback Watches</button>
+      </div>
+    </div>
+
+    <!-- Hero North Star -->
+    <div class="hero">
+      <div class="hero-metric">
+        <span class="hero-icon">📈</span>
+        <div class="hero-text">
+          <span class="hero-label">Pode liberar</span>
+          <span class="hero-value">340 cores · 18GB</span>
+          <span class="hero-delta">▲ 4 otimizações vs mês anterior</span>
+        </div>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-meta">
+        <span class="hero-meta-val">12</span>
+        <span class="hero-meta-label">serviços otimizados</span>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-meta">
+        <span class="hero-meta-val">3</span>
+        <span class="hero-meta-label">pendentes de revisão</span>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-meta">
+        <span class="hero-meta-val">94%</span>
+        <span class="hero-meta-label">taxa manutenção 7d</span>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters">
+      <span class="filter-chip active">Todos <span class="count">14</span></span>
+      <span class="filter-chip">Over-provisioned <span class="count">5</span></span>
+      <span class="filter-chip">Under <span class="count">1</span></span>
+      <span class="filter-chip">Leak <span class="count">1</span></span>
+      <span class="filter-chip">Sem config <span class="count">3</span></span>
+      <span class="filter-chip">Coletando <span class="count">2</span></span>
+      <span class="filter-sep">·</span>
+      <span class="filter-chip">Batch <span class="count">5</span></span>
+      <span class="filter-chip">Web <span class="count">7</span></span>
+      <span class="filter-chip">DB <span class="count">2</span></span>
+      <span class="filter-sep">·</span>
+      <span>Janela:</span>
+      <select class="filter-select"><option>7 dias</option><option>30 dias</option></select>
+      <span>Confiança:</span>
+      <select class="filter-select"><option>≥ Média</option><option>≥ Alta</option></select>
+    </div>
+
+    <!-- Cards compactos (sem expand inline — botão abre Sheet) -->
+
+    <!-- Card 1: over-provisioned -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-status-icon">⚠</span>
+        <span class="card-service">api-gateway</span>
+        <span class="card-pattern">Web</span>
+        <span class="card-meta">P95 CPU 12% · P99 Mem 340MB</span>
+        <div class="card-spacer"></div>
+        <span class="badge badge-over">Over-provisioned</span>
+        <span class="badge badge-confidence">Confiança: Alta</span>
+        <span class="card-savings">1.5 cores · 512MB</span>
+        <button class="btn-configure" onclick="openSheet('api-gateway','over')">⚙ Configurar</button>
+      </div>
+    </div>
+
+    <!-- Card 2: healthy -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-status-icon">✅</span>
+        <span class="card-service">postgres-primary</span>
+        <span class="card-pattern">DB</span>
+        <span class="card-meta">P95 CPU 45% · P99 Mem 1.8GB</span>
+        <div class="card-spacer"></div>
+        <span class="badge badge-healthy">Saudável</span>
+        <span class="badge badge-confidence">Confiança: Alta</span>
+        <span class="card-savings" style="color:var(--muted-foreground)">0 liberado</span>
+        <button class="btn-configure" onclick="openSheet('postgres-primary','healthy')">⚙ Configurar</button>
+      </div>
+    </div>
+
+    <!-- Card 3: leak -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-status-icon">🔴</span>
+        <span class="card-service">worker-batch</span>
+        <span class="card-pattern">Batch</span>
+        <span class="card-meta">P95 CPU 8% · P99 Mem 680MB ↑</span>
+        <div class="card-spacer"></div>
+        <span class="badge badge-leak">Leak detectado</span>
+        <span class="badge badge-confidence">Confiança: Média</span>
+        <span class="card-savings neg">+512MB</span>
+        <button class="btn-configure" onclick="openSheet('worker-batch','leak')">⚙ Configurar</button>
+      </div>
+    </div>
+
+    <!-- Card 4: over-provisioned -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-status-icon">⚠</span>
+        <span class="card-service">nginx-proxy</span>
+        <span class="card-pattern">Web</span>
+        <span class="card-meta">P95 CPU 5% · P99 Mem 80MB</span>
+        <div class="card-spacer"></div>
+        <span class="badge badge-over">Over-provisioned</span>
+        <span class="badge badge-confidence">Confiança: Alta</span>
+        <span class="card-savings">0.75 cores · 384MB</span>
+        <button class="btn-configure" onclick="openSheet('nginx-proxy','over')">⚙ Configurar</button>
+      </div>
+    </div>
+
+    <!-- Card 5: unconfigured (com coletas — tem sugestão ML) -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-status-icon">⚙</span>
+        <span class="card-service">redis-cache</span>
+        <span class="card-pattern">DB</span>
+        <span class="card-meta">P95 CPU 22% · P99 Mem 480MB · sem limites</span>
+        <div class="card-spacer"></div>
+        <span class="badge badge-unconfig">Sem configuração</span>
+        <span class="badge badge-confidence">Confiança: Média</span>
+        <span class="card-savings config">Configurar agora</span>
+        <button class="btn-configure" onclick="openSheet('redis-cache','unconfigured')">⚙ Configurar</button>
+      </div>
+    </div>
+
+    <!-- Card 6: collecting_data (sem coletas mínimas — config manual) -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-status-icon">⏳</span>
+        <span class="card-service">worker-cron</span>
+        <span class="card-pattern">Batch</span>
+        <span class="card-meta">Coletando dados (42 amostras)</span>
+        <div class="card-spacer"></div>
+        <span class="badge badge-collecting">Coletando</span>
+        <span class="card-savings config">Configurar manualmente</span>
+        <button class="btn-configure" onclick="openSheet('worker-cron','collecting')">⚙ Configurar</button>
+      </div>
+    </div>
+
+    <!-- Card 7: under_provisioned (precisa de MAIS recurso) -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-status-icon">🔴</span>
+        <span class="card-service">api-payments</span>
+        <span class="card-pattern">Web</span>
+        <span class="card-meta">P95 CPU 88% · P99 Mem 1.9GB · 3 OOMs</span>
+        <div class="card-spacer"></div>
+        <span class="badge badge-under">Under-provisioned</span>
+        <span class="badge badge-confidence">Confiança: Alta</span>
+        <span class="card-savings neg">+512MB · +0.5 cores</span>
+        <button class="btn-configure" onclick="openSheet('api-payments','under')">⚙ Configurar</button>
+      </div>
+    </div>
+
+    <div class="note">
+      Mockup v2 — Right-Sizing Studio · RESMA · cards compactos + Sheet lateral para edição.
+      Clique em "⚙ Configurar" em qualquer card para abrir o painel lateral.
+      HelpIcons (?) em termos técnicos explicam cada conceito.
+    </div>
+  </main>
+</div>
+
+<!-- Sheet (side panel) — modo over-provisioned (com sugestões ML completas) -->
+<div class="sheet-overlay" id="sheetOverlay" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-header">
+    <div>
+      <div class="sheet-title" id="sheetTitle">Configurar — api-gateway</div>
+      <div class="sheet-sub" id="sheetSub">
+        <span class="badge badge-over">Over-provisioned</span>
+        <span>Web · P95 CPU 12% · P99 Mem 340MB</span>
+      </div>
+    </div>
+    <button class="sheet-close" onclick="closeSheet()">✕</button>
+  </div>
+  <div class="sheet-body" id="sheetBody">
+    <!-- Conteúdo dinâmico via JS -->
+  </div>
+  <div class="sheet-footer" id="sheetFooter">
+    <button class="btn" onclick="closeSheet()">Cancelar</button>
+    <button class="btn">📅 Agendar</button>
+    <button class="btn btn-primary" onclick="closeSheet()">✓ Aplicar com Rollback →</button>
+  </div>
+</div>
+
+<!-- Modal: Bulk Simulation -->
+<div class="modal-overlay" id="bulkModal">
+  <div class="modal">
+    <div class="modal-title">Simulação em Lote — Right-Sizing Studio</div>
+    <div class="modal-sub">Cenário: Equilibrada · 5 serviços selecionados</div>
+    <table class="bulk-table">
+      <thead><tr><th>Serviço</th><th>CPU atual→sug</th><th>Mem atual→sug</th><th>Libera</th><th>Risco</th></tr></thead>
+      <tbody>
+        <tr><td>api-gateway</td><td>2.0 → 0.50</td><td>1GB → 512MB</td><td style="color:var(--success)">1.5 cores · 512MB</td><td><span class="risk-dot risk-green"></span>Baixo</td></tr>
+        <tr><td>nginx-proxy</td><td>1.0 → 0.25</td><td>512MB → 128MB</td><td style="color:var(--success)">0.75 cores · 384MB</td><td><span class="risk-dot risk-green"></span>Baixo</td></tr>
+        <tr><td>worker-batch</td><td>0.5 → 0.50</td><td>256MB → 768MB</td><td style="color:var(--warning)">+512MB</td><td><span class="risk-dot risk-yellow"></span>Atenção</td></tr>
+        <tr><td>redis-cache</td><td>1.0 → 0.50</td><td>2GB → 512MB</td><td style="color:var(--success)">0.5 cores · 1.5GB</td><td><span class="risk-dot risk-yellow"></span>Atenção</td></tr>
+        <tr><td>postgres-replica</td><td>2.0 → 1.50</td><td>4GB → 2GB</td><td style="color:var(--success)">0.5 cores · 2GB</td><td><span class="risk-dot risk-green"></span>Baixo</td></tr>
+        <tr class="total"><td>TOTAL</td><td colspan="2"></td><td style="color:var(--success)">3.25 cores · 4.4GB</td><td>4 safe, 1 atenção</td></tr>
+      </tbody>
+    </table>
+    <div class="bulk-summary">
+      <div class="bulk-summary-cell"><span class="bulk-summary-label">Recursos liberados</span><span class="bulk-summary-val" style="color:var(--success)">3.25 cores · 4.4GB</span></div>
+      <div class="bulk-summary-cell"><span class="bulk-summary-label">Risco agregado</span><span class="bulk-summary-val"><span class="risk-dot risk-green"></span>Baixo</span></div>
+      <div class="bulk-summary-cell"><span class="bulk-summary-label">Maior risco</span><span class="bulk-summary-val" style="font-size:13px">worker-batch (leak)</span></div>
+    </div>
+    <div class="risk-bar">
+      <div class="risk-bar-seg" style="background:var(--success)"></div>
+      <div class="risk-bar-seg" style="background:var(--success)"></div>
+      <div class="risk-bar-seg" style="background:var(--success)"></div>
+      <div class="risk-bar-seg" style="background:var(--success)"></div>
+      <div class="risk-bar-seg" style="background:var(--warning)"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('bulkModal')">Cancelar</button>
+      <button class="btn">⬇ Exportar plano YAML</button>
+      <button class="btn btn-primary" onclick="closeModal('bulkModal')">Aplicar tudo com rollback →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // --- HelpIcon HTML helper ---
+  function help(text, title) {
+    const cls = text.length > 60 ? 'wide' : '';
+    return `<span class="help-icon">?<span class="tooltip ${cls}">${title ? '<strong>' + title + '</strong>' : ''}${text}</span></span>`;
+  }
+
+  // --- Sheet content templates ---
+  const sheetTemplates = {
+
+    // Mode: over-provisioned (otimização com sugestões ML)
+    over: function(svc) {
+      return `
+        <div class="info-banner info">
+          <span class="info-icon">ℹ</span>
+          Este serviço está over-provisioned. A sugestão é <strong>reduzir</strong> recursos baseada em P95/P99 reais.
+        </div>
+
+        <div class="section-label">
+          Camadas de recomendação
+          ${help('Conservadora: margem 2x P95 (mais seguro). Equilibrada: margem data-driven (recomendada). Agressiva: margem 1.1x P95 (máxima liberação, requer rollback ativo).', 'Camadas')}
+        </div>
+        <div class="layer-toggle">
+          <div class="layer-opt" onclick="setLayer(this,'conservative')">Conservadora<span class="desc">P95×2.0 · seguro</span></div>
+          <div class="layer-opt active" onclick="setLayer(this,'balanced')">Equilibrada<span class="desc">P95×1.3 · default</span></div>
+          <div class="layer-opt" onclick="setLayer(this,'aggressive')">Agressiva<span class="desc">P95×1.1 · max liberação</span></div>
+        </div>
+
+        <div class="section-label">
+          Recursos
+          ${help('Arraste os sliders para simular diferentes valores. O marcador azul indica o sugerido pelo ML, o cinza indica o atual.', 'Sliders')}
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="ic">⚡</span> CPU ${help('CPU em cores (1 core = 1000 millicores). Limite duro do container.')}</div>
+          <div class="slider-line">
+            <div class="slider-track" id="cpuTrack"><div class="slider-fill" id="cpuFill" style="width:25%"></div><div class="slider-current" style="left:100%" title="Atual 2.0"></div><div class="slider-suggested" style="left:25%" title="Sugerido 0.50"></div><div class="slider-thumb" id="cpuThumb" style="left:25%"></div></div>
+            <span class="slider-delta down" id="cpuDelta">-75%</span>
+          </div>
+          <div class="slider-values"><span>0.10</span><span><span class="slider-val-suggested">0.50 cores</span> ← sugerido · atual <span class="slider-val-current">2.00 cores</span></span><span>4.00</span></div>
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="ic mem">▦</span> Memória ${help('Limite de memória em bytes. Container é killed (OOM) se ultrapassar.')}</div>
+          <div class="slider-line">
+            <div class="slider-track" id="memTrack"><div class="slider-fill" id="memFill" style="width:50%"></div><div class="slider-current" style="left:100%" title="Atual 1GB"></div><div class="slider-suggested" style="left:50%" title="Sugerido 512MB"></div><div class="slider-thumb" id="memThumb" style="left:50%"></div></div>
+            <span class="slider-delta down" id="memDelta">-50%</span>
+          </div>
+          <div class="slider-values"><span>16MB</span><span><span class="slider-val-suggested">512 MB</span> ← sugerido · atual <span class="slider-val-current">1.00 GB</span></span><span>2GB</span></div>
+        </div>
+
+        <div class="section-label">
+          Painel What-If
+          ${help('Simulação em tempo real: mostra o impacto dos valores escolhidos nos sliders. Atualiza ao arrastar.', 'What-If')}
+        </div>
+        <div class="whatif">
+          <div class="whatif-grid">
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Libera ${help('Delta = atual - what-if. Verde: libera. Vermelho: precisa mais.')}</span>
+              <span class="whatif-cell-value" style="color:var(--success)">1.5 cores · 512MB</span>
+              <span style="font-size:11px;color:var(--success)">CPU -75% · Mem -50%</span>
+            </div>
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Risco ${help('Score 0-100 baseado em margem, OOMs, leak e forecast. Verde < 30, amarelo 30-60, vermelho > 60.', 'Score de Risco')}</span>
+              <span class="whatif-cell-value"><span class="risk-dot risk-green"></span>Baixo</span>
+              <span style="font-size:11px;color:var(--muted-foreground)">P99 coberto, 0 OOMs</span>
+            </div>
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Margem ${help('(what-if - P95/P99) / what-if * 100. Verde > 20%, amarelo 10-20%, vermelho < 10%.', 'Margem de Segurança')}</span>
+              <span class="whatif-cell-value">1.3x P95</span>
+              <span style="font-size:11px;color:var(--muted-foreground)">buffer 30% P99</span>
+            </div>
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Forecast 7d ${help('Projeção P99 de memória em 7 dias vs novo limite. < 75% = seguro, > 90% = risco.', 'Forecast de Memória')}</span>
+              <span class="whatif-cell-value">520 MB</span>
+              <span style="font-size:11px;color:var(--success)">dentro do limite</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="explain">
+          <div class="explain-toggle" onclick="toggleExplain(this)"><span>▶</span> Por que estes números? ${help('Explicação em linguagem natural de como o ML chegou nos valores sugeridos, com gráficos de distribuição.', 'Explicabilidade')}</div>
+          <div class="explain-content">
+            <div class="explain-text">
+              <strong>CPU 0.50 cores:</strong> P95 dos últimos 7 dias = 0.38 cores. Padrão <strong>Web</strong> (constante, baixa variabilidade). Margem data-driven <strong>1.3x</strong>. 0 OOMs, 0 throttling.<br>
+              <span class="calc">Cálculo: 0.38 × 1.3 = 0.49 → arredondado 0.50</span><br><br>
+              <strong>Memória 512MB:</strong> P99 = 394MB. Sem leak (R²=0.12, <0.7). Margem 1.3x. Forecast 7d: 420MB (folga 92MB).<br>
+              <span class="calc">Cálculo: 394 × 1.3 = 512MB</span>
+            </div>
+            <div class="factors">
+              <span class="factor-chip">P95 CPU 0.38 ${help('Percentil 95 — 95% das amostras estão abaixo deste valor')}</span>
+              <span class="factor-chip">P99 Mem 394MB ${help('Percentil 99 — 99% das amostras estão abaixo deste valor')}</span>
+              <span class="factor-chip">0 OOMs ${help('Out of Memory kills — container morto por falta de memória')}</span>
+              <span class="factor-chip">R²=0.12 ${help('Coeficiente de determinação da tendência de memória. > 0.7 indica leak.', 'R² (Tendência)')}</span>
+            </div>
+            <div class="charts">
+              <div class="chart-box">
+                <div class="chart-title">CPU — distribuição (7d)</div>
+                <div class="bar-chart">
+                  <div class="bar-row"><span class="bar-label">P50</span><div class="bar-track"><div class="bar-fill" style="width:10%;background:var(--chart-1)"></div></div><span class="bar-val">0.15</span></div>
+                  <div class="bar-row"><span class="bar-label">P95</span><div class="bar-track"><div class="bar-fill" style="width:25%;background:var(--chart-1)"></div></div><span class="bar-val">0.38</span></div>
+                  <div class="bar-row"><span class="bar-label">P99</span><div class="bar-track"><div class="bar-fill" style="width:30%;background:var(--chart-1)"></div></div><span class="bar-val">0.45</span></div>
+                </div>
+              </div>
+              <div class="chart-box">
+                <div class="chart-title">Memória — tendência (7d)</div>
+                <div class="spark" id="memSpark"></div>
+                <div class="spark-legend"><span><span class="dot" style="background:var(--chart-2)"></span>histórico</span><span><span class="dot" style="background:var(--chart-3)"></span>forecast</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    },
+
+    // Mode: unconfigured (sem config mas com coletas — tem sugestão ML)
+    unconfigured: function(svc) {
+      return `
+        <div class="info-banner info">
+          <span class="info-icon">ℹ</span>
+          Este serviço não tem limites configurados. Defina os valores abaixo — as sugestões já consideram o uso real (P95/P99 dos últimos 7 dias).
+        </div>
+
+        <div class="section-label">
+          Camadas de recomendação
+          ${help('Conservadora: margem 2x P95. Equilibrada: data-driven (recomendada). Agressiva: 1.1x P95.', 'Camadas')}
+        </div>
+        <div class="layer-toggle">
+          <div class="layer-opt" onclick="setLayer(this,'conservative')">Conservadora<span class="desc">P95×2.0 · seguro</span></div>
+          <div class="layer-opt active" onclick="setLayer(this,'balanced')">Equilibrada<span class="desc">P95×1.3 · default</span></div>
+          <div class="layer-opt" onclick="setLayer(this,'aggressive')">Agressiva<span class="desc">P95×1.1 · max liberação</span></div>
+        </div>
+
+        <div class="section-label">Recursos ${help('Sem limites atuais. Os valores sugeridos são baseados no uso real coletado.', 'Primeira Configuração')}</div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="ic">⚡</span> CPU ${help('CPU em cores. Sem limite atual — esta será a primeira configuração.')}</div>
+          <div class="slider-line">
+            <div class="slider-track"><div class="slider-fill" style="width:15%"></div><div class="slider-suggested" style="left:15%" title="Sugerido 0.30"></div><div class="slider-thumb" style="left:15%"></div></div>
+            <span class="slider-delta" style="color:var(--primary)">nova config</span>
+          </div>
+          <div class="slider-values"><span>0.10</span><span><span class="slider-val-suggested">0.30 cores</span> ← sugerido · atual <span style="color:var(--muted-foreground)">sem limite</span></span><span>4.00</span></div>
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="ic mem">▦</span> Memória ${help('Limite de memória. Sem limite atual — esta será a primeira configuração.')}</div>
+          <div class="slider-line">
+            <div class="slider-track"><div class="slider-fill" style="width:30%"></div><div class="slider-suggested" style="left:30%" title="Sugerido 624MB"></div><div class="slider-thumb" style="left:30%"></div></div>
+            <span class="slider-delta" style="color:var(--primary)">nova config</span>
+          </div>
+          <div class="slider-values"><span>16MB</span><span><span class="slider-val-suggested">624 MB</span> ← sugerido · atual <span style="color:var(--muted-foreground)">sem limite</span></span><span>4GB</span></div>
+        </div>
+
+        <div class="section-label">Painel What-If ${help('Simulação da primeira configuração baseada nos dados coletados.', 'What-If')}</div>
+        <div class="whatif">
+          <div class="whatif-grid">
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Configuração</span>
+              <span class="whatif-cell-value" style="color:var(--primary)">0.30 cores · 624MB</span>
+              <span style="font-size:11px;color:var(--primary)">primeira configuração</span>
+            </div>
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Risco ${help('Score baseado em margem e forecast. Sem OOMs históricos (sem config anterior).')}</span>
+              <span class="whatif-cell-value"><span class="risk-dot risk-green"></span>Baixo</span>
+              <span style="font-size:11px;color:var(--muted-foreground)">P99 coberto</span>
+            </div>
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Margem ${help('Folga entre o sugerido e o P95/P99 real observado.')}</span>
+              <span class="whatif-cell-value">1.3x P95</span>
+              <span style="font-size:11px;color:var(--muted-foreground)">buffer 30%</span>
+            </div>
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Forecast 7d ${help('Projeção de memória vs novo limite.')}</span>
+              <span class="whatif-cell-value">520 MB</span>
+              <span style="font-size:11px;color:var(--success)">dentro do limite</span>
+            </div>
+          </div>
+        </div>
+      `;
+    },
+
+    // Mode: collecting_data (sem coletas mínimas — config manual livre)
+    collecting: function(svc) {
+      return `
+        <div class="info-banner warning">
+          <span class="info-icon">⚠</span>
+          Ainda não há dados suficientes para sugestões automáticas (mínimo 100 amostras, atual: 42).
+          Você pode definir os limites manualmente abaixo — ajuste conforme sua experiência.
+        </div>
+
+        <div class="section-label">Configuração manual ${help('Sem sugestão ML — você define os valores. Volte depois da coleta mínima para ver sugestões automáticas.', 'Configuração Manual')}</div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="ic">⚡</span> CPU <span style="font-size:10px;color:var(--muted-foreground)">(manual)</span> ${help('CPU em cores. Sem dados suficientes para sugestão — defina manualmente.')}</div>
+          <div class="slider-line">
+            <div class="slider-track"><div class="slider-fill" style="width:25%"></div><div class="slider-thumb" style="left:25%"></div></div>
+            <span class="slider-delta" style="color:var(--muted-foreground)">manual</span>
+          </div>
+          <div class="slider-values"><span>0.10</span><span><span style="color:var(--foreground);font-weight:600">1.00 cores</span> ← você define · atual <span style="color:var(--muted-foreground)">sem limite</span></span><span>8.00</span></div>
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="ic mem">▦</span> Memória <span style="font-size:10px;color:var(--muted-foreground)">(manual)</span> ${help('Limite de memória. Sem dados suficientes — defina manualmente.')}</div>
+          <div class="slider-line">
+            <div class="slider-track"><div class="slider-fill" style="width:25%"></div><div class="slider-thumb" style="left:25%"></div></div>
+            <span class="slider-delta" style="color:var(--muted-foreground)">manual</span>
+          </div>
+          <div class="slider-values"><span>16MB</span><span><span style="color:var(--foreground);font-weight:600">512 MB</span> ← você define · atual <span style="color:var(--muted-foreground)">sem limite</span></span><span>8GB</span></div>
+        </div>
+
+        <div class="info-banner info" style="margin-top:16px">
+          <span class="info-icon">�</span>
+          Dica: comece com valores conservadores e ajuste após a coleta atingir 100 amostras. O ML passará a sugerir valores otimizados automaticamente.
+        </div>
+      `;
+    },
+
+    // Mode: under-provisioned (precisa de MAIS recurso)
+    under: function(svc) {
+      return `
+        <div class="info-banner danger">
+          <span class="info-icon">🔴</span>
+          Este serviço está estressado: 3 OOMs ${help('Out of Memory — container killed por ultrapassar o limite de memória', 'OOM')} nos últimos 30 dias, CPU P95 em 88% do limite.
+          A sugestão é <strong>aumentar</strong> os recursos.
+        </div>
+
+        <div class="section-label">
+          Camadas de recomendação
+          ${help('Para under-provisioned, todas as camadas sugerem AUMENTAR recursos. Conservadora = maior aumento.', 'Camadas')}
+        </div>
+        <div class="layer-toggle">
+          <div class="layer-opt" onclick="setLayer(this,'conservative')">Conservadora<span class="desc">P95×2.0 · +mais recurso</span></div>
+          <div class="layer-opt active" onclick="setLayer(this,'balanced')">Equilibrada<span class="desc">P95×1.3 · recomendado</span></div>
+          <div class="layer-opt" onclick="setLayer(this,'aggressive')">Agressiva<span class="desc">P95×1.1 · mínimo viável</span></div>
+        </div>
+
+        <div class="section-label">Recursos ${help('Sugestão é AUMENTAR (em laranja). Marcador cinza = atual, laranja = sugerido.', 'Aumento de Recursos')}</div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="ic">⚡</span> CPU ${help('CPU em cores. Sugestão é maior que o atual — serviço está em 88% do limite.')}</div>
+          <div class="slider-line">
+            <div class="slider-track"><div class="slider-fill" style="width:38%;background:var(--warning)"></div><div class="slider-current" style="left:25%" title="Atual 1.0"></div><div class="slider-suggested" style="left:38%;background:var(--warning)" title="Sugerido 1.5"></div><div class="slider-thumb" style="left:38%"></div></div>
+            <span class="slider-delta up">+50%</span>
+          </div>
+          <div class="slider-values"><span>0.10</span><span><span class="slider-val-suggested" style="color:var(--warning)">1.50 cores</span> ← sugerido · atual <span class="slider-val-current">1.00 cores</span></span><span>8.00</span></div>
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="ic mem">▦</span> Memória ${help('Sugestão é maior — 3 OOMs em 30 dias indicam memória insuficiente.')}</div>
+          <div class="slider-line">
+            <div class="slider-track"><div class="slider-fill" style="width:63%;background:var(--warning)"></div><div class="slider-current" style="left:50%" title="Atual 2GB"></div><div class="slider-suggested" style="left:63%;background:var(--warning)" title="Sugerido 2.5GB"></div><div class="slider-thumb" style="left:63%"></div></div>
+            <span class="slider-delta up">+25%</span>
+          </div>
+          <div class="slider-values"><span>16MB</span><span><span class="slider-val-suggested" style="color:var(--warning)">2.50 GB</span> ← sugerido · atual <span class="slider-val-current">2.00 GB</span></span><span>8GB</span></div>
+        </div>
+
+        <div class="section-label">Painel What-If ${help('Impacto do aumento de recursos. Risco baixa porque OOMs esperados = 0 com novo limite.', 'What-If')}</div>
+        <div class="whatif">
+          <div class="whatif-grid">
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Impacto ${help('Aumento necessário: +0.5 cores CPU e +512MB memória.')}</span>
+              <span class="whatif-cell-value" style="color:var(--warning)">+0.5 cores · +512MB</span>
+              <span style="font-size:11px;color:var(--warning)">aumento de recurso</span>
+            </div>
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Risco ${help('Atenção porque houve 3 OOMs — monitorar após apply.')}</span>
+              <span class="whatif-cell-value"><span class="risk-dot risk-yellow"></span>Atenção</span>
+              <span style="font-size:11px;color:var(--muted-foreground)">3 OOMs — monitorar</span>
+            </div>
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Margem ${help('Folga entre novo limite e P95/P99.')}</span>
+              <span class="whatif-cell-value">1.3x P95</span>
+              <span style="font-size:11px;color:var(--muted-foreground)">buffer 30%</span>
+            </div>
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">OOM esperado ${help('Com o novo limite, OOMs não devem ocorrer (P99 + margem < novo limite).', 'OOM Esperado')}</span>
+              <span class="whatif-cell-value" style="color:var(--success)">0</span>
+              <span style="font-size:11px;color:var(--success)">com novo limite</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="explain">
+          <div class="explain-toggle" onclick="toggleExplain(this)"><span>▶</span> Por que aumentar? ${help('Explicação de por que o ML sugere aumentar recursos neste caso.', 'Explicabilidade')}</div>
+          <div class="explain-content">
+            <div class="explain-text">
+              <strong>CPU 1.50 cores:</strong> P95 = 0.88 cores (88% do limite atual de 1.0). Margem 1.3x → 1.14, arredondado para 1.50 para acomodar picos.<br>
+              <span class="calc">Cálculo: 0.88 × 1.3 = 1.14 → arredondado 1.50</span><br><br>
+              <strong>Memória 2.5GB:</strong> P99 = 1.9GB (95% do limite de 2GB). 3 OOMs ${help('Out of Memory kills em 30 dias')} em 30 dias. Margem 1.3x + forecast.<br>
+              <span class="calc">Cálculo: 1.9GB × 1.3 = 2.47GB → arredondado 2.5GB</span>
+            </div>
+            <div class="factors">
+              <span class="factor-chip">P95 CPU 88% ${help('P95 em 88% do limite — próximo do limite')}</span>
+              <span class="factor-chip">P99 Mem 95% ${help('P99 em 95% do limite — estressado')}</span>
+              <span class="factor-chip">3 OOMs ${help('3 kills por falta de memória em 30 dias')}</span>
+              <span class="factor-chip">Sem leak ${help('R² baixo — crescimento não é leak, é demanda real')}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    },
+
+    // Mode: leak (memory leak detectado)
+    leak: function(svc) {
+      return `
+        <div class="info-banner danger">
+          <span class="info-icon">🔴</span>
+          <strong>Memory leak detectado</strong>: R²=0.82 ${help('Coeficiente de determinação > 0.7 indica crescimento linear consistente = leak', 'R² (Leak)')},
+          crescimento de ~18MB/dia. A sugestão é aumentar memória + investigar o código.
+        </div>
+
+        <div class="section-label">Recursos ${help('Para leak, o ML sugere aumentar memória baseado no forecast 7d. A correção real é fixar o leak no código.', 'Leak Detectado')}</div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="ic">⚡</span> CPU ${help('CPU não é afetada pelo leak de memória.')}</div>
+          <div class="slider-line">
+            <div class="slider-track"><div class="slider-fill" style="width:25%"></div><div class="slider-current" style="left:25%" title="Atual 0.5"></div><div class="slider-suggested" style="left:25%" title="Sugerido 0.5"></div><div class="slider-thumb" style="left:25%"></div></div>
+            <span class="slider-delta" style="color:var(--muted-foreground)">0%</span>
+          </div>
+          <div class="slider-values"><span>0.10</span><span><span class="slider-val-suggested">0.50 cores</span> ← sugerido · atual <span class="slider-val-current">0.50 cores</span></span><span>4.00</span></div>
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="ic mem">▦</span> Memória ${help('Sugestão baseada em forecast 7d × 1.1 (margem para leak). Aumentar NÃO resolve o leak — apenas dá tempo para corrigir.', 'Aumento Temporário')}</div>
+          <div class="slider-line">
+            <div class="slider-track"><div class="slider-fill" style="width:38%;background:var(--warning)"></div><div class="slider-current" style="left:25%" title="Atual 256MB"></div><div class="slider-suggested" style="left:38%;background:var(--warning)" title="Sugerido 768MB"></div><div class="slider-thumb" style="left:38%"></div></div>
+            <span class="slider-delta up">+200%</span>
+          </div>
+          <div class="slider-values"><span>16MB</span><span><span class="slider-val-suggested" style="color:var(--warning)">768 MB</span> ← sugerido · atual <span class="slider-val-current">256 MB</span></span><span>4GB</span></div>
+        </div>
+
+        <div class="section-label">Painel What-If ${help('Aumentar memória dá tempo para corrigir o leak. Sem correção, o leak consumirá o novo limite em ~28 dias.', 'What-If')}</div>
+        <div class="whatif">
+          <div class="whatif-grid">
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Impacto</span>
+              <span class="whatif-cell-value" style="color:var(--warning)">+512MB</span>
+              <span style="font-size:11px;color:var(--warning)">aumento temporário</span>
+            </div>
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Risco ${help('Atenção: leak não resolvido. Monitorar e corrigir o código.')}</span>
+              <span class="whatif-cell-value"><span class="risk-dot risk-yellow"></span>Atenção</span>
+              <span style="font-size:11px;color:var(--warning)">leak ativo</span>
+            </div>
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Forecast 7d ${help('Projeção de memória em 7 dias. Crescimento de 18MB/dia.')}</span>
+              <span class="whatif-cell-value">432 MB</span>
+              <span style="font-size:11px;color:var(--success)">dentro do novo limite</span>
+            </div>
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Tempo limite ${help('Estimativa de quando o leak consumirá o novo limite. ~28 dias.', 'Tempo até Esgotar')}</span>
+              <span class="whatif-cell-value">~28 dias</span>
+              <span style="font-size:11px;color:var(--warning)">corrigir antes</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="explain">
+          <div class="explain-toggle" onclick="toggleExplain(this)"><span>▶</span> Detalhes do leak ${help('Análise estatística da tendência de memória e recomendações.', 'Análise de Leak')}</div>
+          <div class="explain-content">
+            <div class="explain-text">
+              <strong>Leak confirmado:</strong> R²=0.82 (> 0.7), crescimento de 18MB/dia, forecast 7d = 432MB.<br>
+              <span class="calc">Sugestão: forecast_p99 × 1.1 = 432 × 1.1 = 475MB → arredondado 768MB (próximo múltiplo)</span><br><br>
+              <strong>Recomendação:</strong> Aumentar memória é paliativo. A correção definitiva é identificar e fixar o leak no código.
+              Ferramentas: <code>pprof</code> (Go), <code>heapdump</code> (Node), <code>memory_profiler</code> (Python).
+            </div>
+            <div class="factors">
+              <span class="factor-chip">R²=0.82 ${help('Tendência linear forte — leak confirmado')}</span>
+              <span class="factor-chip">+18MB/dia ${help('Crescimento diário de memória')}</span>
+              <span class="factor-chip">Forecast 432MB ${help('Projeção P99 em 7 dias')}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    },
+
+    // Mode: healthy (saudável — só monitorar)
+    healthy: function(svc) {
+      return `
+        <div class="info-banner info">
+          <span class="info-icon">✅</span>
+          Este serviço está saudável — recursos bem ajustados, sem OOMs, sem leak. Você ainda pode ajustar manualmente se necessário.
+        </div>
+
+        <div class="section-label">Recursos atuais ${help('Valores bem ajustados. Sem sugestão de mudança do ML.', 'Saudável')}</div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="ic">⚡</span> CPU ${help('CPU em cores. Atual = sugerido — bem ajustado.')}</div>
+          <div class="slider-line">
+            <div class="slider-track"><div class="slider-fill" style="width:56%"></div><div class="slider-current" style="left:56%" title="Atual 2.0"></div><div class="slider-suggested" style="left:56%" title="Sugerido 2.0"></div><div class="slider-thumb" style="left:56%"></div></div>
+            <span class="slider-delta" style="color:var(--muted-foreground)">0%</span>
+          </div>
+          <div class="slider-values"><span>0.10</span><span><span class="slider-val-suggested">2.00 cores</span> ← sugerido · atual <span class="slider-val-current">2.00 cores</span></span><span>8.00</span></div>
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span class="ic mem">▦</span> Memória ${help('Memória bem ajustada. P99 dentro do limite com folga.')}</div>
+          <div class="slider-line">
+            <div class="slider-track"><div class="slider-fill" style="width:45%"></div><div class="slider-current" style="left:45%" title="Atual 4GB"></div><div class="slider-suggested" style="left:45%" title="Sugerido 4GB"></div><div class="slider-thumb" style="left:45%"></div></div>
+            <span class="slider-delta" style="color:var(--muted-foreground)">0%</span>
+          </div>
+          <div class="slider-values"><span>16MB</span><span><span class="slider-val-suggested">4.00 GB</span> ← sugerido · atual <span class="slider-val-current">4.00 GB</span></span><span>16GB</span></div>
+        </div>
+
+        <div class="section-label">Painel What-If ${help('Tudo dentro do esperado. Sem ação necessária.', 'What-If')}</div>
+        <div class="whatif">
+          <div class="whatif-grid">
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Status</span>
+              <span class="whatif-cell-value" style="color:var(--success)"><span class="risk-dot risk-green"></span>Saudável</span>
+              <span style="font-size:11px;color:var(--success)">bem ajustado</span>
+            </div>
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Risco ${help('Score baixo — sem problemas detectados.')}</span>
+              <span class="whatif-cell-value"><span class="risk-dot risk-green"></span>Muito baixo</span>
+              <span style="font-size:11px;color:var(--muted-foreground)">0 OOMs, sem leak</span>
+            </div>
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Margem ${help('Folga ampla entre P95/P99 e limite atual.')}</span>
+              <span class="whatif-cell-value">2.2x P95</span>
+              <span style="font-size:11px;color:var(--success)">folga ampla</span>
+            </div>
+            <div class="whatif-cell">
+              <span class="whatif-cell-label">Forecast 7d ${help('Projeção de memória estável.')}</span>
+              <span class="whatif-cell-value">1.9 GB</span>
+              <span style="font-size:11px;color:var(--success)">dentro do limite</span>
+            </div>
+          </div>
+        </div>
+      `;
+    },
+  };
+
+  // --- Sheet open/close ---
+  function openSheet(svc, mode) {
+    const title = document.getElementById('sheetTitle');
+    const sub = document.getElementById('sheetSub');
+    const body = document.getElementById('sheetBody');
+    const footer = document.getElementById('sheetFooter');
+
+    title.textContent = 'Configurar — ' + svc;
+
+    const badges = {
+      over: '<span class="badge badge-over">Over-provisioned</span>',
+      healthy: '<span class="badge badge-healthy">Saudável</span>',
+      leak: '<span class="badge badge-leak">Leak detectado</span>',
+      unconfigured: '<span class="badge badge-unconfig">Sem configuração</span>',
+      collecting: '<span class="badge badge-collecting">Coletando</span>',
+      under: '<span class="badge badge-under">Under-provisioned</span>',
+    };
+
+    const metas = {
+      over: 'Web · P95 CPU 12% · P99 Mem 340MB',
+      healthy: 'DB · P95 CPU 45% · P99 Mem 1.8GB',
+      leak: 'Batch · P95 CPU 8% · P99 Mem 680MB ↑',
+      unconfigured: 'DB · P95 CPU 22% · P99 Mem 480MB · sem limites',
+      collecting: 'Batch · 42 amostras (mínimo 100)',
+      under: 'Web · P95 CPU 88% · P99 Mem 1.9GB · 3 OOMs',
+    };
+
+    sub.innerHTML = (badges[mode] || '') + ' <span>' + (metas[mode] || '') + '</span>';
+    body.innerHTML = (sheetTemplates[mode] || sheetTemplates.over)(svc);
+
+    // Footer: collecting/unconfigured = "Configurar e monitorar", others = "Aplicar com Rollback"
+    const isConfig = mode === 'collecting' || mode === 'unconfigured';
+    footer.innerHTML = `
+      <button class="btn" onclick="closeSheet()">Cancelar</button>
+      <button class="btn">📅 Agendar</button>
+      <button class="btn btn-primary" onclick="closeSheet()">${isConfig ? '✓ Configurar e monitorar →' : '✓ Aplicar com Rollback →'}</button>
+    `;
+
+    document.getElementById('sheetOverlay').classList.add('open');
+    document.getElementById('sheet').classList.add('open');
+  }
+
+  function closeSheet() {
+    document.getElementById('sheetOverlay').classList.remove('open');
+    document.getElementById('sheet').classList.remove('open');
+  }
+
+  // --- Layer toggle ---
+  function setLayer(el, layer) {
+    el.parentElement.querySelectorAll('.layer-opt').forEach(o => o.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  // --- Explainability toggle ---
+  function toggleExplain(el) {
+    const content = el.nextElementSibling;
+    content.classList.toggle('open');
+    el.querySelector('span').textContent = content.classList.contains('open') ? '▼' : '▶';
+  }
+
+  // --- Bulk modal ---
+  function openBulk() { document.getElementById('bulkModal').classList.add('open'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+  document.querySelectorAll('.modal-overlay').forEach(o => {
+    o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+  });
+
+  function recalc() { alert('Recalculando recomendações via ML sidecar...'); }
+
+  // --- Spark chart ---
+  (function() {
+    const spark = document.getElementById('memSpark');
+    if (!spark) return;
+    const data = [30,35,38,40,42,45,48,50,52,55,58,60,62,65,68,70,72,68,65,62,58,55,52,50,48,45,42,40,38,35];
+    const forecast = [34,36,38,40,42,44,46,48];
+    const max = 80;
+    data.forEach(v => { const b = document.createElement('div'); b.className = 'spark-bar'; b.style.height = (v/max*100) + '%'; spark.appendChild(b); });
+    forecast.forEach(v => { const b = document.createElement('div'); b.className = 'spark-forecast'; b.style.height = (v/max*100) + '%'; spark.appendChild(b); });
+  })();
+</script>
+</body>
+</html>
