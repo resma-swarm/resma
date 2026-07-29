@@ -1,10 +1,12 @@
-import { lazy, Suspense } from "react"
+import { lazy, Suspense, useEffect } from "react"
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { AuthProvider, useAuth } from "@/contexts/AuthContext"
 import { Spinner } from "@/components/ui/spinner"
 import { Toaster } from "@/components/ui/sonner"
 import { Layout } from "@/components/Layout"
+import { RumConsentBanner } from "@/components/RumConsentBanner"
+import { initPosthog, identifyUser, resetUser } from "@/lib/posthog"
 import Login from "@/pages/Login"
 import Onboarding from "@/pages/Onboarding"
 // Core monitoring routes — eager (usadas com frequência, SSE ativo)
@@ -45,6 +47,20 @@ const queryClient = new QueryClient({
 
 function AppGate() {
   const { initialized, user, loading } = useAuth()
+
+  // Inicializar PostHog (RUM) — opt-in via VITE_POSTHOG_ENABLED
+  useEffect(() => {
+    initPosthog()
+  }, [])
+
+  // Identificar usuário no PostHog quando logado
+  useEffect(() => {
+    if (user) {
+      identifyUser(user.username, user.role)
+    } else {
+      resetUser()
+    }
+  }, [user])
 
   if (loading) {
     return (
@@ -105,6 +121,7 @@ export default function App() {
       <AuthProvider>
         <AppGate />
         <Toaster />
+        <RumConsentBanner />
       </AuthProvider>
     </QueryClientProvider>
   )

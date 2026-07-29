@@ -112,6 +112,10 @@ services:
       - "5173:5173"
     environment:
       - VITE_PROXY_TARGET=http://api:8080
+      # RUM (Right-Sizing Studio R7) — opt-in, default desabilitado
+      - VITE_POSTHOG_ENABLED=${VITE_POSTHOG_ENABLED:-false}
+      - VITE_POSTHOG_KEY=${VITE_POSTHOG_KEY:-}
+      - VITE_POSTHOG_HOST=${VITE_POSTHOG_HOST:-https://app.posthog.com}
     command: ["sh", "-c", "corepack enable && corepack prepare pnpm@latest --activate && pnpm config set dangerouslyAllowAllBuilds true && pnpm install && pnpm dev --host 0.0.0.0"]
     depends_on:
       - api

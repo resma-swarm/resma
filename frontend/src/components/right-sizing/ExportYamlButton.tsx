@@ -9,6 +9,7 @@ import { Download } from "lucide-react"
 import { useState } from "react"
 import { api } from "@/api/client"
 import { toast } from "sonner"
+import { trackRUM } from "@/lib/rum"
 
 interface ExportYamlButtonProps {
   services: string[]
@@ -21,6 +22,7 @@ export function ExportYamlButton({ services, tier, disabled }: ExportYamlButtonP
 
   const handleExport = async () => {
     setLoading(true)
+    trackRUM("rec_export_yaml_click", { service_count: services.length, tier })
     try {
       const params = new URLSearchParams()
       if (services.length > 0) params.set("services", services.join(","))
