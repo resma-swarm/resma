@@ -31,7 +31,6 @@ import { LayerToggle } from "@/components/right-sizing/LayerToggle"
 import { ExplainabilityPanel } from "@/components/right-sizing/ExplainabilityPanel"
 import { ResourceSlider } from "@/components/right-sizing/ResourceSlider"
 import { WhatIfPanel } from "@/components/right-sizing/WhatIfPanel"
-import { ExportYamlButton } from "@/components/right-sizing/ExportYamlButton"
 import {
   calculateHero,
   riskColorClasses,
@@ -1028,11 +1027,6 @@ export default function Recommendations() {
           {overProvCount > 0 && <Badge variant="secondary">{overProvCount} otimizar</Badge>
           }
           {healthyCount > 0 && <Badge variant="success">{healthyCount} saudáveis</Badge>}
-          <ExportYamlButton
-            services={recs.map(r => r.service)}
-            tier="balanced"
-            disabled={recs.length === 0}
-          />
         </div>
       </PageHeader>
 

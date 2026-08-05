@@ -37,7 +37,6 @@ import { LayerToggle } from "@/components/right-sizing/LayerToggle"
 import { ResourceSlider } from "@/components/right-sizing/ResourceSlider"
 import { WhatIfPanel } from "@/components/right-sizing/WhatIfPanel"
 import { ExplainabilityPanel } from "@/components/right-sizing/ExplainabilityPanel"
-import { ExportYamlButton } from "@/components/right-sizing/ExportYamlButton"
 import { formatBytes, formatCPU, formatCores, cn } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -1131,10 +1130,6 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           selectedTier={selectedTier}
         />
       )}
-
-      <div className="flex gap-2 flex-wrap pt-2">
-        <ExportYamlButton services={[rec.service]} tier={selectedTier} />
-      </div>
     </>
   )
 }
@@ -1358,11 +1353,6 @@ function BulkSimulateModal({
 
         <DialogFooter className="gap-2">
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <ExportYamlButton
-            services={selectedRecs.map((r) => r.service)}
-            tier={selectedTier}
-            disabled={selectedRecs.length === 0}
-          />
           <Button
             variant="default"
             size="sm"
