@@ -150,6 +150,19 @@ export default function Studio() {
     return set
   }, [rollbackWatches])
 
+  const { data: changeLog } = useQuery<{ Service: string; Action: string; Status: string }[]>({
+    queryKey: ["change-log-recent"],
+    queryFn: () => api.get("/change-log"),
+    refetchInterval: refreshInterval,
+  })
+  const optimizedCount = useMemo(() => {
+    const services = new Set<string>()
+    for (const e of changeLog ?? []) {
+      if (e.Action === "apply" && e.Status === "completed") services.add(e.Service)
+    }
+    return services.size
+  }, [changeLog])
+
   const { data: storageRecs } = useQuery<StorageAnalysis>({
     queryKey: ["storage-recommendations"],
     queryFn: () => api.get<StorageAnalysis>("/recommendations/storage"),
@@ -344,7 +357,7 @@ export default function Studio() {
       </PageHeader>
 
       {/* Hero */}
-      <HeroMetric data={calculateHero(recs)} loading={isLoading} onPendingClick={() => setStatusFilter("over_provisioned")} />
+      <HeroMetric data={{ ...calculateHero(recs), optimized_count: optimizedCount }} loading={isLoading} onPendingClick={() => setStatusFilter("over_provisioned")} />
 
       {/* Filters */}
       <Card>
@@ -398,7 +411,7 @@ export default function Studio() {
         </CardContent>
       </Card>
 
-      {/* Cards compactos */}
+      {/* Cards compactos — agrupados por status quando sem filtro */}
       <div className="space-y-3">
         {filteredRecs.length === 0 ? (
           <Card>
@@ -410,6 +423,57 @@ export default function Studio() {
               </Button>
             </CardContent>
           </Card>
+        ) : statusFilter === "all" && patternFilter === "all" ? (
+          (() => {
+            const groups: { key: string; label: string; icon: typeof AlertTriangle; recs: Recommendation[] }[] = []
+            for (const [key, cfg] of Object.entries(statusConfig)) {
+              const groupRecs = filteredRecs.filter(r => r.status === key)
+              if (groupRecs.length > 0) groups.push({ key, label: cfg.label, icon: cfg.icon, recs: groupRecs })
+            }
+            return groups.map(g => {
+              const GroupIcon = g.icon
+              return (
+                <div key={g.key} className="space-y-2">
+                  <div className="flex items-center gap-2 px-1">
+                    <GroupIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{g.label}</span>
+                    <span className="text-xs text-muted-foreground/50">({g.recs.length})</span>
+                  </div>
+                  {g.recs.map((rec) => (
+                    <CompactCard
+                      key={rec.service}
+                      rec={rec}
+                      freed={getResourcesFreed(rec)}
+                      onConfigure={() => openSheet(rec)}
+                      isWatched={watchedServices.has(rec.service)}
+                      isQuickApplying={quickApplying === rec.service}
+                      onQuickApply={async () => {
+                        setQuickApplying(rec.service)
+                        const tier = getTierData(rec)
+                        if (!tier) { setQuickApplying(null); return }
+                        try {
+                          await api.post(`/recommendations/${rec.service}/apply`, {
+                            cpu_limit: tier.cpu_limit,
+                            mem_limit: Math.round(tier.mem_limit),
+                            cpu_reservation: tier.cpu_limit * 0.75,
+                            mem_reservation: Math.round(tier.mem_limit * 0.75),
+                          })
+                          queryClient.invalidateQueries({ queryKey: ["recommendations"] })
+                          queryClient.invalidateQueries({ queryKey: ["rollback-watches-active"] })
+                          queryClient.invalidateQueries({ queryKey: ["change-log-recent"] })
+                          toast.success(`Aplicado para ${rec.service} com rollback ativo`)
+                        } catch {
+                          toast.error(`Erro ao aplicar para ${rec.service}`)
+                        } finally {
+                          setQuickApplying(null)
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
+              )
+            })
+          })()
         ) : (
           filteredRecs.map((rec) => (
             <CompactCard
@@ -432,6 +496,7 @@ export default function Studio() {
                   })
                   queryClient.invalidateQueries({ queryKey: ["recommendations"] })
                   queryClient.invalidateQueries({ queryKey: ["rollback-watches-active"] })
+                  queryClient.invalidateQueries({ queryKey: ["change-log-recent"] })
                   toast.success(`Aplicado para ${rec.service} com rollback ativo`)
                 } catch {
                   toast.error(`Erro ao aplicar para ${rec.service}`)
@@ -618,9 +683,9 @@ function CompactCard({ rec, freed, onConfigure, onQuickApply, isWatched, isQuick
   const memColor = memUtilPct > 90 ? "text-destructive" : memUtilPct > 75 ? "text-warning" : "text-muted-foreground/70"
 
   return (
-    <Card className={cn("hover:border-primary/40 transition-colors border-l-2", cfg.borderClass)}>
+    <Card className={cn("hover:border-primary/40 transition-colors border-l-2", cfg.borderClass)} role="article" aria-label={`${rec.service} — ${cfg.label}`}>
       <div className="flex items-center gap-3 p-3.5">
-        <StatusIcon className={cn("h-4 w-4 shrink-0", cfg.variant === "danger" ? "text-destructive" : cfg.variant === "warning" ? "text-warning" : cfg.variant === "success" ? "text-success" : "text-muted-foreground")} />
+        <StatusIcon className={cn("h-4 w-4 shrink-0", cfg.variant === "danger" ? "text-destructive" : cfg.variant === "warning" ? "text-warning" : cfg.variant === "success" ? "text-success" : "text-muted-foreground")} aria-hidden="true" />
         <span className="font-semibold text-sm">{rec.service}</span>
         {isWatched && (
           <Shield className="h-3.5 w-3.5 text-primary shrink-0" aria-label="Rollback watch ativo" />
@@ -662,14 +727,14 @@ function CompactCard({ rec, freed, onConfigure, onQuickApply, isWatched, isQuick
           </span>
         ) : null}
         {canQuickApply && onQuickApply && (
-          <Button size="sm" variant="ghost" className="h-7 text-xs shrink-0 text-primary" disabled={isQuickApplying} onClick={onQuickApply}>
+          <Button size="sm" variant="ghost" className="h-7 text-xs shrink-0 text-primary" disabled={isQuickApplying} onClick={onQuickApply} aria-label={`Aplicar recomendação para ${rec.service}`}>
             {isQuickApplying ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Zap className="mr-1 h-3 w-3" />}
-            Aplicar
+            <span className="hidden sm:inline">Aplicar</span>
           </Button>
         )}
-        <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={onConfigure}>
+        <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={onConfigure} aria-label={`Configurar ${rec.service}`}>
           <Settings2 className="mr-1 h-3 w-3" />
-          Configurar
+          <span className="hidden sm:inline">Configurar</span>
         </Button>
       </div>
     </Card>
