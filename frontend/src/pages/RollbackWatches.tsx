@@ -384,12 +384,12 @@ export function RollbackWatches() {
                                 </div>
                               </div>
                               {/* Timestamps */}
-                              <div className="space-y-1">
+                              <div className="space-y-1.5">
                                 <div className="text-xs text-muted-foreground font-medium">Timeline</div>
                                 <TooltipProvider delayDuration={200}>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <span className="text-xs text-muted-foreground tabular-nums cursor-help">Início: {timeAgo(w.started_at)}</span>
+                                      <span className="block text-xs text-muted-foreground tabular-nums cursor-help">Início: {timeAgo(w.started_at)}</span>
                                     </TooltipTrigger>
                                     <TooltipContent>{new Date(w.started_at).toLocaleString("pt-BR")}</TooltipContent>
                                   </Tooltip>
@@ -397,7 +397,7 @@ export function RollbackWatches() {
                                 <TooltipProvider delayDuration={200}>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <span className="text-xs text-muted-foreground tabular-nums cursor-help">Expira: {timeAgo(w.expires_at)}</span>
+                                      <span className="block text-xs text-muted-foreground tabular-nums cursor-help">Expira: {timeAgo(w.expires_at)}</span>
                                     </TooltipTrigger>
                                     <TooltipContent>{new Date(w.expires_at).toLocaleString("pt-BR")}</TooltipContent>
                                   </Tooltip>
@@ -406,7 +406,7 @@ export function RollbackWatches() {
                                   <TooltipProvider delayDuration={200}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <span className="text-xs text-warning tabular-nums cursor-help">Revertido: {timeAgo(w.rolled_back_at)}</span>
+                                        <span className="block text-xs text-warning tabular-nums cursor-help">Revertido: {timeAgo(w.rolled_back_at)}</span>
                                       </TooltipTrigger>
                                       <TooltipContent>{new Date(w.rolled_back_at).toLocaleString("pt-BR")}</TooltipContent>
                                     </Tooltip>

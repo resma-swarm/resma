@@ -1250,7 +1250,7 @@ function BulkSimulateModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>Aplicação em Lote — Otimização de Recursos</DialogTitle>
           <DialogDescription>
@@ -1299,14 +1299,14 @@ function BulkSimulateModal({
                             aria-label={`Selecionar ${rec.service}`}
                           />
                         </TableCell>
-                        <TableCell className="font-medium text-sm">{rec.service}</TableCell>
-                        <TableCell className="text-xs tabular-nums hidden sm:table-cell">
+                        <TableCell className="font-medium text-sm whitespace-nowrap">{rec.service}</TableCell>
+                        <TableCell className="text-xs tabular-nums hidden sm:table-cell whitespace-nowrap">
                           {formatCores(rec.current?.cpu_limit ?? 0)} → {formatCores(tier?.cpu_limit ?? 0)}
                         </TableCell>
-                        <TableCell className="text-xs tabular-nums hidden sm:table-cell">
+                        <TableCell className="text-xs tabular-nums hidden sm:table-cell whitespace-nowrap">
                           {formatBytes(rec.current?.mem_limit ?? 0)} → {formatBytes(tier?.mem_limit ?? 0)}
                         </TableCell>
-                        <TableCell className="text-xs tabular-nums text-success font-medium">
+                        <TableCell className="text-xs tabular-nums text-success font-medium whitespace-nowrap">
                           {freed && (freed.cpu_cores > 0 || freed.mem_bytes > 0) ? (
                             <>
                               {freed.cpu_cores > 0 && `${formatCores(freed.cpu_cores)} cores`}
@@ -1326,12 +1326,12 @@ function BulkSimulateModal({
                     )
                   })}
                   <TableRow className="border-t-2 font-medium sticky bottom-0 bg-background">
-                    <TableCell colSpan={3} className="hidden sm:table-cell">TOTAL ({selectedRecs.length})</TableCell>
+                    <TableCell colSpan={3} className="hidden sm:table-cell whitespace-nowrap">TOTAL ({selectedRecs.length})</TableCell>
                     <TableCell className="sm:hidden" colSpan={3}>TOTAL ({selectedRecs.length})</TableCell>
-                    <TableCell className="text-success tabular-nums">
+                    <TableCell className="text-success tabular-nums whitespace-nowrap">
                       {formatCores(totals.cpu)} cores · {formatBytes(totals.mem)}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground hidden md:table-cell">
+                    <TableCell className="text-xs text-muted-foreground hidden md:table-cell whitespace-nowrap">
                       {riskCounts.green ?? 0} safe, {riskCounts.yellow ?? 0} atenção
                     </TableCell>
                   </TableRow>
