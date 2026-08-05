@@ -124,7 +124,7 @@ export function RollbackWatches() {
       </div>
 
       {/* Stats por status */}
-      <div className="grid gap-3 sm:grid-cols-5">
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         {Object.entries(statusConfig).map(([key, cfg]) => {
           const Icon = cfg.icon
           const count = statusCounts[key] ?? 0
@@ -174,11 +174,11 @@ export function RollbackWatches() {
                 <TableRow>
                   <TableHead>Serviço</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Estratégia</TableHead>
-                  <TableHead>Janela</TableHead>
-                  <TableHead>Critério disparou</TableHead>
-                  <TableHead>Iniciado</TableHead>
-                  <TableHead>Expira</TableHead>
+                  <TableHead className="hidden md:table-cell">Estratégia</TableHead>
+                  <TableHead className="hidden lg:table-cell">Janela</TableHead>
+                  <TableHead className="hidden xl:table-cell">Critério disparou</TableHead>
+                  <TableHead className="hidden sm:table-cell">Iniciado</TableHead>
+                  <TableHead className="hidden sm:table-cell">Expira</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -195,19 +195,19 @@ export function RollbackWatches() {
                           {sc.label}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{w.strategy}</TableCell>
-                      <TableCell className="text-xs tabular-nums">{w.observation_window_hours}h</TableCell>
-                      <TableCell className="text-xs">
+                      <TableCell className="text-xs text-muted-foreground hidden md:table-cell">{w.strategy}</TableCell>
+                      <TableCell className="text-xs tabular-nums hidden lg:table-cell">{w.observation_window_hours}h</TableCell>
+                      <TableCell className="text-xs hidden xl:table-cell">
                         {w.triggered_criteria ? (
                           <span className="font-mono text-orange-600">{w.triggered_criteria}</span>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-xs tabular-nums text-muted-foreground">
+                      <TableCell className="text-xs tabular-nums text-muted-foreground hidden sm:table-cell">
                         {new Date(w.started_at).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}
                       </TableCell>
-                      <TableCell className="text-xs tabular-nums text-muted-foreground">
+                      <TableCell className="text-xs tabular-nums text-muted-foreground hidden sm:table-cell">
                         {new Date(w.expires_at).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}
                       </TableCell>
                       <TableCell className="text-right">

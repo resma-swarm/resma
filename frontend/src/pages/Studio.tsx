@@ -29,6 +29,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { PageHeader } from "@/components/page-header"
 import { HelpIcon } from "@/components/help-icon"
 import { HeroMetric } from "@/components/right-sizing/HeroMetric"
@@ -37,7 +38,7 @@ import { ResourceSlider } from "@/components/right-sizing/ResourceSlider"
 import { WhatIfPanel } from "@/components/right-sizing/WhatIfPanel"
 import { ExplainabilityPanel } from "@/components/right-sizing/ExplainabilityPanel"
 import { ExportYamlButton } from "@/components/right-sizing/ExportYamlButton"
-import { formatBytes, formatCPU, cn } from "@/lib/utils"
+import { formatBytes, formatCPU, formatCores, cn } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
@@ -351,7 +352,7 @@ export default function Studio() {
             className={statusCounts.over_provisioned >= 2 ? "gap-1.5" : ""}
           >
             <Layers className="mr-2 h-4 w-4" />
-            Simulação em Lote
+            Aplicação em Lote
             {statusCounts.over_provisioned >= 2 && (
               <Badge variant="secondary" className="ml-1 text-[10px] py-0">{statusCounts.over_provisioned}</Badge>
             )}
@@ -767,7 +768,7 @@ function CompactCard({ rec, freed, onConfigure, onQuickApply, isWatched, isQuick
         {hasSavings ? (
           <InfoTooltip content={<p>Recursos que podem ser liberados aplicando o tier Equilibrada</p>}>
             <span className="text-sm font-semibold text-success tabular-nums whitespace-nowrap cursor-help">
-              {freed!.cpu_cores > 0 && `↓ ${formatCPU(freed!.cpu_cores)} cores`}
+              {freed!.cpu_cores > 0 && `↓ ${formatCores(freed!.cpu_cores)} cores`}
               {freed!.cpu_cores > 0 && freed!.mem_bytes > 0 && " · "}
               {freed!.mem_bytes > 0 && `↓ ${formatBytes(freed!.mem_bytes)}`}
             </span>
@@ -1163,7 +1164,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-// --- Modal: Simulação em Lote (Dialog) ---
+// --- Modal: Aplicação em Lote (Dialog) ---
 
 function BulkSimulateModal({
   open, onOpenChange, recs, selectedTier, getTierData, getResourcesFreed,
@@ -1176,130 +1177,195 @@ function BulkSimulateModal({
   getResourcesFreed: (rec: Recommendation) => { cpu_cores: number; mem_bytes: number; cpu_pct: number; mem_pct: number } | null
 }) {
   const overProvRecs = recs.filter((r) => r.status === "over_provisioned" && r.suggested_tiers)
+  const [selected, setSelected] = useState<Set<string>>(new Set(overProvRecs.map(r => r.service)))
+  const [applying, setApplying] = useState(false)
+  const queryClient = useQueryClient()
 
-  const totals = overProvRecs.reduce((acc, r) => {
+  // Reset seleção quando abre
+  useEffect(() => {
+    if (open) setSelected(new Set(overProvRecs.map(r => r.service)))
+  }, [open])
+
+  const toggle = (service: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(service)) next.delete(service)
+      else next.add(service)
+      return next
+    })
+  }
+
+  const toggleAll = () => {
+    if (selected.size === overProvRecs.length) setSelected(new Set())
+    else setSelected(new Set(overProvRecs.map(r => r.service)))
+  }
+
+  const selectedRecs = overProvRecs.filter(r => selected.has(r.service))
+
+  const totals = selectedRecs.reduce((acc, r) => {
     const freed = getResourcesFreed(r)
     if (freed) { acc.cpu += freed.cpu_cores; acc.mem += freed.mem_bytes }
     return acc
   }, { cpu: 0, mem: 0 })
 
-  const riskCounts = overProvRecs.reduce((acc, r) => {
+  const riskCounts = selectedRecs.reduce((acc, r) => {
     const level = r.risk?.color ?? "green"
     acc[level] = (acc[level] ?? 0) + 1
     return acc
   }, {} as Record<string, number>)
 
+  const handleApplyBatch = async () => {
+    setApplying(true)
+    let success = 0
+    let errors = 0
+    // Apply sequencial com delay para evitar rollback em cascata
+    for (const rec of selectedRecs) {
+      const tier = getTierData(rec)
+      if (!tier) continue
+      try {
+        await api.post(`/recommendations/${rec.service}/apply`, {
+          cpu_limit: tier.cpu_limit,
+          mem_limit: Math.round(tier.mem_limit),
+          cpu_reservation: tier.cpu_limit * 0.75,
+          mem_reservation: Math.round(tier.mem_limit * 0.75),
+        })
+        success++
+        // Delay de 500ms entre aplicações para não sobrecarregar o cluster
+        await new Promise(r => setTimeout(r, 500))
+      } catch {
+        errors++
+      }
+    }
+    setApplying(false)
+    onOpenChange(false)
+    queryClient.invalidateQueries({ queryKey: ["recommendations"] })
+    queryClient.invalidateQueries({ queryKey: ["rollback-watches-active"] })
+    queryClient.invalidateQueries({ queryKey: ["change-log-recent"] })
+    if (errors === 0) {
+      toast.success(`${success} serviços aplicados com rollback ativo`)
+    } else {
+      toast.warning(`${success} aplicados, ${errors} falharam`)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Simulação em Lote — Otimização de Recursos</DialogTitle>
+          <DialogTitle>Aplicação em Lote — Otimização de Recursos</DialogTitle>
           <DialogDescription>
-            Cenário: {selectedTier === "conservative" ? "Conservadora" : selectedTier === "balanced" ? "Equilibrada" : "Agressiva"}
-            {" · "}{overProvRecs.length} serviços selecionados
+            Tier: {selectedTier === "conservative" ? "Conservadora" : selectedTier === "balanced" ? "Equilibrada" : "Agressiva"}
+            {" · "}{selectedRecs.length} de {overProvRecs.length} serviços selecionados
+            {" · "}Apply sequencial com rollback automático
           </DialogDescription>
         </DialogHeader>
 
         {overProvRecs.length === 0 ? (
           <div className="py-8 text-center text-sm text-muted-foreground">
-            Nenhum serviço over-provisioned para simular.
+            Nenhum serviço over-provisioned para aplicar.
           </div>
         ) : (
           <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Serviço</TableHead>
-                  <TableHead>CPU atual→sug</TableHead>
-                  <TableHead>Mem atual→sug</TableHead>
-                  <TableHead>Libera</TableHead>
-                  <TableHead>Risco</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {overProvRecs.map((rec) => {
-                  const tier = getTierData(rec)
-                  const freed = getResourcesFreed(rec)
-                  const riskColor = rec.risk?.color ?? "green"
-                  return (
-                    <TableRow key={rec.service}>
-                      <TableCell className="font-medium text-sm">{rec.service}</TableCell>
-                      <TableCell className="text-xs tabular-nums">
-                        {formatCPU(rec.current?.cpu_limit ?? 0)} → {formatCPU(tier?.cpu_limit ?? 0)}
-                      </TableCell>
-                      <TableCell className="text-xs tabular-nums">
-                        {formatBytes(rec.current?.mem_limit ?? 0)} → {formatBytes(tier?.mem_limit ?? 0)}
-                      </TableCell>
-                      <TableCell className="text-xs tabular-nums text-success font-medium">
-                        {freed && (freed.cpu_cores > 0 || freed.mem_bytes > 0) ? (
-                          <>
-                            {freed.cpu_cores > 0 && `${formatCPU(freed.cpu_cores)} cores`}
-                            {freed.cpu_cores > 0 && freed.mem_bytes > 0 && " · "}
-                            {freed.mem_bytes > 0 && formatBytes(freed.mem_bytes)}
-                          </>
-                        ) : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={riskColorClasses[riskColor as RiskColor]}>
-                          {riskLevelLabel[rec.risk?.level ?? "low"]}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-                <TableRow className="border-t-2 font-medium">
-                  <TableCell>TOTAL</TableCell>
-                  <TableCell colSpan={2} />
-                  <TableCell className="text-success tabular-nums">
-                    {formatCPU(totals.cpu)} cores · {formatBytes(totals.mem)}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {riskCounts.green ?? 0} safe, {riskCounts.yellow ?? 0} atenção
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+            <div className="max-h-[400px] overflow-auto rounded-md border">
+              <Table>
+                <TableHeader className="sticky top-0 bg-background z-10">
+                  <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={selected.size === overProvRecs.length && overProvRecs.length > 0}
+                        onCheckedChange={toggleAll}
+                        aria-label="Selecionar todos"
+                      />
+                    </TableHead>
+                    <TableHead>Serviço</TableHead>
+                    <TableHead className="hidden sm:table-cell">CPU atual→sug</TableHead>
+                    <TableHead className="hidden sm:table-cell">Mem atual→sug</TableHead>
+                    <TableHead>Libera</TableHead>
+                    <TableHead className="hidden md:table-cell">Risco</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {overProvRecs.map((rec) => {
+                    const tier = getTierData(rec)
+                    const freed = getResourcesFreed(rec)
+                    const riskColor = rec.risk?.color ?? "green"
+                    const isSelected = selected.has(rec.service)
+                    return (
+                      <TableRow key={rec.service} className={!isSelected ? "opacity-50" : ""}>
+                        <TableCell>
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggle(rec.service)}
+                            aria-label={`Selecionar ${rec.service}`}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium text-sm">{rec.service}</TableCell>
+                        <TableCell className="text-xs tabular-nums hidden sm:table-cell">
+                          {formatCores(rec.current?.cpu_limit ?? 0)} → {formatCores(tier?.cpu_limit ?? 0)}
+                        </TableCell>
+                        <TableCell className="text-xs tabular-nums hidden sm:table-cell">
+                          {formatBytes(rec.current?.mem_limit ?? 0)} → {formatBytes(tier?.mem_limit ?? 0)}
+                        </TableCell>
+                        <TableCell className="text-xs tabular-nums text-success font-medium">
+                          {freed && (freed.cpu_cores > 0 || freed.mem_bytes > 0) ? (
+                            <>
+                              {freed.cpu_cores > 0 && `${formatCores(freed.cpu_cores)} cores`}
+                              {freed.cpu_cores > 0 && freed.mem_bytes > 0 && " · "}
+                              {freed.mem_bytes > 0 && formatBytes(freed.mem_bytes)}
+                            </>
+                          ) : "—"}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <Badge variant="outline" className={riskColorClasses[riskColor as RiskColor]}>
+                            {riskLevelLabel[rec.risk?.level ?? "low"]}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                  <TableRow className="border-t-2 font-medium sticky bottom-0 bg-background">
+                    <TableCell colSpan={3} className="hidden sm:table-cell">TOTAL ({selectedRecs.length})</TableCell>
+                    <TableCell className="sm:hidden" colSpan={3}>TOTAL ({selectedRecs.length})</TableCell>
+                    <TableCell className="text-success tabular-nums">
+                      {formatCores(totals.cpu)} cores · {formatBytes(totals.mem)}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground hidden md:table-cell">
+                      {riskCounts.green ?? 0} safe, {riskCounts.yellow ?? 0} atenção
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
 
-            {overProvRecs.length > 0 && (
-              <div className="flex gap-0.5 h-2 rounded-full overflow-hidden">
-                {overProvRecs.map((rec) => {
+            {/* Barra de risco agregado */}
+            {selectedRecs.length > 0 && (
+              <div className="flex gap-0.5 h-3 rounded-full overflow-hidden">
+                {selectedRecs.map((rec) => {
                   const color = rec.risk?.color ?? "green"
                   const bg = color === "green" ? "bg-success" : color === "yellow" ? "bg-warning" : color === "orange" ? "bg-orange-500" : "bg-destructive"
                   return <div key={rec.service} className={`flex-1 ${bg}`} />
                 })}
               </div>
             )}
-
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-lg border p-3">
-                <div className="text-xs text-muted-foreground">Recursos liberados</div>
-                <div className="text-lg font-bold text-success tabular-nums">
-                  {formatCPU(totals.cpu)} · {formatBytes(totals.mem)}
-                </div>
-              </div>
-              <div className="rounded-lg border p-3">
-                <div className="text-xs text-muted-foreground">Risco agregado</div>
-                <div className="text-lg font-bold">
-                  {(riskCounts.green ?? 0) > overProvRecs.length / 2 ? "Baixo" : "Atenção"}
-                </div>
-              </div>
-              <div className="rounded-lg border p-3">
-                <div className="text-xs text-muted-foreground">Maior risco</div>
-                <div className="text-sm font-medium">
-                  {overProvRecs.find((r) => r.risk?.color === "yellow" || r.risk?.color === "orange")?.service ?? "—"}
-                </div>
-              </div>
-            </div>
           </>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <ExportYamlButton
-            services={overProvRecs.map((r) => r.service)}
+            services={selectedRecs.map((r) => r.service)}
             tier={selectedTier}
-            disabled={overProvRecs.length === 0}
+            disabled={selectedRecs.length === 0}
           />
+          <Button
+            variant="default"
+            disabled={selectedRecs.length === 0 || applying}
+            onClick={handleApplyBatch}
+            title={`Aplicar ${selectedRecs.length} serviços sequencialmente com rollback ativo (delay 500ms entre cada)`}
+          >
+            {applying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
+            {applying ? "Aplicando..." : `Aplicar ${selectedRecs.length}`}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1422,11 +1488,11 @@ function ScheduleDialog({ rec, open, onOpenChange, onScheduled }: {
             <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wide">Configuração a ser aplicada</div>
             <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
               <span className="text-muted-foreground">CPU Lim:</span>
-              <span className="tabular-nums text-foreground">{current.cpu_limit > 0 ? formatCPU(current.cpu_limit) : "—"} → {formatCPU(suggested.cpu_limit)}</span>
+              <span className="tabular-nums text-foreground">{current.cpu_limit > 0 ? formatCores(current.cpu_limit) : "—"} → {formatCores(suggested.cpu_limit)}</span>
               <span className="text-muted-foreground">Mem Lim:</span>
               <span className="tabular-nums text-foreground">{current.mem_limit > 0 ? formatBytes(current.mem_limit) : "—"} → {formatBytes(suggested.mem_limit)}</span>
               <span className="text-muted-foreground">CPU Res:</span>
-              <span className="tabular-nums text-foreground">{current.cpu_reservation > 0 ? formatCPU(current.cpu_reservation) : "—"} → {formatCPU(suggested.cpu_reservation)}</span>
+              <span className="tabular-nums text-foreground">{current.cpu_reservation > 0 ? formatCores(current.cpu_reservation) : "—"} → {formatCores(suggested.cpu_reservation)}</span>
               <span className="text-muted-foreground">Mem Res:</span>
               <span className="tabular-nums text-foreground">{current.mem_reservation > 0 ? formatBytes(current.mem_reservation) : "—"} → {formatBytes(suggested.mem_reservation)}</span>
             </div>

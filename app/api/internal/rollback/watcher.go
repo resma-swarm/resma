@@ -106,6 +106,10 @@ func (w *Watcher) loop() {
 }
 
 // processActiveWatches busca watches ativos e avalia cada um.
+// Rate limiting: processa em batches de maxConcurrentWatches para evitar
+// sobrecarga quando apply em lote cria muitos watches simultaneamente.
+const maxConcurrentWatches = 10
+
 func (w *Watcher) processActiveWatches() {
 	watches, err := w.db.GetActiveRollbackWatches(w.ctx)
 	if err != nil {
@@ -117,7 +121,14 @@ func (w *Watcher) processActiveWatches() {
 		return
 	}
 	w.log.Info("processando watches ativos", "count", len(watches))
-	for i := range watches {
-		w.evaluateOne(watches[i])
+	// Processa em batches para evitar sobrecarga com muitos watches
+	for i := 0; i < len(watches); i += maxConcurrentWatches {
+		end := i + maxConcurrentWatches
+		if end > len(watches) {
+			end = len(watches)
+		}
+		for j := i; j < end; j++ {
+			w.evaluateOne(watches[j])
+		}
 	}
 }
