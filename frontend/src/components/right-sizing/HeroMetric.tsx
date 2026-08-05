@@ -16,9 +16,10 @@ import type { HeroData } from "./types"
 interface HeroMetricProps {
   data: HeroData | null
   loading: boolean
+  onPendingClick?: () => void
 }
 
-export function HeroMetric({ data, loading }: HeroMetricProps) {
+export function HeroMetric({ data, loading, onPendingClick }: HeroMetricProps) {
   if (loading || !data) {
     return (
       <Card className="mb-4">
@@ -85,7 +86,13 @@ export function HeroMetric({ data, loading }: HeroMetricProps) {
               )}
             </>
           ) : hasPotential ? (
-            <Badge variant="secondary">{data.pending_count} pendentes de revisão</Badge>
+            <button
+              onClick={onPendingClick}
+              className="hover:opacity-80 transition-opacity cursor-pointer"
+              title="Clique para filtrar serviços pendentes"
+            >
+              <Badge variant="secondary">{data.pending_count} pendentes de revisão →</Badge>
+            </button>
           ) : (
             <Badge variant="outline">Tudo otimizado</Badge>
           )}

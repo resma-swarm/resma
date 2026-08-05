@@ -312,9 +312,17 @@ export default function Studio() {
       {/* Header */}
       <PageHeader title="Otimização de Recursos" description="Sugestões de limites baseadas em dados">
         <div className="flex gap-2 flex-wrap items-center">
-          <Button variant="outline" size="sm" onClick={() => setBulkModalOpen(true)}>
+          <Button
+            variant={statusCounts.over_provisioned >= 2 ? "default" : "outline"}
+            size="sm"
+            onClick={() => setBulkModalOpen(true)}
+            className={statusCounts.over_provisioned >= 2 ? "gap-1.5" : ""}
+          >
             <Layers className="mr-2 h-4 w-4" />
             Simulação em Lote
+            {statusCounts.over_provisioned >= 2 && (
+              <Badge variant="secondary" className="ml-1 text-[10px] py-0">{statusCounts.over_provisioned}</Badge>
+            )}
           </Button>
           <Button variant="outline" size="sm" disabled={recalculating} onClick={async () => {
             setRecalculating(true)
@@ -336,7 +344,7 @@ export default function Studio() {
       </PageHeader>
 
       {/* Hero */}
-      <HeroMetric data={calculateHero(recs)} loading={isLoading} />
+      <HeroMetric data={calculateHero(recs)} loading={isLoading} onPendingClick={() => setStatusFilter("over_provisioned")} />
 
       {/* Filters */}
       <Card>
