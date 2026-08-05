@@ -37,7 +37,11 @@ import { ResourceSlider } from "@/components/right-sizing/ResourceSlider"
 import { WhatIfPanel } from "@/components/right-sizing/WhatIfPanel"
 import { ExplainabilityPanel } from "@/components/right-sizing/ExplainabilityPanel"
 import { ExportYamlButton } from "@/components/right-sizing/ExportYamlButton"
-import { formatBytes, formatCPU } from "@/lib/utils"
+import { formatBytes, formatCPU, cn } from "@/lib/utils"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Input } from "@/components/ui/input"
+import { format, parseISO } from "date-fns"
 import {
   calculateHero,
   patternLabel, riskColorClasses, riskLevelLabel,
@@ -47,6 +51,8 @@ import type { RiskColor } from "@/components/right-sizing/types"
 import {
   RotateCcw, Layers, Activity, Settings2, AlertTriangle,
   CheckCircle2, TrendingDown, X, ShieldCheck, CalendarClock,
+  Database, HardDrive, TrendingUp, ChevronDown, AlertCircle,
+  Calendar as CalendarIcon,
 } from "lucide-react"
 
 // --- status config ---
@@ -93,6 +99,8 @@ export default function Studio() {
   // Sheet state
   const [sheetRec, setSheetRec] = useState<Recommendation | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [showStorage, setShowStorage] = useState(true)
   const [selectedTier, setSelectedTier] = useState<TierName>("balanced")
   const [whatIfCpu, setWhatIfCpu] = useState(0)
   const [whatIfMem, setWhatIfMem] = useState(0)
@@ -104,6 +112,11 @@ export default function Studio() {
     queryKey: ["recommendations"],
     queryFn: () => api.get<Recommendation[]>("/recommendations"),
     refetchInterval: refreshInterval,
+  })
+
+  const { data: storageRecs } = useQuery<StorageAnalysis>({
+    queryKey: ["storage-recommendations"],
+    queryFn: () => api.get<StorageAnalysis>("/recommendations/storage"),
   })
 
   // --- counts ---
@@ -337,6 +350,57 @@ export default function Studio() {
         )}
       </div>
 
+      {/* Storage recommendations */}
+      {storageRecs && storageRecs.recommendations.length > 0 && (
+        <div className="space-y-3">
+          <button
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setShowStorage(!showStorage)}
+          >
+            <ChevronDown className={cn("h-4 w-4 transition-transform", !showStorage && "-rotate-90")} />
+            <Database className="h-4 w-4 text-chart-5" />
+            <span className="font-medium">Storage ({storageRecs.recommendations.length})</span>
+            <span className="text-xs text-muted-foreground/70">
+              {showStorage ? "ocultar" : "ver recomendações"}
+            </span>
+          </button>
+          {showStorage && (
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {storageRecs.recommendations.map((rec, i) => {
+                const sc = severityConfig[rec.severity] ?? severityConfig.info
+                const SevIcon = sc.icon
+                const TypeIcon = storageTypeIcon[rec.type] ?? Database
+                return (
+                  <Card key={i} className={cn("border-l-2", sc.border)}>
+                    <CardContent className="space-y-2 py-3">
+                      <div className="flex items-start gap-2">
+                        <div className={cn("flex h-7 w-7 items-center justify-center rounded-lg shrink-0", sc.bg)}>
+                          <TypeIcon className={cn("h-3.5 w-3.5", sc.color)} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <SevIcon className={cn("h-3 w-3 shrink-0", sc.color)} />
+                            <span className={cn("text-[11px] font-medium uppercase tracking-wide", sc.color)}>
+                              {rec.severity}
+                            </span>
+                          </div>
+                          <p className="text-xs text-foreground mt-1">{rec.message}</p>
+                        </div>
+                      </div>
+                      {rec.action && (
+                        <div className="rounded-md bg-muted/50 px-2 py-1.5 font-mono text-[10px] text-muted-foreground break-all">
+                          {rec.action}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Sheet — painel lateral de configuração */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" className="w-full sm:max-w-[560px] p-0 overflow-y-auto">
@@ -375,7 +439,7 @@ export default function Studio() {
               {/* Sheet footer */}
               <SheetFooter className="border-t flex-row justify-end gap-2 p-4">
                 <Button variant="outline" size="sm" onClick={() => setSheetOpen(false)}>Cancelar</Button>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => setScheduleOpen(true)}>
                   <CalendarClock className="mr-2 h-4 w-4" />
                   Agendar
                 </Button>
@@ -398,6 +462,19 @@ export default function Studio() {
         getTierData={getTierData}
         getResourcesFreed={getResourcesFreed}
       />
+
+      {/* Dialog: Agendar aplicação */}
+      {sheetRec && (
+        <ScheduleDialog
+          rec={sheetRec}
+          open={scheduleOpen}
+          onOpenChange={setScheduleOpen}
+          onScheduled={() => {
+            queryClient.invalidateQueries({ queryKey: ["schedules"] })
+            toast.success(`Agendamento criado para ${sheetRec.service}`)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -976,6 +1053,244 @@ function BulkSimulateModal({
             tier={selectedTier}
             disabled={overProvRecs.length === 0}
           />
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// --- Storage types & config ---
+
+interface StorageRec {
+  type: string
+  severity: string
+  message: string
+  action?: string
+}
+
+interface StorageAnalysis {
+  summary: {
+    total_volumes: number
+    total_volume_size: number
+    orphan_count: number
+    orphan_size: number
+    reclaimable_volumes: number
+    reclaimable_images: number
+    recommendation_count: number
+  }
+  recommendations: StorageRec[]
+}
+
+const severityConfig: Record<string, { icon: typeof AlertTriangle; color: string; bg: string; border: string }> = {
+  critical: { icon: AlertTriangle, color: "text-destructive", bg: "bg-destructive/10", border: "border-destructive/30" },
+  warning: { icon: AlertTriangle, color: "text-warning", bg: "bg-warning/10", border: "border-warning/30" },
+  info: { icon: CheckCircle2, color: "text-primary", bg: "bg-primary/10", border: "border-primary/30" },
+}
+
+const storageTypeIcon: Record<string, typeof Database> = {
+  orphan_volume: Database,
+  reclaimable_space: HardDrive,
+  image_reclaimable: HardDrive,
+  volume_growth: TrendingUp,
+  large_volume: Database,
+}
+
+// --- Schedule Dialog ---
+
+function ScheduleDialog({ rec, open, onOpenChange, onScheduled }: {
+  rec: Recommendation
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onScheduled: () => void
+}) {
+  const suggested = rec.suggested ?? { cpu_limit: 0, mem_limit: 0, cpu_reservation: 0, mem_reservation: 0 }
+  const current = rec.current ?? { cpu_limit: 0, mem_limit: 0, cpu_reservation: 0, mem_reservation: 0 }
+  const [mode, setMode] = useState<"suggest" | "custom">("suggest")
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
+  const [timeHour, setTimeHour] = useState("02")
+  const [timeMin, setTimeMin] = useState("00")
+  const [popoverOpen, setPopoverOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const suggestedTime = rec.suggested_apply_time ? parseISO(rec.suggested_apply_time) : null
+
+  const getFinalDate = (): Date | null => {
+    if (mode === "suggest" && suggestedTime) return suggestedTime
+    if (mode === "custom" && selectedDate) {
+      const d = new Date(selectedDate)
+      d.setHours(parseInt(timeHour) || 0, parseInt(timeMin) || 0, 0, 0)
+      return d
+    }
+    return null
+  }
+
+  const finalDate = getFinalDate()
+
+  const handleSubmit = async () => {
+    const date = getFinalDate()
+    if (!date) {
+      setError("Selecione uma data e horário")
+      return
+    }
+    if (date <= new Date()) {
+      setError("A data deve ser no futuro")
+      return
+    }
+    setSubmitting(true)
+    setError(null)
+    try {
+      await api.post("/schedules", {
+        service: rec.service,
+        cpu_limit: suggested.cpu_limit,
+        mem_limit: suggested.mem_limit,
+        cpu_reservation: suggested.cpu_reservation,
+        mem_reservation: suggested.mem_reservation,
+        scheduled_at: date.toISOString(),
+      })
+      onScheduled()
+      onOpenChange(false)
+    } catch (e: any) {
+      setError(e?.response?.data?.detail ?? "Erro ao criar agendamento")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CalendarClock className="h-4 w-4 text-warning" />
+            Agendar aplicação — {rec.service}
+          </DialogTitle>
+          <DialogDescription>
+            Aplicar configurações em um horário agendado para evitar indisponibilidade.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="rounded-md border border-border/60 bg-muted/30 p-3 space-y-1">
+            <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wide">Configuração a ser aplicada</div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
+              <span className="text-muted-foreground">CPU Lim:</span>
+              <span className="tabular-nums text-foreground">{current.cpu_limit > 0 ? formatCPU(current.cpu_limit) : "—"} → {formatCPU(suggested.cpu_limit)}</span>
+              <span className="text-muted-foreground">Mem Lim:</span>
+              <span className="tabular-nums text-foreground">{current.mem_limit > 0 ? formatBytes(current.mem_limit) : "—"} → {formatBytes(suggested.mem_limit)}</span>
+              <span className="text-muted-foreground">CPU Res:</span>
+              <span className="tabular-nums text-foreground">{current.cpu_reservation > 0 ? formatCPU(current.cpu_reservation) : "—"} → {formatCPU(suggested.cpu_reservation)}</span>
+              <span className="text-muted-foreground">Mem Res:</span>
+              <span className="tabular-nums text-foreground">{current.mem_reservation > 0 ? formatBytes(current.mem_reservation) : "—"} → {formatBytes(suggested.mem_reservation)}</span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-xs font-medium text-muted-foreground">Quando aplicar?</div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                className={cn(
+                  "rounded-md border px-3 py-2 text-xs text-left transition-all",
+                  mode === "suggest"
+                    ? "border-warning/50 bg-warning/10 text-foreground"
+                    : "border-border/60 text-muted-foreground hover:border-border"
+                )}
+                onClick={() => setMode("suggest")}
+              >
+                <div className="flex items-center gap-1.5 font-medium">
+                  <CalendarClock className="h-3 w-3" />
+                  Sugerir horário
+                </div>
+                {suggestedTime && (
+                  <div className="mt-1 text-[10px] text-muted-foreground">
+                    {format(suggestedTime, "EEE dd/MM 'às' HH:mm")}
+                    {rec.pattern && rec.pattern !== "unknown" && ` · ${patternLabel(rec.pattern)}`}
+                  </div>
+                )}
+              </button>
+              <button
+                className={cn(
+                  "rounded-md border px-3 py-2 text-xs text-left transition-all",
+                  mode === "custom"
+                    ? "border-primary/50 bg-primary/10 text-foreground"
+                    : "border-border/60 text-muted-foreground hover:border-border"
+                )}
+                onClick={() => setMode("custom")}
+              >
+                <div className="flex items-center gap-1.5 font-medium">
+                  <CalendarIcon className="h-3 w-3" />
+                  Escolher data/hora
+                </div>
+                <div className="mt-1 text-[10px] text-muted-foreground">Selecionar manualmente</div>
+              </button>
+            </div>
+          </div>
+
+          {mode === "custom" && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1.5 justify-start font-normal" data-empty={!selectedDate}>
+                      <CalendarIcon className="h-3.5 w-3.5" />
+                      {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecionar data"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={(d) => { setSelectedDate(d); setPopoverOpen(false) }}
+                      disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="text"
+                    value={timeHour}
+                    onChange={(e) => setTimeHour(e.target.value.slice(0, 2))}
+                    className="w-12 text-center tabular-nums text-xs"
+                    placeholder="HH"
+                  />
+                  <span className="text-muted-foreground text-xs">:</span>
+                  <Input
+                    type="text"
+                    value={timeMin}
+                    onChange={(e) => setTimeMin(e.target.value.slice(0, 2))}
+                    className="w-12 text-center tabular-nums text-xs"
+                    placeholder="MM"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {finalDate && (
+            <div className="rounded-md bg-warning/10 border border-warning/20 px-3 py-2 text-[11px] text-warning flex items-center gap-1.5">
+              <AlertTriangle className="h-3 w-3 shrink-0" />
+              <span>
+                O serviço será reiniciado em <strong>{format(finalDate, "dd/MM 'às' HH:mm")}</strong> (alguns segundos de indisponibilidade)
+              </span>
+            </div>
+          )}
+
+          {error && (
+            <div className="text-[11px] text-destructive bg-destructive/10 rounded px-2 py-1 flex items-center gap-1.5">
+              <AlertCircle className="h-3 w-3" />
+              {error}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button size="sm" onClick={handleSubmit} disabled={!finalDate || submitting}>
+            <CalendarClock className="h-3.5 w-3.5" />
+            {submitting ? "Agendando..." : "Confirmar agendamento"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

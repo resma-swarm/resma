@@ -31,8 +31,6 @@ function buildBreadcrumbs(pathname: string) {
         crumbs.push({ label: `Container ${decodeURIComponent(segments[3]).substring(0, 12)}` })
       }
     }
-  } else if (segments[0] === "recommendations") {
-    crumbs.push({ label: "Recomendações", to: "/recommendations" })
   } else if (segments[0] === "studio") {
     crumbs.push({ label: "Otimização de Recursos", to: "/studio" })
     if (segments[1] === "rollback-watches") {
