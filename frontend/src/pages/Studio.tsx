@@ -64,8 +64,8 @@ interface StatusCfg {
 }
 
 const statusConfig: Record<string, StatusCfg> = {
-  over_provisioned: { label: "Over-provisioned", icon: TrendingDown, variant: "warning" },
-  under_provisioned: { label: "Under-provisioned", icon: AlertTriangle, variant: "danger" },
+  over_provisioned: { label: "Excesso", icon: TrendingDown, variant: "warning" },
+  under_provisioned: { label: "Insuficiente", icon: AlertTriangle, variant: "danger" },
   healthy: { label: "Saudável", icon: CheckCircle2, variant: "success" },
   alerted: { label: "Crítico", icon: AlertTriangle, variant: "danger" },
   unconfigured: { label: "Sem config", icon: Settings2, variant: "warning" },
@@ -548,8 +548,6 @@ function CompactCard({ rec, freed, onConfigure }: {
           <span className="text-sm font-semibold text-warning tabular-nums whitespace-nowrap">
             +{formatBytes(Math.abs(rec.memory_trend?.daily_growth_mb ?? 0) * 1e6)}/dia
           </span>
-        ) : rec.status === "under_provisioned" || rec.status === "alerted" ? (
-          <span className="text-sm font-semibold text-warning whitespace-nowrap">Precisa de mais</span>
         ) : (
           <span className="text-sm text-muted-foreground whitespace-nowrap">0 liberado</span>
         )}
