@@ -727,7 +727,15 @@ function CompactCard({ rec, freed, onConfigure, onQuickApply, isWatched, isQuick
           </span>
         ) : null}
         {canQuickApply && onQuickApply && (
-          <Button size="sm" variant="ghost" className="h-7 text-xs shrink-0 text-primary" disabled={isQuickApplying} onClick={onQuickApply} aria-label={`Aplicar recomendação para ${rec.service}`}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs shrink-0 text-primary"
+            disabled={isQuickApplying}
+            onClick={onQuickApply}
+            aria-label={`Aplicar recomendação equilibrada para ${rec.service}`}
+            title={`Aplicar tier Equilibrada: ${rec.suggested_tiers?.balanced ? `${rec.suggested_tiers.balanced.cpu_limit.toFixed(2)} cores · ${formatBytes(rec.suggested_tiers.balanced.mem_limit)}` : "valores sugeridos"}`}
+          >
             {isQuickApplying ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Zap className="mr-1 h-3 w-3" />}
             <span className="hidden sm:inline">Aplicar</span>
           </Button>
