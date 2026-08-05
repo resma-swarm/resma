@@ -6,10 +6,11 @@
  * Sheet com 6 modos: over, healthy, leak, unconfigured, collecting, under.
  * Modal bulk mantém como Dialog.
  */
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import { api } from "@/api/client"
+import { useRefreshInterval } from "@/hooks/use-refresh"
 import { toast } from "sonner"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -57,12 +58,18 @@ interface StatusCfg {
 }
 
 const statusConfig: Record<string, StatusCfg> = {
-  over_provisioned: { label: "Over-provisioned", icon: TrendingDown, variant: "secondary" },
-  under_provisioned: { label: "Under-provisioned", icon: AlertTriangle, variant: "warning" },
+  over_provisioned: { label: "Over-provisioned", icon: TrendingDown, variant: "warning" },
+  under_provisioned: { label: "Under-provisioned", icon: AlertTriangle, variant: "danger" },
   healthy: { label: "Saudável", icon: CheckCircle2, variant: "success" },
   alerted: { label: "Crítico", icon: AlertTriangle, variant: "danger" },
-  unconfigured: { label: "Sem config", icon: Settings2, variant: "outline" },
-  collecting_data: { label: "Coletando", icon: Activity, variant: "outline" },
+  unconfigured: { label: "Sem config", icon: Settings2, variant: "warning" },
+  collecting_data: { label: "Coletando", icon: Activity, variant: "secondary" },
+}
+
+const confidenceConfig: Record<string, { label: string; variant: "success" | "warning" | "danger" }> = {
+  high: { label: "Alta", variant: "success" },
+  medium: { label: "Média", variant: "warning" },
+  low: { label: "Baixa", variant: "danger" },
 }
 
 // --- mode determination ---
@@ -91,9 +98,12 @@ export default function Studio() {
   const [whatIfMem, setWhatIfMem] = useState(0)
   const [applying, setApplying] = useState(false)
 
+  const refreshInterval = useRefreshInterval()
+
   const { data: recs, isLoading } = useQuery<Recommendation[]>({
     queryKey: ["recommendations"],
     queryFn: () => api.get<Recommendation[]>("/recommendations"),
+    refetchInterval: refreshInterval,
   })
 
   // --- counts ---
@@ -153,6 +163,16 @@ export default function Studio() {
     }
   }
 
+  // Quando o tier muda, atualiza os sliders para os valores do tier selecionado
+  useEffect(() => {
+    if (!sheetRec) return
+    const tier = getTierData(sheetRec)
+    if (tier && tier.cpu_limit != null && tier.mem_limit != null) {
+      setWhatIfCpu(tier.cpu_limit)
+      setWhatIfMem(tier.mem_limit)
+    }
+  }, [selectedTier]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const getResourcesFreed = (rec: Recommendation) => {
     if (!rec.suggested_tiers) return rec.resources_freed?.balanced ?? null
     const tier = rec.suggested_tiers[selectedTier]
@@ -177,9 +197,9 @@ export default function Studio() {
     if (!sheetRec) return
     const values: ResourceValues = {
       cpu_limit: whatIfCpu,
-      mem_limit: whatIfMem,
+      mem_limit: Math.round(whatIfMem),
       cpu_reservation: whatIfCpu * 0.75,
-      mem_reservation: whatIfMem * 0.75,
+      mem_reservation: Math.round(whatIfMem * 0.75),
     }
     setApplying(true)
     applyMutation.mutate({ service: sheetRec.service, values })
@@ -204,7 +224,7 @@ export default function Studio() {
   if (!recs || recs.length === 0) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Right-Sizing Studio" description="Sugestões de limites baseadas em dados" />
+        <PageHeader title="Otimização de Recursos" description="Sugestões de limites baseadas em dados" />
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Layers className="h-10 w-10 text-muted-foreground/50" />
@@ -223,7 +243,7 @@ export default function Studio() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <PageHeader title="Right-Sizing Studio" description="Sugestões de limites baseadas em dados">
+      <PageHeader title="Otimização de Recursos" description="Sugestões de limites baseadas em dados">
         <div className="flex gap-2 flex-wrap items-center">
           <Button variant="outline" size="sm" onClick={() => setBulkModalOpen(true)}>
             <Layers className="mr-2 h-4 w-4" />
@@ -411,13 +431,21 @@ function CompactCard({ rec, freed, onConfigure }: {
   const StatusIcon = cfg.icon
   const hasLeak = rec.memory_trend?.has_leak ?? false
   const isConfig = rec.status === "unconfigured" || rec.status === "collecting_data"
+  const hasCurrentConfig = rec.current && (rec.current.cpu_limit > 0 || rec.current.mem_limit > 0)
 
   return (
     <Card className="hover:border-primary/40 transition-colors">
       <div className="flex items-center gap-3 p-3.5">
         <StatusIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
         <span className="font-medium text-sm">{rec.service}</span>
-        <Badge variant="outline" className="text-[10px] py-0">{patternLabel(rec.pattern)}</Badge>
+        <Badge variant="outline" className="text-[10px] py-0">Padrão: {patternLabel(rec.pattern)}</Badge>
+        {hasCurrentConfig && (
+          <Badge variant="secondary" className="text-[10px] py-0 font-mono">
+            {rec.current!.cpu_limit > 0 ? `${rec.current!.cpu_limit.toFixed(2)} cores` : ""}
+            {rec.current!.cpu_limit > 0 && rec.current!.mem_limit > 0 && " · "}
+            {rec.current!.mem_limit > 0 ? formatBytes(rec.current!.mem_limit) : ""}
+          </Badge>
+        )}
         <span className="text-xs text-muted-foreground hidden sm:inline">
           {rec.status === "collecting_data"
             ? `Coletando (${rec.samples} amostras)`
@@ -426,18 +454,14 @@ function CompactCard({ rec, freed, onConfigure }: {
             : `P95 CPU ${rec.cpu ? formatCPU(rec.cpu.p95) : "—"} · P99 Mem ${rec.mem ? formatBytes(rec.mem.p99) : "—"}`}
         </span>
         <div className="flex-1" />
-        <Badge variant={cfg.variant} className="text-[10px]">{cfg.label}</Badge>
+        <Badge variant={cfg.variant} className="text-[10px]">Status: {cfg.label}</Badge>
         {rec.confidence && rec.status !== "collecting_data" && (
-          <Badge variant="outline" className="text-[10px] py-0">
-            {rec.confidence === "high" ? "Alta" : rec.confidence === "medium" ? "Média" : "Baixa"}
+          <Badge variant={confidenceConfig[rec.confidence]?.variant ?? "outline"} className="text-[10px] py-0">
+            Confiança: {confidenceConfig[rec.confidence]?.label ?? rec.confidence}
           </Badge>
         )}
         {/* Savings / status text */}
-        {isConfig ? (
-          <span className="text-sm font-semibold text-primary whitespace-nowrap">
-            {rec.status === "collecting_data" ? "Configurar manualmente" : "Configurar agora"}
-          </span>
-        ) : freed && (freed.cpu_cores > 0 || freed.mem_bytes > 0) ? (
+        {isConfig ? null : freed && (freed.cpu_cores > 0 || freed.mem_bytes > 0) ? (
           <span className="text-sm font-semibold text-success tabular-nums whitespace-nowrap">
             {freed.cpu_cores > 0 && `${formatCPU(freed.cpu_cores)} cores`}
             {freed.cpu_cores > 0 && freed.mem_bytes > 0 && " · "}
@@ -554,8 +578,8 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
         />
 
         <SectionLabel>
-          Painel What-If
-          <HelpIcon text="Simulação da primeira configuração baseada nos dados coletados." title="What-If" />
+          Painel de Simulação
+          <HelpIcon text="Simulação da primeira configuração baseada nos dados coletados." title="Simulação" />
         </SectionLabel>
         <WhatIfPanel
           service={rec.service}
@@ -624,8 +648,8 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
         />
 
         <SectionLabel>
-          Painel What-If
-          <HelpIcon text="Impacto do aumento de recursos. Risco baixa porque OOMs esperados = 0 com novo limite." title="What-If" />
+          Painel de Simulação
+          <HelpIcon text="Impacto do aumento de recursos. Risco baixa porque OOMs esperados = 0 com novo limite." title="Simulação" />
         </SectionLabel>
         <WhatIfPanel
           service={rec.service}
@@ -696,8 +720,8 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
         />
 
         <SectionLabel>
-          Painel What-If
-          <HelpIcon text="Tudo dentro do esperado. Sem ação necessária." title="What-If" />
+          Painel de Simulação
+          <HelpIcon text="Tudo dentro do esperado. Sem ação necessária." title="Simulação" />
         </SectionLabel>
         <WhatIfPanel
           service={rec.service}
@@ -754,8 +778,8 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
       />
 
       <SectionLabel>
-        Painel What-If
-        <HelpIcon text="Simulação em tempo real: mostra o impacto dos valores escolhidos. Atualiza ao arrastar." title="What-If" />
+        Painel de Simulação
+        <HelpIcon text="Simulação em tempo real: mostra o impacto dos valores escolhidos. Atualiza ao arrastar." title="Simulação" />
       </SectionLabel>
       <WhatIfPanel
         service={rec.service}
@@ -845,7 +869,7 @@ function BulkSimulateModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Simulação em Lote — Right-Sizing Studio</DialogTitle>
+          <DialogTitle>Simulação em Lote — Otimização de Recursos</DialogTitle>
           <DialogDescription>
             Cenário: {selectedTier === "conservative" ? "Conservadora" : selectedTier === "balanced" ? "Equilibrada" : "Agressiva"}
             {" · "}{overProvRecs.length} serviços selecionados

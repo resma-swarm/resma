@@ -236,8 +236,14 @@ func (s *Server) handleApplyRecommendation(w http.ResponseWriter, r *http.Reques
 			ObservationWindow:    window,
 			Criteria:             string(criteriaJSON),
 		})
-		if err == nil {
+		if err != nil {
+			s.log.Warn("falha ao criar rollback watch",
+				"service", service, "change_log_id", changeLogID, "err", err)
+		} else {
 			watchID = &id
+			s.log.Info("rollback watch criado",
+				"watch_id", id, "service", service,
+				"window_h", window, "strategy", strategy)
 		}
 	}
 

@@ -1699,7 +1699,7 @@ func (s *Store) CreateRollbackWatch(ctx context.Context, w RollbackWatch) (int32
 			cpu_limit_after, mem_limit_after, cpu_reservation_after, mem_reservation_after,
 			strategy, observation_window, criteria, status, started_at, expires_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'monitoring', now(),
-			now() + INTERVAL '`+fmt.Sprintf("%d", w.ObservationWindow)+`' HOUR)
+			cast(now() as TIMESTAMP) + INTERVAL '`+fmt.Sprintf("%d", w.ObservationWindow)+`' HOUR)
 		 RETURNING id`,
 		w.ChangeLogID, w.Service,
 		w.CPULimitBefore, w.MemLimitBefore, w.CPUReservationBefore, w.MemReservationBefore,

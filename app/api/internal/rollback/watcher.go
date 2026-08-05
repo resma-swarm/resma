@@ -113,9 +113,10 @@ func (w *Watcher) processActiveWatches() {
 		return
 	}
 	if len(watches) == 0 {
+		w.log.Info("nenhum watch ativo — aguardando")
 		return
 	}
-	w.log.Debug("processando watches ativos", "count", len(watches))
+	w.log.Info("processando watches ativos", "count", len(watches))
 	for i := range watches {
 		w.evaluateOne(watches[i])
 	}

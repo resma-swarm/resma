@@ -34,12 +34,12 @@ function buildBreadcrumbs(pathname: string) {
   } else if (segments[0] === "recommendations") {
     crumbs.push({ label: "Recomendações", to: "/recommendations" })
   } else if (segments[0] === "studio") {
-    crumbs.push({ label: "Right-Sizing Studio", to: "/studio" })
+    crumbs.push({ label: "Otimização de Recursos", to: "/studio" })
     if (segments[1] === "rollback-watches") {
-      crumbs.push({ label: "Rollback Watches", to: "/studio/rollback-watches" })
+      crumbs.push({ label: "Monitoramentos de Rollback", to: "/studio/rollback-watches" })
     }
   } else if (segments[0] === "rollback-watches") {
-    crumbs.push({ label: "Rollback Watches", to: "/studio/rollback-watches" })
+    crumbs.push({ label: "Monitoramentos de Rollback", to: "/studio/rollback-watches" })
   } else if (segments[0] === "schedules") {
     crumbs.push({ label: "Agendamentos", to: "/schedules" })
   } else if (segments[0] === "templates") {

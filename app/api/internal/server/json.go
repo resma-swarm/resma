@@ -3,6 +3,8 @@ package server
 
 import (
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 )
 
@@ -29,8 +31,13 @@ func writeOK(w http.ResponseWriter, v any) {
 // decodeJSON decodifica o body da request em v. Retorna false se houver erro
 // (já escreve a resposta de erro).
 func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
-	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body")
+	body, _ := io.ReadAll(r.Body)
+	if err := json.Unmarshal(body, v); err != nil {
+		slog.Warn("invalid JSON body",
+			"path", r.URL.Path,
+			"body", string(body),
+			"err", err.Error())
+		writeError(w, http.StatusBadRequest, "invalid JSON body: "+err.Error())
 		return false
 	}
 	return true

@@ -628,12 +628,42 @@ func (s *Server) buildSchedulesList(ctx context.Context, status string) ([]db.Sc
 
 // buildRecommendations constrói o payload de /api/recommendations.
 // Usado por: handleListRecommendations (GET) + collector (SSE topic services).
+//
+// Filtra serviços archived do service registry para manter paridade com
+// buildServicesList — o ML sidecar retorna todos os serviços com métricas
+// nos últimos N dias, incluindo serviços antigos/arquivados que não devem
+// aparecer no Studio.
 func (s *Server) buildRecommendations(ctx context.Context) (any, error) {
 	result, err := s.ml.AnalyzeAll(ctx)
 	if err != nil {
 		return []any{}, nil
 	}
-	return result, nil
+
+	arr, ok := result.([]any)
+	if !ok {
+		return result, nil
+	}
+
+	registry, err := s.db.GetServiceRegistry(ctx)
+	if err != nil {
+		// Sem registry → retorna sem filtrar (fallback graceful)
+		return arr, nil
+	}
+
+	filtered := make([]any, 0, len(arr))
+	for _, item := range arr {
+		rec, ok := item.(map[string]any)
+		if !ok {
+			filtered = append(filtered, item)
+			continue
+		}
+		svcName, _ := rec["service"].(string)
+		if reg, exists := registry[svcName]; exists && reg.Status == "archived" {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered, nil
 }
 
 // calcRiskScore calcula um score de risco determinístico (0-100) para um serviço.

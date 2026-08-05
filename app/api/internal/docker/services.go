@@ -142,6 +142,48 @@ func extractResources(taskTemplate swarm.TaskSpec) ServiceResources {
 	return sr
 }
 
+// ClearServiceResources remove todos os limits e reservations de um serviço.
+// Usado pelo rollback watcher quando o snapshot "before" era sem config (nil):
+// reverter para "sem config" significa remover os limites problemáticos, não
+// manter o res existente (que contém os limites problemáticos aplicados).
+func (c *Client) ClearServiceResources(ctx context.Context, serviceName string) (*UpdateServiceResult, error) {
+	result := &UpdateServiceResult{}
+
+	inspectResult, err := c.cli.ServiceInspect(ctx, serviceName, client.ServiceInspectOptions{})
+	if err != nil {
+		result.Error = fmt.Sprintf("service %s not found: %v", serviceName, err)
+		return result, err
+	}
+	svc := inspectResult.Service
+	result.VersionBefore = int64(svc.Version.Index)
+
+	spec := svc.Spec
+	// Remove limits e reservations — volta ao estado "sem config"
+	spec.TaskTemplate.Resources = &swarm.ResourceRequirements{
+		Limits:       nil,
+		Reservations: nil,
+	}
+
+	updateResult, err := c.cli.ServiceUpdate(ctx, svc.ID, client.ServiceUpdateOptions{
+		Version: svc.Version,
+		Spec:    spec,
+	})
+	if err != nil {
+		result.Error = err.Error()
+		c.log.Error("erro ao limpar recursos do serviço", "name", serviceName, "err", err)
+		return result, err
+	}
+	result.Warnings = updateResult.Warnings
+	result.Success = true
+	c.log.Info("recursos do serviço removidos (clear)", "name", serviceName)
+
+	if updated, err := c.cli.ServiceInspect(ctx, serviceName, client.ServiceInspectOptions{}); err == nil {
+		result.VersionAfter = int64(updated.Service.Version.Index)
+	}
+
+	return result, nil
+}
+
 // UpdateServiceResources atualiza limites/reservations de um serviço.
 // Retorna um UpdateServiceResult estruturado.
 func (c *Client) UpdateServiceResources(ctx context.Context, serviceName string,
@@ -185,7 +227,7 @@ func (c *Client) UpdateServiceResources(ctx context.Context, serviceName string,
 			reservations = &swarm.Resources{}
 		}
 		if cpuReservation != nil {
-			reservations.NanoCPUs = int64(*cpuReservation * 1e9)
+			reservations.NanoCPUs = *cpuReservation
 		}
 		if memReservation != nil {
 			reservations.MemoryBytes = *memReservation

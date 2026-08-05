@@ -5,13 +5,15 @@
  * Permite ao usuário arrastar e ver o impacto em tempo real no WhatIfPanel.
  * NÃO aplica mudanças — é apenas simulação.
  *
- * shadcn: Slider (2 instâncias), Label
+ * shadcn: Slider (2 instâncias), Label, Input, Button
  * Reusa: HelpIcon
  */
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { HelpIcon } from "@/components/help-icon"
-import { Cpu, MemoryStick } from "lucide-react"
+import { Cpu, MemoryStick, Check } from "lucide-react"
 import { formatBytes } from "@/lib/utils"
 
 interface ResourceSliderProps {
@@ -43,7 +45,6 @@ export function ResourceSlider({
   cpuSuggested, memSuggested,
   onCpuChange, onMemChange,
 }: ResourceSliderProps) {
-  // Slider usa valores inteiros — escalar CPU para mili-cores (x100) e mem para MB
   const cpuStep = 0.05
   const memStepMb = 16
   const memMinMb = Math.round((memMin || 0) / 1e6)
@@ -53,28 +54,69 @@ export function ResourceSlider({
   const cpuMinSafe = cpuMin || 0
   const cpuMaxSafe = Math.max(cpuMinSafe + 0.1, cpuMax || 8)
 
+  const hasSuggested = cpuSuggested > 0 || memSuggested > 0
+
+  const applySuggested = () => {
+    if (cpuSuggested > 0) onCpuChange(cpuSuggested)
+    if (memSuggested > 0) onMemChange(memSuggested)
+  }
+
+  const handleCpuInput = (val: string) => {
+    const n = parseFloat(val)
+    if (!isNaN(n) && n >= 0) {
+      onCpuChange(n)
+    }
+  }
+
+  const handleMemInput = (val: string) => {
+    const n = parseFloat(val)
+    if (!isNaN(n) && n >= 0) {
+      // Input em MB, converte para bytes
+      onMemChange(n * 1e6)
+    }
+  }
+
   return (
     <div className="space-y-3 rounded-lg border p-3 bg-muted/30">
       <div className="flex items-center gap-1.5">
-        <span className="text-xs font-medium text-muted-foreground">Simulação What-If</span>
+        <span className="text-xs font-medium text-muted-foreground">Simulação</span>
         <HelpIcon
-          text="Arraste os sliders para simular diferentes configurações. Nenhuma mudança é aplicada — é apenas uma prévia do impacto."
+          text="Arraste os sliders ou digite o valor exato nos campos numéricos. Nenhuma mudança é aplicada — é apenas uma prévia do impacto."
           side="top"
           className="h-3.5 w-3.5 text-muted-foreground"
         />
+        {hasSuggested && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 text-[10px] ml-auto gap-1"
+            onClick={applySuggested}
+          >
+            <Check className="h-3 w-3" />
+            Usar sugerido
+          </Button>
+        )}
       </div>
 
-      {/* CPU Slider */}
+      {/* CPU Slider + Input */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <Cpu className="h-3.5 w-3.5 text-chart-2" />
             <Label className="text-xs">CPU (cores)</Label>
           </div>
-          <span className="text-xs font-medium tabular-nums">{cpuCoresSafe.toFixed(2)}</span>
+          <Input
+            type="number"
+            value={cpuCoresSafe.toFixed(2)}
+            onChange={(e) => handleCpuInput(e.target.value)}
+            min={cpuMinSafe}
+            max={cpuMaxSafe}
+            step={cpuStep}
+            className="h-7 w-20 text-xs tabular-nums text-right"
+          />
         </div>
         <Slider
-          value={[cpuCoresSafe]}
+          value={[Math.max(cpuMinSafe, Math.min(cpuMaxSafe, cpuCoresSafe))]}
           min={cpuMinSafe}
           max={cpuMaxSafe}
           step={cpuStep}
@@ -89,17 +131,28 @@ export function ResourceSlider({
         </div>
       </div>
 
-      {/* Memória Slider */}
+      {/* Memória Slider + Input */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <MemoryStick className="h-3.5 w-3.5 text-chart-3" />
             <Label className="text-xs">Memória</Label>
           </div>
-          <span className="text-xs font-medium tabular-nums">{formatMem(memBytes || 0)}</span>
+          <div className="flex items-center gap-1">
+            <Input
+              type="number"
+              value={memValueMb}
+              onChange={(e) => handleMemInput(e.target.value)}
+              min={memMinMb}
+              max={memMaxMb}
+              step={memStepMb}
+              className="h-7 w-20 text-xs tabular-nums text-right"
+            />
+            <span className="text-[10px] text-muted-foreground">MB</span>
+          </div>
         </div>
         <Slider
-          value={[memValueMb]}
+          value={[Math.max(memMinMb, Math.min(memMaxMb, memValueMb))]}
           min={memMinMb}
           max={memMaxMb}
           step={memStepMb}

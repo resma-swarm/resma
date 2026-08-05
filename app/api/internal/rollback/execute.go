@@ -29,6 +29,9 @@ func (w *Watcher) evaluateOne(watch db.RollbackWatch) {
 	// 3. Avaliar critérios
 	result := w.evaluate(ctx, watch, criteria)
 	if !result.Triggered {
+		w.log.Info("watch avaliado — sem incidente",
+			"watch_id", watch.ID, "service", watch.Service,
+			"started_at", watch.StartedAt, "expires_at", watch.ExpiresAt)
 		return // ainda monitorando
 	}
 
@@ -43,7 +46,50 @@ func (w *Watcher) evaluateOne(watch db.RollbackWatch) {
 
 // executeRollback reverte o serviço para os valores before via Docker SDK.
 func (w *Watcher) executeRollback(ctx context.Context, watch db.RollbackWatch, reason string) {
-	// 1. Reverter via Docker (valores before = snapshot)
+	// 1. Detectar se o snapshot "before" era sem config (todos campos inválidos).
+	// Nesse caso, reverter = remover os limites problemáticos (clear), não
+	// manter o res existente que contém os limites problemáticos.
+	hadNoConfig := !watch.CPULimitBefore.Valid && !watch.MemLimitBefore.Valid &&
+		!watch.CPUReservationBefore.Valid && !watch.MemReservationBefore.Valid
+
+	if hadNoConfig {
+		// Reverter para "sem config" — remover limites/reservations
+		result, err := w.docker.ClearServiceResources(ctx, watch.Service)
+		if err != nil {
+			w.log.Error("falha ao limpar recursos via Docker (rollback sem config)",
+				"watch_id", watch.ID, "service", watch.Service, "err", err)
+			return
+		}
+		status := "completed"
+		if !result.Success {
+			status = "failed"
+		}
+		dockerResp := fmt.Sprintf("rollback reason: %s (cleared — no prior config)", reason)
+		_, _ = w.db.AddChangeLog(ctx, db.ChangeLogEntry{
+			Service:              watch.Service,
+			Action:               "rollback",
+			Source:               "auto",
+			CPULimitBefore:       watch.CPULimitAfter,
+			MemLimitBefore:       watch.MemLimitAfter,
+			CPUReservationBefore: watch.CPUReservationAfter,
+			MemReservationBefore: watch.MemReservationAfter,
+			CPULimitAfter:        watch.CPULimitBefore, // null — sem config
+			MemLimitAfter:        watch.MemLimitBefore, // null — sem config
+			CPUReservationAfter:  watch.CPUReservationBefore,
+			MemReservationAfter:  watch.MemReservationBefore,
+			Status:               status,
+			DockerResponse:       sql.NullString{String: dockerResp, Valid: true},
+		})
+		now := time.Now()
+		_ = w.db.UpdateRollbackWatchStatus(ctx, watch.ID, "rolled_back", reason, &now)
+		w.publishRollbackEvent(ctx, watch.Service, reason)
+		w.log.Info("rollback executado (clear — sem config anterior)",
+			"watch_id", watch.ID, "service", watch.Service, "reason", reason,
+			"docker_success", result.Success)
+		return
+	}
+
+	// 2. Rollback normal — reverter para valores before (serviço tinha config anterior)
 	var cpuLimit *float64
 	if watch.CPULimitBefore.Valid {
 		v := watch.CPULimitBefore.Float64

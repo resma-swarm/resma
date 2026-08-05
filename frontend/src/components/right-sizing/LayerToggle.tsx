@@ -23,6 +23,11 @@ const tierConfig: { name: TierName; label: string; description: string }[] = [
   { name: "aggressive", label: "Agressiva", description: "1.1x P95 / 1.1x P99 — dev/staging com rollback ativo" },
 ]
 
+function formatCpu(cores: number): string {
+  if (cores >= 1) return `${cores.toFixed(1)}c`
+  return `${cores.toFixed(2)}c`
+}
+
 export function LayerToggle({ value, onChange, suggestedTiers }: LayerToggleProps) {
   return (
     <div className="flex items-center gap-2">
@@ -32,24 +37,23 @@ export function LayerToggle({ value, onChange, suggestedTiers }: LayerToggleProp
         onValueChange={(v) => {
           if (v) onChange(v as TierName)
         }}
-        className="gap-1"
+        className="gap-0 rounded-lg border bg-muted/30 p-0.5"
       >
         {tierConfig.map((tier) => {
           const t = suggestedTiers[tier.name]
-          const freed = t.resources_freed
           return (
             <ToggleGroupItem
               key={tier.name}
               value={tier.name}
               variant="outline"
-              className="flex flex-col items-center gap-0.5 px-3 py-1.5 h-auto data-[state=on]:bg-primary/10 data-[state=on]:border-primary"
+              className="flex flex-col items-center gap-0.5 px-3 py-1.5 h-auto rounded-md border-0 data-[state=on]:bg-primary/10 data-[state=on]:shadow-sm"
               aria-label={tier.label}
             >
               <span className="text-xs font-medium">{tier.label}</span>
               <span className="text-[10px] text-muted-foreground tabular-nums">
-                {freed.cpu_cores > 0 ? `${freed.cpu_cores.toFixed(1)}c` : "—"}
+                {t && t.cpu_limit > 0 ? formatCpu(t.cpu_limit) : "—"}
                 {" · "}
-                {freed.mem_bytes > 0 ? formatBytes(freed.mem_bytes) : "—"}
+                {t && t.mem_limit > 0 ? formatBytes(t.mem_limit) : "—"}
               </span>
             </ToggleGroupItem>
           )

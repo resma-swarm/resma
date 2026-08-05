@@ -33,7 +33,7 @@ export function ExportYamlButton({ services, tier, disabled }: ExportYamlButtonP
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = "resma-right-sizing-plan.yaml"
+      a.download = "resma-plano-otimizacao.yaml"
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)

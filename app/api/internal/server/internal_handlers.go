@@ -119,31 +119,23 @@ func (s *Server) handleInternalServiceConfig(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusBadRequest, "missing service")
 		return
 	}
-	cfg, err := s.db.GetServiceConfigRow(r.Context(), service)
+	// Lê a config ao vivo do Docker (não do DB) para refletir o estado real,
+	// incluindo mudanças feitas fora da API (ex: docker service update).
+	res, err := s.docker.GetServiceResources(r.Context(), service)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if cfg == nil {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"cpu_limit":       0,
-			"mem_limit":       0,
-			"cpu_reservation": 0,
-			"mem_reservation": 0,
-			"template":        nil,
-		})
-		return
-	}
 	resp := map[string]any{
-		"cpu_limit":       cfg.CPULimit.Float64,
-		"mem_limit":       cfg.MemLimit.Int64,
-		"cpu_reservation": cfg.CPUReservation.Float64,
-		"mem_reservation": cfg.MemReservation.Int64,
+		"cpu_limit":       res.CPULimit,
+		"mem_limit":       res.MemLimit,
+		"cpu_reservation": res.CPUReservation,
+		"mem_reservation": res.MemReservation,
+		"template":        nil,
 	}
-	if cfg.Template.Valid {
+	// Mantém template do DB se existir (para overrides manuais)
+	if cfg, _ := s.db.GetServiceConfigRow(r.Context(), service); cfg != nil && cfg.Template.Valid {
 		resp["template"] = cfg.Template.String
-	} else {
-		resp["template"] = nil
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

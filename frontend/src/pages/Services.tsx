@@ -305,7 +305,7 @@ export default function Services() {
             </span>
           </div>
 
-          <Table>
+          <Table className="[&_th:not(:first-child)]:border-l [&_td:not(:first-child)]:border-l [&_th:not(:first-child)]:border-border/40 [&_td:not(:first-child)]:border-border/40">
             <TableHeader>
               <TableRow>
                 <TableHead>Serviço</TableHead>

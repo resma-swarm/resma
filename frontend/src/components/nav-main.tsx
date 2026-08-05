@@ -30,7 +30,7 @@ const navItems: NavItem[] = [
   { to: "/tasks", label: "Tasks", icon: ListTodo },
   { to: "/alerts", label: "Alertas", icon: ShieldAlert },
   { to: "/recommendations", label: "Recomendações", icon: Lightbulb },
-  { to: "/studio", label: "Right-Sizing Studio", icon: Layers },
+  { to: "/studio", label: "Otimização de Recursos", icon: Layers },
   { to: "/templates", label: "Templates", icon: FileCode },
   { to: "/schedules", label: "Agendamentos", icon: CalendarClock },
 ]
