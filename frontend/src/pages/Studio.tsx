@@ -52,8 +52,26 @@ import {
   RotateCcw, Layers, Activity, Settings2, AlertTriangle,
   CheckCircle2, TrendingDown, X, ShieldCheck, CalendarClock,
   Database, HardDrive, TrendingUp, ChevronDown, AlertCircle,
-  Calendar as CalendarIcon,
+  Calendar as CalendarIcon, Shield, Zap, Loader2,
 } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+
+// --- tooltip helper ---
+
+function InfoTooltip({ content, children, side = "top" }: { content: React.ReactNode; children: React.ReactNode; side?: "top" | "bottom" | "left" | "right" }) {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {children as React.ReactElement}
+        </TooltipTrigger>
+        <TooltipContent side={side}>
+          {content}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
 
 // --- status config ---
 
@@ -61,21 +79,43 @@ interface StatusCfg {
   label: string
   icon: typeof AlertTriangle
   variant: "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "danger"
+  borderClass: string
+  priority: number
+  description: string
 }
 
 const statusConfig: Record<string, StatusCfg> = {
-  over_provisioned: { label: "Excesso", icon: TrendingDown, variant: "warning" },
-  under_provisioned: { label: "Insuficiente", icon: AlertTriangle, variant: "danger" },
-  healthy: { label: "Saudável", icon: CheckCircle2, variant: "success" },
-  alerted: { label: "Crítico", icon: AlertTriangle, variant: "danger" },
-  unconfigured: { label: "Sem config", icon: Settings2, variant: "warning" },
-  collecting_data: { label: "Coletando", icon: Activity, variant: "secondary" },
+  alerted: { label: "Crítico", icon: AlertTriangle, variant: "danger", borderClass: "border-l-destructive", priority: 0, description: "Serviço com OOMs recentes ou sob pressão crítica — ação urgente" },
+  under_provisioned: { label: "Insuficiente", icon: AlertTriangle, variant: "danger", borderClass: "border-l-warning", priority: 1, description: "Limites atuais abaixo do necessário — risco de OOM ou throttle" },
+  over_provisioned: { label: "Excesso", icon: TrendingDown, variant: "warning", borderClass: "border-l-primary", priority: 2, description: "Limites acima do necessário — recursos podem ser liberados" },
+  unconfigured: { label: "Sem config", icon: Settings2, variant: "warning", borderClass: "border-l-warning", priority: 3, description: "Serviço sem limites de CPU/memória configurados" },
+  collecting_data: { label: "Coletando", icon: Activity, variant: "secondary", borderClass: "border-l-muted-foreground", priority: 4, description: "Coletando métricas — recomendação disponível em breve" },
+  healthy: { label: "Saudável", icon: CheckCircle2, variant: "success", borderClass: "border-l-success", priority: 5, description: "Limites adequados ao uso real — sem ação necessária" },
 }
 
 const confidenceConfig: Record<string, { label: string; variant: "success" | "warning" | "danger" }> = {
   high: { label: "Alta", variant: "success" },
   medium: { label: "Média", variant: "warning" },
   low: { label: "Baixa", variant: "danger" },
+}
+
+// --- helpers ---
+
+function timeAgo(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null
+  try {
+    const d = new Date(dateStr)
+    const diffMs = Date.now() - d.getTime()
+    const diffMin = Math.floor(diffMs / 60000)
+    if (diffMin < 1) return "agora"
+    if (diffMin < 60) return `há ${diffMin}min`
+    const diffH = Math.floor(diffMin / 60)
+    if (diffH < 24) return `há ${diffH}h`
+    const diffD = Math.floor(diffH / 24)
+    return `há ${diffD}d`
+  } catch {
+    return null
+  }
 }
 
 // --- mode determination ---
@@ -105,6 +145,8 @@ export default function Studio() {
   const [whatIfCpu, setWhatIfCpu] = useState(0)
   const [whatIfMem, setWhatIfMem] = useState(0)
   const [applying, setApplying] = useState(false)
+  const [recalculating, setRecalculating] = useState(false)
+  const [quickApplying, setQuickApplying] = useState<string | null>(null)
 
   const refreshInterval = useRefreshInterval()
 
@@ -113,6 +155,32 @@ export default function Studio() {
     queryFn: () => api.get<Recommendation[]>("/recommendations"),
     refetchInterval: refreshInterval,
   })
+
+  const { data: rollbackWatches } = useQuery<{ watches: { id: number; service: string; status: string }[] }>({
+    queryKey: ["rollback-watches-active"],
+    queryFn: () => api.get("/rollback-watches?status=monitoring"),
+    refetchInterval: refreshInterval,
+  })
+  const watchedServices = useMemo(() => {
+    const set = new Set<string>()
+    for (const w of rollbackWatches?.watches ?? []) {
+      if (w.status === "monitoring") set.add(w.service)
+    }
+    return set
+  }, [rollbackWatches])
+
+  const { data: changeLog } = useQuery<{ Service: string; Action: string; Status: string }[]>({
+    queryKey: ["change-log-recent"],
+    queryFn: () => api.get("/change-log"),
+    refetchInterval: refreshInterval,
+  })
+  const optimizedCount = useMemo(() => {
+    const services = new Set<string>()
+    for (const e of changeLog ?? []) {
+      if (e.Action === "apply" && e.Status === "completed") services.add(e.Service)
+    }
+    return services.size
+  }, [changeLog])
 
   const { data: storageRecs } = useQuery<StorageAnalysis>({
     queryKey: ["storage-recommendations"],
@@ -135,15 +203,33 @@ export default function Studio() {
     return c
   }, [recs])
 
-  // --- filters ---
+  // --- filters + sorting (prioridade: severidade → savings → OOMs) ---
   const filteredRecs = useMemo(() => {
     if (!recs) return []
-    return recs.filter((r) => {
+    const filtered = recs.filter((r) => {
       if (statusFilter !== "all" && r.status !== statusFilter) return false
       if (patternFilter !== "all" && (r.pattern ?? "unknown") !== patternFilter) return false
       if (confidenceFilter === "high" && r.confidence !== "high") return false
       if (confidenceFilter === "medium" && r.confidence === "low") return false
       return true
+    })
+    const getFreed = (r: Recommendation) => {
+      if (r.suggested_tiers) {
+        const tier = r.suggested_tiers["balanced" as TierName]
+        return tier?.resources_freed ?? null
+      }
+      return r.resources_freed?.balanced ?? null
+    }
+    return filtered.sort((a, b) => {
+      const pa = statusConfig[a.status]?.priority ?? 99
+      const pb = statusConfig[b.status]?.priority ?? 99
+      if (pa !== pb) return pa - pb
+      const fa = getFreed(a)
+      const fb = getFreed(b)
+      const sa = (fa?.cpu_cores ?? 0) + (fa?.mem_bytes ?? 0) / 1e9
+      const sb = (fb?.cpu_cores ?? 0) + (fb?.mem_bytes ?? 0) / 1e9
+      if (sa !== sb) return sb - sa
+      return (b.oom_events ?? 0) - (a.oom_events ?? 0)
     })
   }, [recs, statusFilter, patternFilter, confidenceFilter])
 
@@ -258,28 +344,39 @@ export default function Studio() {
       {/* Header */}
       <PageHeader title="Otimização de Recursos" description="Sugestões de limites baseadas em dados">
         <div className="flex gap-2 flex-wrap items-center">
-          <Button variant="outline" size="sm" onClick={() => setBulkModalOpen(true)}>
+          <Button
+            variant={statusCounts.over_provisioned >= 2 ? "default" : "outline"}
+            size="sm"
+            onClick={() => setBulkModalOpen(true)}
+            className={statusCounts.over_provisioned >= 2 ? "gap-1.5" : ""}
+          >
             <Layers className="mr-2 h-4 w-4" />
             Simulação em Lote
+            {statusCounts.over_provisioned >= 2 && (
+              <Badge variant="secondary" className="ml-1 text-[10px] py-0">{statusCounts.over_provisioned}</Badge>
+            )}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => {
-            queryClient.invalidateQueries({ queryKey: ["recommendations"] })
+          <Button variant="outline" size="sm" disabled={recalculating} onClick={async () => {
+            setRecalculating(true)
             toast.info("Recalculando recomendações...")
+            await queryClient.invalidateQueries({ queryKey: ["recommendations"] })
+            setRecalculating(false)
+            toast.success("Recomendações atualizadas")
           }}>
-            <Activity className="mr-2 h-4 w-4" />
-            Recalcular
+            {recalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Activity className="mr-2 h-4 w-4" />}
+            {recalculating ? "Recalculando..." : "Recalcular"}
           </Button>
           <Button variant="outline" size="sm" asChild>
             <Link to="/studio/rollback-watches">
               <RotateCcw className="mr-2 h-4 w-4" />
-              Rollback Watches
+              Monitoramentos de Rollback
             </Link>
           </Button>
         </div>
       </PageHeader>
 
       {/* Hero */}
-      <HeroMetric data={calculateHero(recs)} loading={isLoading} />
+      <HeroMetric data={{ ...calculateHero(recs), optimized_count: optimizedCount }} loading={isLoading} onPendingClick={() => setStatusFilter("over_provisioned")} />
 
       {/* Filters */}
       <Card>
@@ -295,26 +392,29 @@ export default function Studio() {
             />
           ))}
           <Separator orientation="vertical" className="h-5 mx-1" />
-          {Object.entries(patternCounts).map(([pat, count]) => (
-            <FilterChip
-              key={pat}
-              active={patternFilter === pat}
-              onClick={() => setPatternFilter(patternFilter === pat ? "all" : pat)}
-              label={patternLabel(pat)}
-              count={count}
-            />
-          ))}
-          <Separator orientation="vertical" className="h-5 mx-1" />
+          {Object.entries(patternCounts)
+            .filter(([pat]) => pat !== "unknown")
+            .map(([pat, count]) => (
+              <FilterChip
+                key={pat}
+                active={patternFilter === pat}
+                onClick={() => setPatternFilter(patternFilter === pat ? "all" : pat)}
+                label={patternLabel(pat)}
+                count={count}
+              />
+            ))}
+          {Object.keys(patternCounts).some(p => p !== "unknown") && (
+            <Separator orientation="vertical" className="h-5 mx-1" />
+          )}
           <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Confiança:</span>
             <Select value={confidenceFilter} onValueChange={setConfidenceFilter}>
-              <SelectTrigger className="h-7 w-28 text-xs">
+              <SelectTrigger className="h-7 w-32 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="low">≥ Baixa</SelectItem>
-                <SelectItem value="medium">≥ Média</SelectItem>
-                <SelectItem value="high">≥ Alta</SelectItem>
+                <SelectItem value="low">Todas</SelectItem>
+                <SelectItem value="medium">Média e Alta</SelectItem>
+                <SelectItem value="high">Apenas Alta</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -330,14 +430,69 @@ export default function Studio() {
         </CardContent>
       </Card>
 
-      {/* Cards compactos */}
+      {/* Cards compactos — agrupados por status quando sem filtro */}
       <div className="space-y-3">
         {filteredRecs.length === 0 ? (
           <Card>
-            <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              Nenhum serviço corresponde aos filtros selecionados.
+            <CardContent className="py-8 text-center text-sm text-muted-foreground space-y-3">
+              <p>Nenhum serviço corresponde aos filtros selecionados.</p>
+              <Button variant="outline" size="sm" onClick={() => { setStatusFilter("all"); setPatternFilter("all") }}>
+                <X className="mr-1 h-3 w-3" />
+                Limpar filtros
+              </Button>
             </CardContent>
           </Card>
+        ) : statusFilter === "all" && patternFilter === "all" ? (
+          (() => {
+            const groups: { key: string; label: string; icon: typeof AlertTriangle; recs: Recommendation[] }[] = []
+            for (const [key, cfg] of Object.entries(statusConfig)) {
+              const groupRecs = filteredRecs.filter(r => r.status === key)
+              if (groupRecs.length > 0) groups.push({ key, label: cfg.label, icon: cfg.icon, recs: groupRecs })
+            }
+            return groups.map(g => {
+              const GroupIcon = g.icon
+              return (
+                <div key={g.key} className="space-y-2">
+                  <div className="flex items-center gap-2 px-1">
+                    <GroupIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{g.label}</span>
+                    <span className="text-xs text-muted-foreground/50">({g.recs.length})</span>
+                  </div>
+                  {g.recs.map((rec) => (
+                    <CompactCard
+                      key={rec.service}
+                      rec={rec}
+                      freed={getResourcesFreed(rec)}
+                      onConfigure={() => openSheet(rec)}
+                      isWatched={watchedServices.has(rec.service)}
+                      isQuickApplying={quickApplying === rec.service}
+                      onQuickApply={async () => {
+                        setQuickApplying(rec.service)
+                        const tier = getTierData(rec)
+                        if (!tier) { setQuickApplying(null); return }
+                        try {
+                          await api.post(`/recommendations/${rec.service}/apply`, {
+                            cpu_limit: tier.cpu_limit,
+                            mem_limit: Math.round(tier.mem_limit),
+                            cpu_reservation: tier.cpu_limit * 0.75,
+                            mem_reservation: Math.round(tier.mem_limit * 0.75),
+                          })
+                          queryClient.invalidateQueries({ queryKey: ["recommendations"] })
+                          queryClient.invalidateQueries({ queryKey: ["rollback-watches-active"] })
+                          queryClient.invalidateQueries({ queryKey: ["change-log-recent"] })
+                          toast.success(`Aplicado para ${rec.service} com rollback ativo`)
+                        } catch {
+                          toast.error(`Erro ao aplicar para ${rec.service}`)
+                        } finally {
+                          setQuickApplying(null)
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
+              )
+            })
+          })()
         ) : (
           filteredRecs.map((rec) => (
             <CompactCard
@@ -345,6 +500,29 @@ export default function Studio() {
               rec={rec}
               freed={getResourcesFreed(rec)}
               onConfigure={() => openSheet(rec)}
+              isWatched={watchedServices.has(rec.service)}
+              isQuickApplying={quickApplying === rec.service}
+              onQuickApply={async () => {
+                setQuickApplying(rec.service)
+                const tier = getTierData(rec)
+                if (!tier) { setQuickApplying(null); return }
+                try {
+                  await api.post(`/recommendations/${rec.service}/apply`, {
+                    cpu_limit: tier.cpu_limit,
+                    mem_limit: Math.round(tier.mem_limit),
+                    cpu_reservation: tier.cpu_limit * 0.75,
+                    mem_reservation: Math.round(tier.mem_limit * 0.75),
+                  })
+                  queryClient.invalidateQueries({ queryKey: ["recommendations"] })
+                  queryClient.invalidateQueries({ queryKey: ["rollback-watches-active"] })
+                  queryClient.invalidateQueries({ queryKey: ["change-log-recent"] })
+                  toast.success(`Aplicado para ${rec.service} com rollback ativo`)
+                } catch {
+                  toast.error(`Erro ao aplicar para ${rec.service}`)
+                } finally {
+                  setQuickApplying(null)
+                }
+              }}
             />
           ))
         )}
@@ -499,61 +677,132 @@ function FilterChip({ active, onClick, label, count }: {
 
 // --- Compact Card ---
 
-function CompactCard({ rec, freed, onConfigure }: {
+function CompactCard({ rec, freed, onConfigure, onQuickApply, isWatched, isQuickApplying }: {
   rec: Recommendation
   freed: { cpu_cores: number; mem_bytes: number; cpu_pct: number; mem_pct: number } | null
   onConfigure: () => void
+  onQuickApply?: () => void
+  isWatched: boolean
+  isQuickApplying: boolean
 }) {
   const cfg = statusConfig[rec.status] ?? statusConfig.over_provisioned
   const StatusIcon = cfg.icon
   const hasLeak = rec.memory_trend?.has_leak ?? false
   const isConfig = rec.status === "unconfigured" || rec.status === "collecting_data"
   const hasCurrentConfig = rec.current && (rec.current.cpu_limit > 0 || rec.current.mem_limit > 0)
+  const hasSavings = !isConfig && freed && (freed.cpu_cores > 0 || freed.mem_bytes > 0)
+  const showLowConfidence = rec.confidence && rec.confidence === "low" && rec.status !== "collecting_data"
+  const canQuickApply = !isConfig && rec.confidence === "high" && (rec.status === "over_provisioned" || rec.status === "healthy")
+  const updatedAgo = timeAgo(rec.suggested_apply_time)
+
+  // Cor do P95/P99 baseada na utilização vs limite
+  // P95 já é porcentagem (7.18 = 7.18% de 1 core); cpu_limit é em cores
+  // utilização = p95 / cpu_limit (em % do limite)
+  const cpuUtilPct = rec.cpu && rec.current?.cpu_limit ? rec.cpu.p95 / rec.current.cpu_limit : 0
+  const memUtilPct = rec.mem && rec.current?.mem_limit ? (rec.mem.p99 / rec.current.mem_limit) * 100 : 0
+  const cpuColor = cpuUtilPct > 90 ? "text-destructive" : cpuUtilPct > 75 ? "text-warning" : "text-muted-foreground/70"
+  const memColor = memUtilPct > 90 ? "text-destructive" : memUtilPct > 75 ? "text-warning" : "text-muted-foreground/70"
 
   return (
-    <Card className="hover:border-primary/40 transition-colors">
+    <Card className={cn("hover:border-primary/40 transition-colors border-l-2", cfg.borderClass)} role="article" aria-label={`${rec.service} — ${cfg.label}`}>
       <div className="flex items-center gap-3 p-3.5">
-        <StatusIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <span className="font-medium text-sm">{rec.service}</span>
-        <Badge variant="outline" className="text-[10px] py-0">Padrão: {patternLabel(rec.pattern)}</Badge>
-        {hasCurrentConfig && (
-          <Badge variant="secondary" className="text-[10px] py-0 font-mono">
-            {rec.current!.cpu_limit > 0 ? `${rec.current!.cpu_limit.toFixed(2)} cores` : ""}
-            {rec.current!.cpu_limit > 0 && rec.current!.mem_limit > 0 && " · "}
-            {rec.current!.mem_limit > 0 ? formatBytes(rec.current!.mem_limit) : ""}
-          </Badge>
+        {/* Ícone de status com tooltip explicativo */}
+        <InfoTooltip content={<p className="max-w-64"><span className="font-semibold">{cfg.label}</span> — {cfg.description}</p>}>
+          <span>
+            <StatusIcon className={cn("h-4 w-4 shrink-0 cursor-help", cfg.variant === "danger" ? "text-destructive" : cfg.variant === "warning" ? "text-warning" : cfg.variant === "success" ? "text-success" : "text-muted-foreground")} aria-hidden="true" />
+          </span>
+        </InfoTooltip>
+        <span className="font-semibold text-sm">{rec.service}</span>
+        {isWatched && (
+          <InfoTooltip content={<p>Rollback watch ativo — monitorando estabilidade pós-apply</p>}>
+            <Shield className="h-3.5 w-3.5 text-primary shrink-0 cursor-help" aria-label="Rollback watch ativo" />
+          </InfoTooltip>
         )}
-        <span className="text-xs text-muted-foreground hidden sm:inline">
-          {rec.status === "collecting_data"
-            ? `Coletando (${rec.samples} amostras)`
-            : rec.status === "unconfigured"
-            ? "Sem limites configurados"
-            : `P95 CPU ${rec.cpu ? formatCPU(rec.cpu.p95) : "—"} · P99 Mem ${rec.mem ? formatBytes(rec.mem.p99) : "—"}`}
-        </span>
+        {showLowConfidence && (
+          <InfoTooltip content={<p className="max-w-56">Recomendação baseada em poucas amostras — revise os detalhes antes de aplicar</p>}>
+            <Badge variant="danger" className="text-[10px] py-0 cursor-help">Baixa confiança</Badge>
+          </InfoTooltip>
+        )}
+        {/* Configuração atual com tooltip */}
+        {rec.status !== "collecting_data" && rec.status !== "unconfigured" && hasCurrentConfig && (
+          <InfoTooltip content={<p>Configuração atual de recursos do serviço</p>}>
+            <span className="text-xs text-muted-foreground hidden md:inline cursor-help">
+              {rec.current!.cpu_limit > 0 ? `${rec.current!.cpu_limit.toFixed(2)} cores` : ""}
+              {rec.current!.cpu_limit > 0 && rec.current!.mem_limit > 0 && " · "}
+              {rec.current!.mem_limit > 0 ? formatBytes(rec.current!.mem_limit) : ""}
+            </span>
+          </InfoTooltip>
+        )}
+        {rec.status === "collecting_data" && (
+          <span className="text-xs text-muted-foreground hidden md:inline">{rec.samples} amostras</span>
+        )}
+        {rec.status === "unconfigured" && (
+          <span className="text-xs text-muted-foreground hidden md:inline">Sem limites</span>
+        )}
+        {/* P95 CPU com tooltip explicativo */}
+        {rec.cpu && (
+          <InfoTooltip content={<p>P95 CPU: percentil 95 — pico de uso em 5% do tempo. {cpuUtilPct > 90 ? "Crítico: próximo do limite" : cpuUtilPct > 75 ? "Atenção: utilização alta" : "Utilização saudável"} ({cpuUtilPct.toFixed(0)}% do limite)</p>}>
+            <span className={cn("text-xs hidden lg:inline tabular-nums cursor-help", cpuColor)}>
+              P95 {formatCPU(rec.cpu.p95)}
+            </span>
+          </InfoTooltip>
+        )}
+        {rec.cpu && rec.mem && <span className="text-xs text-muted-foreground/40 hidden lg:inline">·</span>}
+        {/* P99 Mem com tooltip explicativo */}
+        {rec.mem && (
+          <InfoTooltip content={<p>P99 Memória: percentil 99 — pico de uso em 1% do tempo. {memUtilPct > 90 ? "Crítico: próximo do limite" : memUtilPct > 75 ? "Atenção: utilização alta" : "Utilização saudável"} ({memUtilPct.toFixed(0)}% do limite)</p>}>
+            <span className={cn("text-xs hidden lg:inline tabular-nums cursor-help", memColor)}>
+              P99 {formatBytes(rec.mem.p99)}
+            </span>
+          </InfoTooltip>
+        )}
+        {/* Timestamp com tooltip */}
+        {updatedAgo && (
+          <InfoTooltip content={<p>Última atualização da recomendação</p>}>
+            <span className="text-[10px] text-muted-foreground/50 hidden xl:inline cursor-help">· {updatedAgo}</span>
+          </InfoTooltip>
+        )}
         <div className="flex-1" />
-        <Badge variant={cfg.variant} className="text-[10px]">Status: {cfg.label}</Badge>
-        {rec.confidence && rec.status !== "collecting_data" && (
-          <Badge variant={confidenceConfig[rec.confidence]?.variant ?? "outline"} className="text-[10px] py-0">
-            Confiança: {confidenceConfig[rec.confidence]?.label ?? rec.confidence}
-          </Badge>
-        )}
-        {/* Savings / status text */}
-        {isConfig ? null : freed && (freed.cpu_cores > 0 || freed.mem_bytes > 0) ? (
-          <span className="text-sm font-semibold text-success tabular-nums whitespace-nowrap">
-            {freed.cpu_cores > 0 && `${formatCPU(freed.cpu_cores)} cores`}
-            {freed.cpu_cores > 0 && freed.mem_bytes > 0 && " · "}
-            {freed.mem_bytes > 0 && formatBytes(freed.mem_bytes)}
-          </span>
+        {/* Savings com tooltip */}
+        {hasSavings ? (
+          <InfoTooltip content={<p>Recursos que podem ser liberados aplicando o tier Equilibrada</p>}>
+            <span className="text-sm font-semibold text-success tabular-nums whitespace-nowrap cursor-help">
+              {freed!.cpu_cores > 0 && `↓ ${formatCPU(freed!.cpu_cores)} cores`}
+              {freed!.cpu_cores > 0 && freed!.mem_bytes > 0 && " · "}
+              {freed!.mem_bytes > 0 && `↓ ${formatBytes(freed!.mem_bytes)}`}
+            </span>
+          </InfoTooltip>
         ) : hasLeak ? (
-          <span className="text-sm font-semibold text-warning tabular-nums whitespace-nowrap">
-            +{formatBytes(Math.abs(rec.memory_trend?.daily_growth_mb ?? 0) * 1e6)}/dia
-          </span>
-        ) : (
-          <span className="text-sm text-muted-foreground whitespace-nowrap">0 liberado</span>
+          <InfoTooltip content={<p className="max-w-56">Crescimento de memória detectado — possível leak. Monitorar antes de ajustar limites</p>}>
+            <span className="text-sm font-semibold text-warning tabular-nums whitespace-nowrap cursor-help">
+              +{formatBytes(Math.abs(rec.memory_trend?.daily_growth_mb ?? 0) * 1e6)}/dia
+            </span>
+          </InfoTooltip>
+        ) : null}
+        {canQuickApply && onQuickApply && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs shrink-0 text-primary"
+            disabled={isQuickApplying}
+            onClick={onQuickApply}
+            aria-label={`Aplicar recomendação equilibrada para ${rec.service}`}
+            title={`Aplicar tier Equilibrada: ${rec.suggested_tiers?.balanced ? `${rec.suggested_tiers.balanced.cpu_limit.toFixed(2)} cores · ${formatBytes(rec.suggested_tiers.balanced.mem_limit)}` : "valores sugeridos"}`}
+          >
+            {isQuickApplying ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Zap className="mr-1 h-3 w-3" />}
+            <span className="hidden sm:inline">Aplicar</span>
+          </Button>
         )}
-        <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={onConfigure}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs shrink-0"
+          onClick={onConfigure}
+          aria-label={`Configurar ${rec.service}`}
+          title={`Abrir painel de configuração de ${rec.service} — ajustar limites, ver detalhes e simular tiers`}
+        >
           <Settings2 className="mr-1 h-3 w-3" />
-          Configurar
+          <span className="hidden sm:inline">Configurar</span>
         </Button>
       </div>
     </Card>
