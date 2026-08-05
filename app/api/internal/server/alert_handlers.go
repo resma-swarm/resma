@@ -86,6 +86,10 @@ func (s *Server) handleAlerts(w http.ResponseWriter, r *http.Request) {
 	// --- Leaks e Drifts (ML sidecar) — estado derivado on-demand ---
 	// Fallback graceful: se o sidecar estiver indisponível, retornamos apenas
 	// os OOMs (já coletados) sem falhar a página inteira.
+	// now é usado como timestamp para alertas stateless (leaks/drifts) —
+	// representam quando o alerta foi detectado nesta avaliação on-demand.
+	now := time.Now().UTC()
+
 	if mlAlerts, err := s.ml.GetAlerts(ctx); err == nil && mlAlerts != nil {
 		for _, a := range mlAlerts.LeakAlerts {
 			svc, _ := a["service"].(string)
@@ -100,7 +104,7 @@ func (s *Server) handleAlerts(w http.ResponseWriter, r *http.Request) {
 					"daily_growth_mb": growth,
 					"r_squared":       r2,
 				},
-				TS: "", // stateless — não há timestamp de detecção persistido
+				TS: now.Format(time.RFC3339Nano),
 			})
 		}
 		for _, a := range mlAlerts.DriftAlerts {
@@ -116,7 +120,7 @@ func (s *Server) handleAlerts(w http.ResponseWriter, r *http.Request) {
 					"cpu_drift": cpuDrift,
 					"mem_drift": memDrift,
 				},
-				TS: "", // stateless
+				TS: now.Format(time.RFC3339Nano),
 			})
 		}
 	}
