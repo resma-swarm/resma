@@ -52,7 +52,7 @@ import {
   RotateCcw, Layers, Activity, Settings2, AlertTriangle,
   CheckCircle2, TrendingDown, X, ShieldCheck, CalendarClock,
   Database, HardDrive, TrendingUp, ChevronDown, AlertCircle,
-  Calendar as CalendarIcon,
+  Calendar as CalendarIcon, Shield, Zap, Loader2,
 } from "lucide-react"
 
 // --- status config ---
@@ -78,6 +78,25 @@ const confidenceConfig: Record<string, { label: string; variant: "success" | "wa
   high: { label: "Alta", variant: "success" },
   medium: { label: "Média", variant: "warning" },
   low: { label: "Baixa", variant: "danger" },
+}
+
+// --- helpers ---
+
+function timeAgo(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null
+  try {
+    const d = new Date(dateStr)
+    const diffMs = Date.now() - d.getTime()
+    const diffMin = Math.floor(diffMs / 60000)
+    if (diffMin < 1) return "agora"
+    if (diffMin < 60) return `há ${diffMin}min`
+    const diffH = Math.floor(diffMin / 60)
+    if (diffH < 24) return `há ${diffH}h`
+    const diffD = Math.floor(diffH / 24)
+    return `há ${diffD}d`
+  } catch {
+    return null
+  }
 }
 
 // --- mode determination ---
@@ -107,6 +126,8 @@ export default function Studio() {
   const [whatIfCpu, setWhatIfCpu] = useState(0)
   const [whatIfMem, setWhatIfMem] = useState(0)
   const [applying, setApplying] = useState(false)
+  const [recalculating, setRecalculating] = useState(false)
+  const [quickApplying, setQuickApplying] = useState<string | null>(null)
 
   const refreshInterval = useRefreshInterval()
 
@@ -115,6 +136,19 @@ export default function Studio() {
     queryFn: () => api.get<Recommendation[]>("/recommendations"),
     refetchInterval: refreshInterval,
   })
+
+  const { data: rollbackWatches } = useQuery<{ watches: { id: number; service: string; status: string }[] }>({
+    queryKey: ["rollback-watches-active"],
+    queryFn: () => api.get("/rollback-watches?status=monitoring"),
+    refetchInterval: refreshInterval,
+  })
+  const watchedServices = useMemo(() => {
+    const set = new Set<string>()
+    for (const w of rollbackWatches?.watches ?? []) {
+      if (w.status === "monitoring") set.add(w.service)
+    }
+    return set
+  }, [rollbackWatches])
 
   const { data: storageRecs } = useQuery<StorageAnalysis>({
     queryKey: ["storage-recommendations"],
@@ -282,12 +316,15 @@ export default function Studio() {
             <Layers className="mr-2 h-4 w-4" />
             Simulação em Lote
           </Button>
-          <Button variant="outline" size="sm" onClick={() => {
-            queryClient.invalidateQueries({ queryKey: ["recommendations"] })
+          <Button variant="outline" size="sm" disabled={recalculating} onClick={async () => {
+            setRecalculating(true)
             toast.info("Recalculando recomendações...")
+            await queryClient.invalidateQueries({ queryKey: ["recommendations"] })
+            setRecalculating(false)
+            toast.success("Recomendações atualizadas")
           }}>
-            <Activity className="mr-2 h-4 w-4" />
-            Recalcular
+            {recalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Activity className="mr-2 h-4 w-4" />}
+            {recalculating ? "Recalculando..." : "Recalcular"}
           </Button>
           <Button variant="outline" size="sm" asChild>
             <Link to="/studio/rollback-watches">
@@ -372,6 +409,28 @@ export default function Studio() {
               rec={rec}
               freed={getResourcesFreed(rec)}
               onConfigure={() => openSheet(rec)}
+              isWatched={watchedServices.has(rec.service)}
+              isQuickApplying={quickApplying === rec.service}
+              onQuickApply={async () => {
+                setQuickApplying(rec.service)
+                const tier = getTierData(rec)
+                if (!tier) { setQuickApplying(null); return }
+                try {
+                  await api.post(`/recommendations/${rec.service}/apply`, {
+                    cpu_limit: tier.cpu_limit,
+                    mem_limit: Math.round(tier.mem_limit),
+                    cpu_reservation: tier.cpu_limit * 0.75,
+                    mem_reservation: Math.round(tier.mem_limit * 0.75),
+                  })
+                  queryClient.invalidateQueries({ queryKey: ["recommendations"] })
+                  queryClient.invalidateQueries({ queryKey: ["rollback-watches-active"] })
+                  toast.success(`Aplicado para ${rec.service} com rollback ativo`)
+                } catch {
+                  toast.error(`Erro ao aplicar para ${rec.service}`)
+                } finally {
+                  setQuickApplying(null)
+                }
+              }}
             />
           ))
         )}
@@ -526,30 +585,42 @@ function FilterChip({ active, onClick, label, count }: {
 
 // --- Compact Card ---
 
-function CompactCard({ rec, freed, onConfigure }: {
+function CompactCard({ rec, freed, onConfigure, onQuickApply, isWatched, isQuickApplying }: {
   rec: Recommendation
   freed: { cpu_cores: number; mem_bytes: number; cpu_pct: number; mem_pct: number } | null
   onConfigure: () => void
+  onQuickApply?: () => void
+  isWatched: boolean
+  isQuickApplying: boolean
 }) {
   const cfg = statusConfig[rec.status] ?? statusConfig.over_provisioned
   const StatusIcon = cfg.icon
   const hasLeak = rec.memory_trend?.has_leak ?? false
   const isConfig = rec.status === "unconfigured" || rec.status === "collecting_data"
   const hasCurrentConfig = rec.current && (rec.current.cpu_limit > 0 || rec.current.mem_limit > 0)
-  const hasPattern = rec.pattern && rec.pattern !== "unknown"
   const hasSavings = !isConfig && freed && (freed.cpu_cores > 0 || freed.mem_bytes > 0)
   const showLowConfidence = rec.confidence && rec.confidence === "low" && rec.status !== "collecting_data"
+  const canQuickApply = !isConfig && rec.confidence === "high" && (rec.status === "over_provisioned" || rec.status === "healthy")
+  const updatedAgo = timeAgo(rec.suggested_apply_time)
+
+  // Cor do P95/P99 baseada na utilização vs limite
+  const cpuUtilPct = rec.cpu && rec.current?.cpu_limit ? (rec.cpu.p95 / rec.current.cpu_limit) * 100 : 0
+  const memUtilPct = rec.mem && rec.current?.mem_limit ? (rec.mem.p99 / rec.current.mem_limit) * 100 : 0
+  const cpuColor = cpuUtilPct > 90 ? "text-destructive" : cpuUtilPct > 75 ? "text-warning" : "text-muted-foreground/70"
+  const memColor = memUtilPct > 90 ? "text-destructive" : memUtilPct > 75 ? "text-warning" : "text-muted-foreground/70"
 
   return (
     <Card className={cn("hover:border-primary/40 transition-colors border-l-2", cfg.borderClass)}>
       <div className="flex items-center gap-3 p-3.5">
-        {/* Linha 1 essencial: nome + status + ação */}
         <StatusIcon className={cn("h-4 w-4 shrink-0", cfg.variant === "danger" ? "text-destructive" : cfg.variant === "warning" ? "text-warning" : cfg.variant === "success" ? "text-success" : "text-muted-foreground")} />
         <span className="font-semibold text-sm">{rec.service}</span>
+        {isWatched && (
+          <Shield className="h-3.5 w-3.5 text-primary shrink-0" aria-label="Rollback watch ativo" />
+        )}
         {showLowConfidence && (
           <Badge variant="danger" className="text-[10px] py-0">Baixa confiança</Badge>
         )}
-        {/* Métricas secundárias em muted */}
+        {/* Métricas secundárias em muted com cor semântica */}
         <span className="text-xs text-muted-foreground hidden md:inline">
           {rec.status === "collecting_data"
             ? `${rec.samples} amostras`
@@ -559,9 +630,16 @@ function CompactCard({ rec, freed, onConfigure }: {
               ? `${rec.current!.cpu_limit > 0 ? `${rec.current!.cpu_limit.toFixed(2)} cores` : ""}${rec.current!.cpu_limit > 0 && rec.current!.mem_limit > 0 ? " · " : ""}${rec.current!.mem_limit > 0 ? formatBytes(rec.current!.mem_limit) : ""}`
               : ""}
         </span>
-        <span className="text-xs text-muted-foreground/70 hidden lg:inline">
-          {rec.cpu ? `P95 ${formatCPU(rec.cpu.p95)}` : ""}{rec.cpu && rec.mem ? " · " : ""}{rec.mem ? `P99 ${formatBytes(rec.mem.p99)}` : ""}
+        <span className={cn("text-xs hidden lg:inline tabular-nums", cpuColor)}>
+          {rec.cpu ? `P95 ${formatCPU(rec.cpu.p95)}` : ""}
         </span>
+        {rec.cpu && rec.mem && <span className="text-xs text-muted-foreground/40 hidden lg:inline">·</span>}
+        <span className={cn("text-xs hidden lg:inline tabular-nums", memColor)}>
+          {rec.mem ? `P99 ${formatBytes(rec.mem.p99)}` : ""}
+        </span>
+        {updatedAgo && (
+          <span className="text-[10px] text-muted-foreground/50 hidden xl:inline">· {updatedAgo}</span>
+        )}
         <div className="flex-1" />
         {/* Savings ou leak — só se relevante */}
         {hasSavings ? (
@@ -575,6 +653,12 @@ function CompactCard({ rec, freed, onConfigure }: {
             +{formatBytes(Math.abs(rec.memory_trend?.daily_growth_mb ?? 0) * 1e6)}/dia
           </span>
         ) : null}
+        {canQuickApply && onQuickApply && (
+          <Button size="sm" variant="ghost" className="h-7 text-xs shrink-0 text-primary" disabled={isQuickApplying} onClick={onQuickApply}>
+            {isQuickApplying ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Zap className="mr-1 h-3 w-3" />}
+            Aplicar
+          </Button>
+        )}
         <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={onConfigure}>
           <Settings2 className="mr-1 h-3 w-3" />
           Configurar
