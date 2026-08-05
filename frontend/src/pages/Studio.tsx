@@ -1258,6 +1258,10 @@ function BulkSimulateModal({
             {" · "}{selectedRecs.length} de {overProvRecs.length} serviços selecionados
             {" · "}Apply sequencial com rollback automático
           </DialogDescription>
+          <p className="text-xs text-muted-foreground">
+            Apenas serviços <span className="font-medium text-warning">over-provisioned</span> com sugestões geradas aparecem aqui.
+            Serviços críticos, saudáveis ou sem dados suficientes não podem ser otimizados em lote.
+          </p>
         </DialogHeader>
 
         {overProvRecs.length === 0 ? (
@@ -1353,7 +1357,7 @@ function BulkSimulateModal({
         )}
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <ExportYamlButton
             services={selectedRecs.map((r) => r.service)}
             tier={selectedTier}
@@ -1361,6 +1365,7 @@ function BulkSimulateModal({
           />
           <Button
             variant="default"
+            size="sm"
             disabled={selectedRecs.length === 0 || applying}
             onClick={handleApplyBatch}
             title={`Aplicar ${selectedRecs.length} serviços sequencialmente com rollback ativo (delay 2s entre cada para evitar cascata)`}
