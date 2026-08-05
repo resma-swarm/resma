@@ -1231,7 +1231,7 @@ function BulkSimulateModal({
         })
         success++
         // Delay de 500ms entre aplicações para não sobrecarregar o cluster
-        await new Promise(r => setTimeout(r, 500))
+        await new Promise(r => setTimeout(r, 2000))
       } catch {
         errors++
       }
@@ -1344,7 +1344,7 @@ function BulkSimulateModal({
               <div className="flex gap-0.5 h-3 rounded-full overflow-hidden">
                 {selectedRecs.map((rec) => {
                   const color = rec.risk?.color ?? "green"
-                  const bg = color === "green" ? "bg-success" : color === "yellow" ? "bg-warning" : color === "orange" ? "bg-orange-500" : "bg-destructive"
+                  const bg = color === "green" ? "bg-success" : color === "yellow" ? "bg-warning" : color === "orange" ? "bg-warning/70" : "bg-destructive"
                   return <div key={rec.service} className={`flex-1 ${bg}`} />
                 })}
               </div>
@@ -1363,7 +1363,7 @@ function BulkSimulateModal({
             variant="default"
             disabled={selectedRecs.length === 0 || applying}
             onClick={handleApplyBatch}
-            title={`Aplicar ${selectedRecs.length} serviços sequencialmente com rollback ativo (delay 500ms entre cada)`}
+            title={`Aplicar ${selectedRecs.length} serviços sequencialmente com rollback ativo (delay 2s entre cada para evitar cascata)`}
           >
             {applying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
             {applying ? "Aplicando..." : `Aplicar ${selectedRecs.length}`}
