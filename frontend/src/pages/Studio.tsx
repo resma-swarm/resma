@@ -1316,9 +1316,11 @@ function BulkSimulateModal({
                           ) : "—"}
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
-                          <Badge variant="outline" className={riskColorClasses[riskColor as RiskColor]}>
-                            {riskLevelLabel[rec.risk?.level ?? "low"]}
-                          </Badge>
+                          <InfoTooltip content={<p className="max-w-56">Risco da aplicação: {riskLevelLabel[rec.risk?.level ?? "low"]} — {rec.risk?.color === "green" ? "aplicação segura" : rec.risk?.color === "yellow" ? "monitorar após apply" : "alta chance de rollback"}</p>}>
+                            <Badge variant="outline" className={cn(riskColorClasses[riskColor as RiskColor], "cursor-help")}>
+                              {riskLevelLabel[rec.risk?.level ?? "low"]}
+                            </Badge>
+                          </InfoTooltip>
                         </TableCell>
                       </TableRow>
                     )

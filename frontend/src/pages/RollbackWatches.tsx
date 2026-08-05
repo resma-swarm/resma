@@ -50,16 +50,31 @@ interface RollbackWatchesResponse {
 
 const statusConfig: Record<string, { label: string; icon: typeof Shield; color: string }> = {
   monitoring: { label: "Monitorando", icon: Activity, color: "bg-blue-500/10 text-blue-700 border-blue-500/30" },
-  optimized: { label: "Otimizado", icon: CheckCircle2, color: "bg-green-500/10 text-green-700 border-green-500/30" },
-  rolled_back: { label: "Revertido", icon: RotateCcw, color: "bg-orange-500/10 text-orange-700 border-orange-500/30" },
+  optimized: { label: "Otimizado", icon: CheckCircle2, color: "bg-success/10 text-success border-success/30" },
+  rolled_back: { label: "Revertido", icon: RotateCcw, color: "bg-warning/10 text-warning border-warning/30" },
   expired: { label: "Expirado", icon: Clock, color: "bg-muted text-muted-foreground border-border" },
   cancelled: { label: "Cancelado", icon: Ban, color: "bg-muted text-muted-foreground border-border" },
 }
+
+// Timestamp relativo (pt-BR)
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return "agora"
+  if (min < 60) return `há ${min}min`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `há ${h}h`
+  const d = Math.floor(h / 24)
+  return `há ${d}d`
+}
+
+const PAGE_SIZE = 20
 
 export function RollbackWatches() {
   const [statusFilter, setStatusFilter] = useState<string>("")
   const [searchQuery, setSearchQuery] = useState("")
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
+  const [page, setPage] = useState(0)
   const queryClient = useQueryClient()
 
   // SSE: invalida lista quando recebe evento de rollback/optimized/cancelled
@@ -111,10 +126,20 @@ export function RollbackWatches() {
 
   const allWatches = data?.watches ?? []
   const watches = useMemo(() => {
-    if (!searchQuery.trim()) return allWatches
-    const q = searchQuery.toLowerCase()
-    return allWatches.filter(w => w.service.toLowerCase().includes(q))
-  }, [allWatches, searchQuery])
+    let filtered = allWatches
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      filtered = filtered.filter(w => w.service.toLowerCase().includes(q))
+    }
+    // Paginação
+    const start = page * PAGE_SIZE
+    return filtered.slice(start, start + PAGE_SIZE)
+  }, [allWatches, searchQuery, page])
+
+  const totalCount = searchQuery.trim()
+    ? allWatches.filter(w => w.service.toLowerCase().includes(searchQuery.toLowerCase())).length
+    : allWatches.length
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE)
 
   const statusCounts = allWatches.reduce<Record<string, number>>((acc, w) => {
     acc[w.status] = (acc[w.status] ?? 0) + 1
@@ -174,6 +199,8 @@ export function RollbackWatches() {
                 <button
                   className="flex w-full items-center justify-between"
                   onClick={() => setStatusFilter(statusFilter === key ? "" : key)}
+                  aria-label={`Filtrar por status ${cfg.label} — ${count} watches`}
+                  aria-pressed={statusFilter === key}
                 >
                   <div className="flex items-center gap-2">
                     <Icon className="h-4 w-4 text-muted-foreground" />
@@ -199,8 +226,9 @@ export function RollbackWatches() {
               <Input
                 placeholder="Buscar por serviço..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => { setSearchQuery(e.target.value); setPage(0) }}
                 className="h-8 pl-8 text-sm"
+                aria-label="Buscar watches por nome do serviço"
               />
             </div>
           </div>
@@ -220,7 +248,7 @@ export function RollbackWatches() {
               </p>
             </div>
           ) : (
-            <Table>
+            <Table aria-label="Lista de watches de rollback">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-8" />
@@ -278,7 +306,7 @@ export function RollbackWatches() {
                             <TooltipProvider delayDuration={200}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <span className="font-mono text-orange-600 cursor-help underline decoration-dotted">{w.triggered_criteria}</span>
+                                  <span className="font-mono text-warning cursor-help underline decoration-dotted">{w.triggered_criteria}</span>
                                 </TooltipTrigger>
                                 <TooltipContent>
                                   <p className="max-w-56">Critério que disparou o rollback automático: {w.triggered_criteria}</p>
@@ -295,7 +323,7 @@ export function RollbackWatches() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 text-xs text-orange-600 hover:text-orange-700"
+                                className="h-7 text-xs text-warning hover:text-warning/80"
                                 onClick={() => rollbackMutation.mutate(w.id)}
                                 disabled={rollbackMutation.isPending}
                                 title={`Reverter ${w.service} para config anterior`}
@@ -358,16 +386,31 @@ export function RollbackWatches() {
                               {/* Timestamps */}
                               <div className="space-y-1">
                                 <div className="text-xs text-muted-foreground font-medium">Timeline</div>
-                                <div className="text-xs text-muted-foreground tabular-nums">
-                                  Início: {new Date(w.started_at).toLocaleString("pt-BR")}
-                                </div>
-                                <div className="text-xs text-muted-foreground tabular-nums">
-                                  Expira: {new Date(w.expires_at).toLocaleString("pt-BR")}
-                                </div>
+                                <TooltipProvider delayDuration={200}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="text-xs text-muted-foreground tabular-nums cursor-help">Início: {timeAgo(w.started_at)}</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{new Date(w.started_at).toLocaleString("pt-BR")}</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                                <TooltipProvider delayDuration={200}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="text-xs text-muted-foreground tabular-nums cursor-help">Expira: {timeAgo(w.expires_at)}</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{new Date(w.expires_at).toLocaleString("pt-BR")}</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                                 {w.rolled_back_at && (
-                                  <div className="text-xs text-orange-600 tabular-nums">
-                                    Revertido: {new Date(w.rolled_back_at).toLocaleString("pt-BR")}
-                                  </div>
+                                  <TooltipProvider delayDuration={200}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="text-xs text-warning tabular-nums cursor-help">Revertido: {timeAgo(w.rolled_back_at)}</span>
+                                      </TooltipTrigger>
+                                      <TooltipContent>{new Date(w.rolled_back_at).toLocaleString("pt-BR")}</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
                                 )}
                               </div>
                             </div>
@@ -379,6 +422,36 @@ export function RollbackWatches() {
                 })}
               </TableBody>
             </Table>
+          )}
+          {/* Paginação */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4 border-t">
+              <span className="text-xs text-muted-foreground">
+                Página {page + 1} de {totalPages} · {totalCount} watches
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  aria-label="Página anterior"
+                >
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                  disabled={page >= totalPages - 1}
+                  aria-label="Próxima página"
+                >
+                  Próxima
+                </Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
