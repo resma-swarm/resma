@@ -61,15 +61,17 @@ interface StatusCfg {
   label: string
   icon: typeof AlertTriangle
   variant: "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "danger"
+  borderClass: string
+  priority: number
 }
 
 const statusConfig: Record<string, StatusCfg> = {
-  over_provisioned: { label: "Excesso", icon: TrendingDown, variant: "warning" },
-  under_provisioned: { label: "Insuficiente", icon: AlertTriangle, variant: "danger" },
-  healthy: { label: "Saudável", icon: CheckCircle2, variant: "success" },
-  alerted: { label: "Crítico", icon: AlertTriangle, variant: "danger" },
-  unconfigured: { label: "Sem config", icon: Settings2, variant: "warning" },
-  collecting_data: { label: "Coletando", icon: Activity, variant: "secondary" },
+  alerted: { label: "Crítico", icon: AlertTriangle, variant: "danger", borderClass: "border-l-destructive", priority: 0 },
+  under_provisioned: { label: "Insuficiente", icon: AlertTriangle, variant: "danger", borderClass: "border-l-warning", priority: 1 },
+  over_provisioned: { label: "Excesso", icon: TrendingDown, variant: "warning", borderClass: "border-l-primary", priority: 2 },
+  unconfigured: { label: "Sem config", icon: Settings2, variant: "warning", borderClass: "border-l-warning", priority: 3 },
+  collecting_data: { label: "Coletando", icon: Activity, variant: "secondary", borderClass: "border-l-muted-foreground", priority: 4 },
+  healthy: { label: "Saudável", icon: CheckCircle2, variant: "success", borderClass: "border-l-success", priority: 5 },
 }
 
 const confidenceConfig: Record<string, { label: string; variant: "success" | "warning" | "danger" }> = {
@@ -135,15 +137,33 @@ export default function Studio() {
     return c
   }, [recs])
 
-  // --- filters ---
+  // --- filters + sorting (prioridade: severidade → savings → OOMs) ---
   const filteredRecs = useMemo(() => {
     if (!recs) return []
-    return recs.filter((r) => {
+    const filtered = recs.filter((r) => {
       if (statusFilter !== "all" && r.status !== statusFilter) return false
       if (patternFilter !== "all" && (r.pattern ?? "unknown") !== patternFilter) return false
       if (confidenceFilter === "high" && r.confidence !== "high") return false
       if (confidenceFilter === "medium" && r.confidence === "low") return false
       return true
+    })
+    const getFreed = (r: Recommendation) => {
+      if (r.suggested_tiers) {
+        const tier = r.suggested_tiers["balanced" as TierName]
+        return tier?.resources_freed ?? null
+      }
+      return r.resources_freed?.balanced ?? null
+    }
+    return filtered.sort((a, b) => {
+      const pa = statusConfig[a.status]?.priority ?? 99
+      const pb = statusConfig[b.status]?.priority ?? 99
+      if (pa !== pb) return pa - pb
+      const fa = getFreed(a)
+      const fb = getFreed(b)
+      const sa = (fa?.cpu_cores ?? 0) + (fa?.mem_bytes ?? 0) / 1e9
+      const sb = (fb?.cpu_cores ?? 0) + (fb?.mem_bytes ?? 0) / 1e9
+      if (sa !== sb) return sb - sa
+      return (b.oom_events ?? 0) - (a.oom_events ?? 0)
     })
   }, [recs, statusFilter, patternFilter, confidenceFilter])
 
@@ -272,7 +292,7 @@ export default function Studio() {
           <Button variant="outline" size="sm" asChild>
             <Link to="/studio/rollback-watches">
               <RotateCcw className="mr-2 h-4 w-4" />
-              Rollback Watches
+              Monitoramentos de Rollback
             </Link>
           </Button>
         </div>
@@ -295,26 +315,29 @@ export default function Studio() {
             />
           ))}
           <Separator orientation="vertical" className="h-5 mx-1" />
-          {Object.entries(patternCounts).map(([pat, count]) => (
-            <FilterChip
-              key={pat}
-              active={patternFilter === pat}
-              onClick={() => setPatternFilter(patternFilter === pat ? "all" : pat)}
-              label={patternLabel(pat)}
-              count={count}
-            />
-          ))}
-          <Separator orientation="vertical" className="h-5 mx-1" />
+          {Object.entries(patternCounts)
+            .filter(([pat]) => pat !== "unknown")
+            .map(([pat, count]) => (
+              <FilterChip
+                key={pat}
+                active={patternFilter === pat}
+                onClick={() => setPatternFilter(patternFilter === pat ? "all" : pat)}
+                label={patternLabel(pat)}
+                count={count}
+              />
+            ))}
+          {Object.keys(patternCounts).some(p => p !== "unknown") && (
+            <Separator orientation="vertical" className="h-5 mx-1" />
+          )}
           <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Confiança:</span>
             <Select value={confidenceFilter} onValueChange={setConfidenceFilter}>
-              <SelectTrigger className="h-7 w-28 text-xs">
+              <SelectTrigger className="h-7 w-32 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="low">≥ Baixa</SelectItem>
-                <SelectItem value="medium">≥ Média</SelectItem>
-                <SelectItem value="high">≥ Alta</SelectItem>
+                <SelectItem value="low">Todas</SelectItem>
+                <SelectItem value="medium">Média e Alta</SelectItem>
+                <SelectItem value="high">Apenas Alta</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -334,8 +357,12 @@ export default function Studio() {
       <div className="space-y-3">
         {filteredRecs.length === 0 ? (
           <Card>
-            <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              Nenhum serviço corresponde aos filtros selecionados.
+            <CardContent className="py-8 text-center text-sm text-muted-foreground space-y-3">
+              <p>Nenhum serviço corresponde aos filtros selecionados.</p>
+              <Button variant="outline" size="sm" onClick={() => { setStatusFilter("all"); setPatternFilter("all") }}>
+                <X className="mr-1 h-3 w-3" />
+                Limpar filtros
+              </Button>
             </CardContent>
           </Card>
         ) : (
@@ -509,48 +536,45 @@ function CompactCard({ rec, freed, onConfigure }: {
   const hasLeak = rec.memory_trend?.has_leak ?? false
   const isConfig = rec.status === "unconfigured" || rec.status === "collecting_data"
   const hasCurrentConfig = rec.current && (rec.current.cpu_limit > 0 || rec.current.mem_limit > 0)
+  const hasPattern = rec.pattern && rec.pattern !== "unknown"
+  const hasSavings = !isConfig && freed && (freed.cpu_cores > 0 || freed.mem_bytes > 0)
+  const showLowConfidence = rec.confidence && rec.confidence === "low" && rec.status !== "collecting_data"
 
   return (
-    <Card className="hover:border-primary/40 transition-colors">
+    <Card className={cn("hover:border-primary/40 transition-colors border-l-2", cfg.borderClass)}>
       <div className="flex items-center gap-3 p-3.5">
-        <StatusIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <span className="font-medium text-sm">{rec.service}</span>
-        <Badge variant="outline" className="text-[10px] py-0">Padrão: {patternLabel(rec.pattern)}</Badge>
-        {hasCurrentConfig && (
-          <Badge variant="secondary" className="text-[10px] py-0 font-mono">
-            {rec.current!.cpu_limit > 0 ? `${rec.current!.cpu_limit.toFixed(2)} cores` : ""}
-            {rec.current!.cpu_limit > 0 && rec.current!.mem_limit > 0 && " · "}
-            {rec.current!.mem_limit > 0 ? formatBytes(rec.current!.mem_limit) : ""}
-          </Badge>
+        {/* Linha 1 essencial: nome + status + ação */}
+        <StatusIcon className={cn("h-4 w-4 shrink-0", cfg.variant === "danger" ? "text-destructive" : cfg.variant === "warning" ? "text-warning" : cfg.variant === "success" ? "text-success" : "text-muted-foreground")} />
+        <span className="font-semibold text-sm">{rec.service}</span>
+        {showLowConfidence && (
+          <Badge variant="danger" className="text-[10px] py-0">Baixa confiança</Badge>
         )}
-        <span className="text-xs text-muted-foreground hidden sm:inline">
+        {/* Métricas secundárias em muted */}
+        <span className="text-xs text-muted-foreground hidden md:inline">
           {rec.status === "collecting_data"
-            ? `Coletando (${rec.samples} amostras)`
+            ? `${rec.samples} amostras`
             : rec.status === "unconfigured"
-            ? "Sem limites configurados"
-            : `P95 CPU ${rec.cpu ? formatCPU(rec.cpu.p95) : "—"} · P99 Mem ${rec.mem ? formatBytes(rec.mem.p99) : "—"}`}
+            ? "Sem limites"
+            : hasCurrentConfig
+              ? `${rec.current!.cpu_limit > 0 ? `${rec.current!.cpu_limit.toFixed(2)} cores` : ""}${rec.current!.cpu_limit > 0 && rec.current!.mem_limit > 0 ? " · " : ""}${rec.current!.mem_limit > 0 ? formatBytes(rec.current!.mem_limit) : ""}`
+              : ""}
+        </span>
+        <span className="text-xs text-muted-foreground/70 hidden lg:inline">
+          {rec.cpu ? `P95 ${formatCPU(rec.cpu.p95)}` : ""}{rec.cpu && rec.mem ? " · " : ""}{rec.mem ? `P99 ${formatBytes(rec.mem.p99)}` : ""}
         </span>
         <div className="flex-1" />
-        <Badge variant={cfg.variant} className="text-[10px]">Status: {cfg.label}</Badge>
-        {rec.confidence && rec.status !== "collecting_data" && (
-          <Badge variant={confidenceConfig[rec.confidence]?.variant ?? "outline"} className="text-[10px] py-0">
-            Confiança: {confidenceConfig[rec.confidence]?.label ?? rec.confidence}
-          </Badge>
-        )}
-        {/* Savings / status text */}
-        {isConfig ? null : freed && (freed.cpu_cores > 0 || freed.mem_bytes > 0) ? (
+        {/* Savings ou leak — só se relevante */}
+        {hasSavings ? (
           <span className="text-sm font-semibold text-success tabular-nums whitespace-nowrap">
-            {freed.cpu_cores > 0 && `${formatCPU(freed.cpu_cores)} cores`}
-            {freed.cpu_cores > 0 && freed.mem_bytes > 0 && " · "}
-            {freed.mem_bytes > 0 && formatBytes(freed.mem_bytes)}
+            {freed!.cpu_cores > 0 && `↓ ${formatCPU(freed!.cpu_cores)} cores`}
+            {freed!.cpu_cores > 0 && freed!.mem_bytes > 0 && " · "}
+            {freed!.mem_bytes > 0 && `↓ ${formatBytes(freed!.mem_bytes)}`}
           </span>
         ) : hasLeak ? (
           <span className="text-sm font-semibold text-warning tabular-nums whitespace-nowrap">
             +{formatBytes(Math.abs(rec.memory_trend?.daily_growth_mb ?? 0) * 1e6)}/dia
           </span>
-        ) : (
-          <span className="text-sm text-muted-foreground whitespace-nowrap">0 liberado</span>
-        )}
+        ) : null}
         <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={onConfigure}>
           <Settings2 className="mr-1 h-3 w-3" />
           Configurar
