@@ -85,7 +85,7 @@ export function Layout() {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="h-svh overflow-hidden">
         <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-card px-4">
           <SidebarTrigger />
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground overflow-hidden">
