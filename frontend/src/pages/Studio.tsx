@@ -54,6 +54,24 @@ import {
   Database, HardDrive, TrendingUp, ChevronDown, AlertCircle,
   Calendar as CalendarIcon, Shield, Zap, Loader2,
 } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+
+// --- tooltip helper ---
+
+function InfoTooltip({ content, children, side = "top" }: { content: React.ReactNode; children: React.ReactNode; side?: "top" | "bottom" | "left" | "right" }) {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {children as React.ReactElement}
+        </TooltipTrigger>
+        <TooltipContent side={side}>
+          {content}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
 
 // --- status config ---
 
@@ -63,15 +81,16 @@ interface StatusCfg {
   variant: "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "danger"
   borderClass: string
   priority: number
+  description: string
 }
 
 const statusConfig: Record<string, StatusCfg> = {
-  alerted: { label: "Crítico", icon: AlertTriangle, variant: "danger", borderClass: "border-l-destructive", priority: 0 },
-  under_provisioned: { label: "Insuficiente", icon: AlertTriangle, variant: "danger", borderClass: "border-l-warning", priority: 1 },
-  over_provisioned: { label: "Excesso", icon: TrendingDown, variant: "warning", borderClass: "border-l-primary", priority: 2 },
-  unconfigured: { label: "Sem config", icon: Settings2, variant: "warning", borderClass: "border-l-warning", priority: 3 },
-  collecting_data: { label: "Coletando", icon: Activity, variant: "secondary", borderClass: "border-l-muted-foreground", priority: 4 },
-  healthy: { label: "Saudável", icon: CheckCircle2, variant: "success", borderClass: "border-l-success", priority: 5 },
+  alerted: { label: "Crítico", icon: AlertTriangle, variant: "danger", borderClass: "border-l-destructive", priority: 0, description: "Serviço com OOMs recentes ou sob pressão crítica — ação urgente" },
+  under_provisioned: { label: "Insuficiente", icon: AlertTriangle, variant: "danger", borderClass: "border-l-warning", priority: 1, description: "Limites atuais abaixo do necessário — risco de OOM ou throttle" },
+  over_provisioned: { label: "Excesso", icon: TrendingDown, variant: "warning", borderClass: "border-l-primary", priority: 2, description: "Limites acima do necessário — recursos podem ser liberados" },
+  unconfigured: { label: "Sem config", icon: Settings2, variant: "warning", borderClass: "border-l-warning", priority: 3, description: "Serviço sem limites de CPU/memória configurados" },
+  collecting_data: { label: "Coletando", icon: Activity, variant: "secondary", borderClass: "border-l-muted-foreground", priority: 4, description: "Coletando métricas — recomendação disponível em breve" },
+  healthy: { label: "Saudável", icon: CheckCircle2, variant: "success", borderClass: "border-l-success", priority: 5, description: "Limites adequados ao uso real — sem ação necessária" },
 }
 
 const confidenceConfig: Record<string, { label: string; variant: "success" | "warning" | "danger" }> = {
@@ -677,7 +696,9 @@ function CompactCard({ rec, freed, onConfigure, onQuickApply, isWatched, isQuick
   const updatedAgo = timeAgo(rec.suggested_apply_time)
 
   // Cor do P95/P99 baseada na utilização vs limite
-  const cpuUtilPct = rec.cpu && rec.current?.cpu_limit ? (rec.cpu.p95 / rec.current.cpu_limit) * 100 : 0
+  // P95 já é porcentagem (7.18 = 7.18% de 1 core); cpu_limit é em cores
+  // utilização = p95 / cpu_limit (em % do limite)
+  const cpuUtilPct = rec.cpu && rec.current?.cpu_limit ? rec.cpu.p95 / rec.current.cpu_limit : 0
   const memUtilPct = rec.mem && rec.current?.mem_limit ? (rec.mem.p99 / rec.current.mem_limit) * 100 : 0
   const cpuColor = cpuUtilPct > 90 ? "text-destructive" : cpuUtilPct > 75 ? "text-warning" : "text-muted-foreground/70"
   const memColor = memUtilPct > 90 ? "text-destructive" : memUtilPct > 75 ? "text-warning" : "text-muted-foreground/70"
@@ -685,46 +706,78 @@ function CompactCard({ rec, freed, onConfigure, onQuickApply, isWatched, isQuick
   return (
     <Card className={cn("hover:border-primary/40 transition-colors border-l-2", cfg.borderClass)} role="article" aria-label={`${rec.service} — ${cfg.label}`}>
       <div className="flex items-center gap-3 p-3.5">
-        <StatusIcon className={cn("h-4 w-4 shrink-0", cfg.variant === "danger" ? "text-destructive" : cfg.variant === "warning" ? "text-warning" : cfg.variant === "success" ? "text-success" : "text-muted-foreground")} aria-hidden="true" />
+        {/* Ícone de status com tooltip explicativo */}
+        <InfoTooltip content={<p className="max-w-64"><span className="font-semibold">{cfg.label}</span> — {cfg.description}</p>}>
+          <span>
+            <StatusIcon className={cn("h-4 w-4 shrink-0 cursor-help", cfg.variant === "danger" ? "text-destructive" : cfg.variant === "warning" ? "text-warning" : cfg.variant === "success" ? "text-success" : "text-muted-foreground")} aria-hidden="true" />
+          </span>
+        </InfoTooltip>
         <span className="font-semibold text-sm">{rec.service}</span>
         {isWatched && (
-          <Shield className="h-3.5 w-3.5 text-primary shrink-0" aria-label="Rollback watch ativo" />
+          <InfoTooltip content={<p>Rollback watch ativo — monitorando estabilidade pós-apply</p>}>
+            <Shield className="h-3.5 w-3.5 text-primary shrink-0 cursor-help" aria-label="Rollback watch ativo" />
+          </InfoTooltip>
         )}
         {showLowConfidence && (
-          <Badge variant="danger" className="text-[10px] py-0">Baixa confiança</Badge>
+          <InfoTooltip content={<p className="max-w-56">Recomendação baseada em poucas amostras — revise os detalhes antes de aplicar</p>}>
+            <Badge variant="danger" className="text-[10px] py-0 cursor-help">Baixa confiança</Badge>
+          </InfoTooltip>
         )}
-        {/* Métricas secundárias em muted com cor semântica */}
-        <span className="text-xs text-muted-foreground hidden md:inline">
-          {rec.status === "collecting_data"
-            ? `${rec.samples} amostras`
-            : rec.status === "unconfigured"
-            ? "Sem limites"
-            : hasCurrentConfig
-              ? `${rec.current!.cpu_limit > 0 ? `${rec.current!.cpu_limit.toFixed(2)} cores` : ""}${rec.current!.cpu_limit > 0 && rec.current!.mem_limit > 0 ? " · " : ""}${rec.current!.mem_limit > 0 ? formatBytes(rec.current!.mem_limit) : ""}`
-              : ""}
-        </span>
-        <span className={cn("text-xs hidden lg:inline tabular-nums", cpuColor)}>
-          {rec.cpu ? `P95 ${formatCPU(rec.cpu.p95)}` : ""}
-        </span>
+        {/* Configuração atual com tooltip */}
+        {rec.status !== "collecting_data" && rec.status !== "unconfigured" && hasCurrentConfig && (
+          <InfoTooltip content={<p>Configuração atual de recursos do serviço</p>}>
+            <span className="text-xs text-muted-foreground hidden md:inline cursor-help">
+              {rec.current!.cpu_limit > 0 ? `${rec.current!.cpu_limit.toFixed(2)} cores` : ""}
+              {rec.current!.cpu_limit > 0 && rec.current!.mem_limit > 0 && " · "}
+              {rec.current!.mem_limit > 0 ? formatBytes(rec.current!.mem_limit) : ""}
+            </span>
+          </InfoTooltip>
+        )}
+        {rec.status === "collecting_data" && (
+          <span className="text-xs text-muted-foreground hidden md:inline">{rec.samples} amostras</span>
+        )}
+        {rec.status === "unconfigured" && (
+          <span className="text-xs text-muted-foreground hidden md:inline">Sem limites</span>
+        )}
+        {/* P95 CPU com tooltip explicativo */}
+        {rec.cpu && (
+          <InfoTooltip content={<p>P95 CPU: percentil 95 — pico de uso em 5% do tempo. {cpuUtilPct > 90 ? "Crítico: próximo do limite" : cpuUtilPct > 75 ? "Atenção: utilização alta" : "Utilização saudável"} ({cpuUtilPct.toFixed(0)}% do limite)</p>}>
+            <span className={cn("text-xs hidden lg:inline tabular-nums cursor-help", cpuColor)}>
+              P95 {formatCPU(rec.cpu.p95)}
+            </span>
+          </InfoTooltip>
+        )}
         {rec.cpu && rec.mem && <span className="text-xs text-muted-foreground/40 hidden lg:inline">·</span>}
-        <span className={cn("text-xs hidden lg:inline tabular-nums", memColor)}>
-          {rec.mem ? `P99 ${formatBytes(rec.mem.p99)}` : ""}
-        </span>
+        {/* P99 Mem com tooltip explicativo */}
+        {rec.mem && (
+          <InfoTooltip content={<p>P99 Memória: percentil 99 — pico de uso em 1% do tempo. {memUtilPct > 90 ? "Crítico: próximo do limite" : memUtilPct > 75 ? "Atenção: utilização alta" : "Utilização saudável"} ({memUtilPct.toFixed(0)}% do limite)</p>}>
+            <span className={cn("text-xs hidden lg:inline tabular-nums cursor-help", memColor)}>
+              P99 {formatBytes(rec.mem.p99)}
+            </span>
+          </InfoTooltip>
+        )}
+        {/* Timestamp com tooltip */}
         {updatedAgo && (
-          <span className="text-[10px] text-muted-foreground/50 hidden xl:inline">· {updatedAgo}</span>
+          <InfoTooltip content={<p>Última atualização da recomendação</p>}>
+            <span className="text-[10px] text-muted-foreground/50 hidden xl:inline cursor-help">· {updatedAgo}</span>
+          </InfoTooltip>
         )}
         <div className="flex-1" />
-        {/* Savings ou leak — só se relevante */}
+        {/* Savings com tooltip */}
         {hasSavings ? (
-          <span className="text-sm font-semibold text-success tabular-nums whitespace-nowrap">
-            {freed!.cpu_cores > 0 && `↓ ${formatCPU(freed!.cpu_cores)} cores`}
-            {freed!.cpu_cores > 0 && freed!.mem_bytes > 0 && " · "}
-            {freed!.mem_bytes > 0 && `↓ ${formatBytes(freed!.mem_bytes)}`}
-          </span>
+          <InfoTooltip content={<p>Recursos que podem ser liberados aplicando o tier Equilibrada</p>}>
+            <span className="text-sm font-semibold text-success tabular-nums whitespace-nowrap cursor-help">
+              {freed!.cpu_cores > 0 && `↓ ${formatCPU(freed!.cpu_cores)} cores`}
+              {freed!.cpu_cores > 0 && freed!.mem_bytes > 0 && " · "}
+              {freed!.mem_bytes > 0 && `↓ ${formatBytes(freed!.mem_bytes)}`}
+            </span>
+          </InfoTooltip>
         ) : hasLeak ? (
-          <span className="text-sm font-semibold text-warning tabular-nums whitespace-nowrap">
-            +{formatBytes(Math.abs(rec.memory_trend?.daily_growth_mb ?? 0) * 1e6)}/dia
-          </span>
+          <InfoTooltip content={<p className="max-w-56">Crescimento de memória detectado — possível leak. Monitorar antes de ajustar limites</p>}>
+            <span className="text-sm font-semibold text-warning tabular-nums whitespace-nowrap cursor-help">
+              +{formatBytes(Math.abs(rec.memory_trend?.daily_growth_mb ?? 0) * 1e6)}/dia
+            </span>
+          </InfoTooltip>
         ) : null}
         {canQuickApply && onQuickApply && (
           <Button
@@ -740,7 +793,14 @@ function CompactCard({ rec, freed, onConfigure, onQuickApply, isWatched, isQuick
             <span className="hidden sm:inline">Aplicar</span>
           </Button>
         )}
-        <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={onConfigure} aria-label={`Configurar ${rec.service}`}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs shrink-0"
+          onClick={onConfigure}
+          aria-label={`Configurar ${rec.service}`}
+          title={`Abrir painel de configuração de ${rec.service} — ajustar limites, ver detalhes e simular tiers`}
+        >
           <Settings2 className="mr-1 h-3 w-3" />
           <span className="hidden sm:inline">Configurar</span>
         </Button>
