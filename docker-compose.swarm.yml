@@ -65,9 +65,8 @@ services:
         constraints:
           - node.role == manager
       resources:
-        limits:
-          cpus: "0.25"
-          memory: 128M
+        # Sem limits — o Studio (Right-Sizing) é o único owner dos limits.
+        # Reservations garantem recursos mínimos para o API funcionar.
         reservations:
           cpus: "0.05"
           memory: 32M
@@ -78,15 +77,13 @@ services:
   # ---- ML sidecar Python runtime ----
   # NÃO monta resma-data — o ML sidecar não acessa o DuckDB diretamente.
   # Ele solicita dados via HTTP ao Go API (/api/internal/*).
+  # Sem limits — o Studio é o único owner dos limits.
   ml:
     image: resma-ml:latest
     environment:
       - RESMA_API_URL=http://api:8080
     deploy:
       resources:
-        limits:
-          cpus: "0.50"
-          memory: 256M
         reservations:
           cpus: "0.10"
           memory: 64M
@@ -97,6 +94,7 @@ services:
   # ---- RESMA Agent runtime (global: 1 por node) ----
   # deploy.mode: global faz 1 replica por node (manager + workers).
   # Cada agent coleta stats dos containers LOCAIS via Docker socket.
+  # Sem limits — o Studio é o único owner dos limits.
   agent:
     image: resma-agent:latest
     volumes:
@@ -111,9 +109,6 @@ services:
     deploy:
       mode: global
       resources:
-        limits:
-          cpus: "0.10"
-          memory: 32M
         reservations:
           cpus: "0.02"
           memory: 16M
