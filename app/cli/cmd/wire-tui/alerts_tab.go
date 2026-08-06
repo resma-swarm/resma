@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -13,48 +12,39 @@ func renderAlertsTab(m model) string {
 	timeW := 15
 	levW := 10
 	svcW := 25
-	msgW := m.width - timeW - levW - svcW - 2
-	if msgW < 10 {
-		msgW = 10
-	}
+	spaces := 3
+	msgW := colWidths(m.width, []int{timeW, levW, svcW}, spaces)
 
-	header := fmt.Sprintf("%s %s %s %s",
-		padRight(sTableHeader.Render("TIME"), timeW),
-		padRight(sTableHeader.Render("LEVEL"), levW),
-		padRight(sTableHeader.Render("SERVICE"), svcW),
-		sTableHeader.Render("MESSAGE"),
+	header := joinRow(
+		cellLeft(sTableHeader.Render("TIME"), timeW),
+		cellLeft(sTableHeader.Render("LEVEL"), levW),
+		cellLeft(sTableHeader.Render("SERVICE"), svcW),
+		cellLeft(sTableHeader.Render("MESSAGE"), msgW),
 	)
-	sb.WriteString(header + "\n")
+	sb.WriteString(lipgloss.NewStyle().Width(m.width).Render(header) + "\n")
 
 	for i, a := range mockAlerts {
+		var levelCell string
 		if i == m.cursor {
-			rawRow := fmt.Sprintf("%s %s %s %s",
-				padRight(a.time, timeW),
-				padRight(a.level, levW),
-				padRight(a.service, svcW),
-				truncate(a.message, msgW),
-			)
-			fullRow := padRight(rawRow, m.width)
-			sb.WriteString(sTableCursor.Render(fullRow) + "\n\n")
+			levelCell = a.level
 		} else {
-			var levelColored string
 			switch a.level {
 			case "critical":
-				levelColored = sError.Render("CRIT")
+				levelCell = sError.Render("CRIT")
 			case "warning":
-				levelColored = sWarning.Render("WARN")
+				levelCell = sWarning.Render("WARN")
 			default:
-				levelColored = sMuted.Render("INFO")
+				levelCell = sMuted.Render("INFO")
 			}
-
-			row := fmt.Sprintf("%s %s %s %s",
-				padRight(a.time, timeW),
-				padRight(levelColored, levW),
-				padRight(a.service, svcW),
-				truncate(a.message, msgW),
-			)
-			sb.WriteString(lipgloss.NewStyle().Width(m.width).Render(row) + "\n\n")
 		}
+
+		cells := []string{
+			cellLeft(a.time, timeW),
+			cellLeft(levelCell, levW),
+			cellLeft(a.service, svcW),
+			cellLeft(truncate(a.message, msgW), msgW),
+		}
+		sb.WriteString(renderTableRow(cells, m.width, i == m.cursor) + "\n")
 	}
 
 	return sb.String()

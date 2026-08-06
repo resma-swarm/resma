@@ -14,48 +14,36 @@ func renderAgentsTab(m model) string {
 	statW := 15
 	verW := 15
 	seenW := 20
-	svcsW := m.width - idW - statW - verW - seenW - 2
-	if svcsW < 10 {
-		svcsW = 10
-	}
+	spaces := 4
+	svcsW := colWidths(m.width, []int{idW, statW, verW, seenW}, spaces)
 
-	header := fmt.Sprintf("%s %s %s %s %s",
-		padRight(sTableHeader.Render("NODE ID"), idW),
-		padRight(sTableHeader.Render("STATUS"), statW),
-		padRight(sTableHeader.Render("VERSION"), verW),
-		padRight(sTableHeader.Render("LAST SEEN"), seenW),
-		sTableHeader.Render("SERVICES"),
+	header := joinRow(
+		cellLeft(sTableHeader.Render("NODE ID"), idW),
+		cellLeft(sTableHeader.Render("STATUS"), statW),
+		cellLeft(sTableHeader.Render("VERSION"), verW),
+		cellLeft(sTableHeader.Render("LAST SEEN"), seenW),
+		cellRight(sTableHeader.Render("SERVICES"), svcsW),
 	)
-	sb.WriteString(header + "\n")
+	sb.WriteString(lipgloss.NewStyle().Width(m.width).Render(header) + "\n")
 
 	for i, a := range mockAgents {
-		statusStr := a.status
-
+		var statusCell string
 		if i == m.cursor {
-			rawRow := fmt.Sprintf("%s %s %s %s %s",
-				padRight(a.nodeID, idW),
-				padRight(statusStr, statW),
-				padRight(a.version, verW),
-				padRight(a.lastSeen, seenW),
-				padLeft(fmt.Sprintf("%d", a.services), svcsW),
-			)
-			fullRow := padRight(rawRow, m.width)
-			sb.WriteString(sTableCursor.Render(fullRow) + "\n\n")
+			statusCell = a.status
+		} else if a.status == "active" {
+			statusCell = sSuccess.Render("active")
 		} else {
-			statusColored := sSuccess.Render("active")
-			if a.status != "active" {
-				statusColored = sError.Render("offline")
-			}
-
-			row := fmt.Sprintf("%s %s %s %s %s",
-				padRight(a.nodeID, idW),
-				padRight(statusColored, statW),
-				padRight(a.version, verW),
-				padRight(a.lastSeen, seenW),
-				padLeft(fmt.Sprintf("%d", a.services), svcsW),
-			)
-			sb.WriteString(lipgloss.NewStyle().Width(m.width).Render(row) + "\n\n")
+			statusCell = sError.Render("offline")
 		}
+
+		cells := []string{
+			cellLeft(a.nodeID, idW),
+			cellLeft(statusCell, statW),
+			cellLeft(a.version, verW),
+			cellLeft(a.lastSeen, seenW),
+			cellRight(fmt.Sprintf("%d", a.services), svcsW),
+		}
+		sb.WriteString(renderTableRow(cells, m.width, i == m.cursor) + "\n")
 	}
 
 	return sb.String()

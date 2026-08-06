@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -15,51 +14,40 @@ func renderRecommendationsTab(m model) string {
 	tierW := 15
 	cpuW := 10
 	memW := 10
-	reasW := m.width - svcW - riskW - tierW - cpuW - memW - 2
-	if reasW < 10 {
-		reasW = 10
-	}
+	spaces := 5
+	reasW := colWidths(m.width, []int{svcW, riskW, tierW, cpuW, memW}, spaces)
 
-	header := fmt.Sprintf("%s %s %s %s %s %s",
-		padRight(sTableHeader.Render("SERVICE"), svcW),
-		padRight(sTableHeader.Render("RISK"), riskW),
-		padRight(sTableHeader.Render("TIER"), tierW),
-		padRight(sTableHeader.Render("CPU"), cpuW),
-		padRight(sTableHeader.Render("MEM"), memW),
-		sTableHeader.Render("REASON"),
+	header := joinRow(
+		cellLeft(sTableHeader.Render("SERVICE"), svcW),
+		cellLeft(sTableHeader.Render("RISK"), riskW),
+		cellLeft(sTableHeader.Render("TIER"), tierW),
+		cellLeft(sTableHeader.Render("CPU"), cpuW),
+		cellLeft(sTableHeader.Render("MEM"), memW),
+		cellLeft(sTableHeader.Render("REASON"), reasW),
 	)
-	sb.WriteString(header + "\n")
+	sb.WriteString(lipgloss.NewStyle().Width(m.width).Render(header) + "\n")
 
 	for i, r := range mockRecs {
+		var riskCell string
 		if i == m.cursor {
-			rawRow := fmt.Sprintf("%s %s %s %s %s %s",
-				padRight(r.service, svcW),
-				padRight(r.risk, riskW),
-				padRight(r.tier, tierW),
-				padRight(r.cpu, cpuW),
-				padRight(r.mem, memW),
-				truncate(r.reason, reasW),
-			)
-			fullRow := padRight(rawRow, m.width)
-			sb.WriteString(sTableCursor.Render(fullRow) + "\n\n")
+			riskCell = r.risk
+		} else if r.risk == "high" {
+			riskCell = sError.Render("high")
+		} else if r.risk == "medium" {
+			riskCell = sWarning.Render("medium")
 		} else {
-			riskColored := sSuccess.Render("low")
-			if r.risk == "high" {
-				riskColored = sError.Render("high")
-			} else if r.risk == "medium" {
-				riskColored = sWarning.Render("medium")
-			}
-
-			row := fmt.Sprintf("%s %s %s %s %s %s",
-				padRight(r.service, svcW),
-				padRight(riskColored, riskW),
-				padRight(r.tier, tierW),
-				padRight(r.cpu, cpuW),
-				padRight(r.mem, memW),
-				truncate(r.reason, reasW),
-			)
-			sb.WriteString(lipgloss.NewStyle().Width(m.width).Render(row) + "\n\n")
+			riskCell = sSuccess.Render("low")
 		}
+
+		cells := []string{
+			cellLeft(r.service, svcW),
+			cellLeft(riskCell, riskW),
+			cellLeft(r.tier, tierW),
+			cellLeft(r.cpu, cpuW),
+			cellLeft(r.mem, memW),
+			cellLeft(truncate(r.reason, reasW), reasW),
+		}
+		sb.WriteString(renderTableRow(cells, m.width, i == m.cursor) + "\n")
 	}
 
 	return sb.String()

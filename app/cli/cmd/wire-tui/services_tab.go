@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -10,67 +9,58 @@ import (
 func renderServicesTab(m model) string {
 	var sb strings.Builder
 
-	// Calcula widths dinâmicos de colunas
 	nameW := 25
 	replW := 10
 	cpuW := 10
 	memW := 10
 	statusW := 15
-	trendW := m.width - nameW - replW - cpuW - memW - statusW - 2
-	if trendW < 10 {
-		trendW = 10
-	}
+	spaces := 5 // 5 espaços entre 6 colunas
+	trendW := colWidths(m.width, []int{nameW, replW, cpuW, memW, statusW}, spaces)
 
-	// Header da tabela
-	header := fmt.Sprintf("%s %s %s %s %s %s",
-		padRight(sTableHeader.Render("NAME"), nameW),
-		padLeft(sTableHeader.Render("READY"), replW),
-		padLeft(sTableHeader.Render("CPU"), cpuW),
-		padLeft(sTableHeader.Render("MEM"), memW),
-		padRight(sTableHeader.Render("STATUS"), statusW),
-		sTableHeader.Render("TREND"),
+	// Header
+	header := joinRow(
+		cellLeft(sTableHeader.Render("NAME"), nameW),
+		cellRight(sTableHeader.Render("READY"), replW),
+		cellRight(sTableHeader.Render("CPU"), cpuW),
+		cellRight(sTableHeader.Render("MEM"), memW),
+		cellLeft(sTableHeader.Render("STATUS"), statusW),
+		cellLeft(sTableHeader.Render("TREND"), trendW),
 	)
-	sb.WriteString(header + "\n")
+	sb.WriteString(lipgloss.NewStyle().Width(m.width).Render(header) + "\n")
 
 	for i, s := range mockServices {
-		cpu := fmt.Sprintf("%.1f%%", s.cpu)
-		mem := fmt.Sprintf("%.1f%%", s.mem)
-
+		cpu := pctStr(s.cpu)
+		mem := pctStr(s.mem)
 		statusStr := "running"
 		if s.status != "running" {
 			statusStr = "stopped"
 		}
 
-		// Se a linha estive selecionada, formatamos sem ANSI escuros prévios para pintar 100% da linha
-		if i == m.cursor {
-			rawRow := fmt.Sprintf("%s %s %s %s %s %s",
-				padRight(s.name, nameW),
-				padLeft(s.replicas, replW),
-				padLeft(cpu, cpuW),
-				padLeft(mem, memW),
-				padRight(statusStr, statusW),
-				sparkline(s.spark, trendW),
-			)
-			// Garante preenchimento de 100% da largura da tela com fundo Indigo
-			fullRow := padRight(rawRow, m.width)
-			sb.WriteString(sTableCursor.Render(fullRow) + "\n\n") // Adiciona espaçamento vertical
-		} else {
-			// Cores dinâmicas normais sem seleção
-			statusColored := sSuccess.Render("running")
-			if s.status != "running" {
-				statusColored = sError.Render("stopped")
-			}
+		var spark string
+		var statusCell string
 
-			row := fmt.Sprintf("%s %s %s %s %s %s",
-				padRight(s.name, nameW),
-				padLeft(s.replicas, replW),
-				padLeft(cpu, cpuW),
-				padLeft(mem, memW),
-				padRight(statusColored, statusW),
-				sparkline(s.spark, trendW),
-			)
-			sb.WriteString(lipgloss.NewStyle().Width(m.width).Render(row) + "\n\n") // Espaçamento vertical
+		if i == m.cursor {
+			// Linha selecionada: texto plain, cursor background cuida das cores
+			spark = sparklinePlain(s.spark)
+			statusCell = statusStr
+		} else {
+			spark = sparkline(s.spark, trendW)
+			if s.status == "running" {
+				statusCell = sSuccess.Render("running")
+			} else {
+				statusCell = sError.Render("stopped")
+			}
 		}
+
+		cells := []string{
+			cellLeft(s.name, nameW),
+			cellRight(s.replicas, replW),
+			cellRight(cpu, cpuW),
+			cellRight(mem, memW),
+			cellLeft(statusCell, statusW),
+			cellLeft(spark, trendW),
+		}
+		sb.WriteString(renderTableRow(cells, m.width, i == m.cursor) + "\n")
 	}
 
 	return sb.String()
