@@ -25,35 +25,6 @@ func joinRow(cells ...string) string {
 	return strings.Join(cells, " ")
 }
 
-// sparklinePlain retorna sparkline sem cores (para linha selecionada).
-func sparklinePlain(data []float64) string {
-	if len(data) == 0 {
-		return ""
-	}
-	chars := []rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
-	result := make([]rune, 0, len(data))
-	maxVal := 0.0
-	for _, v := range data {
-		if v > maxVal {
-			maxVal = v
-		}
-	}
-	if maxVal == 0 {
-		return ""
-	}
-	for _, v := range data {
-		idx := int((v / maxVal) * float64(len(chars)-1))
-		if idx < 0 {
-			idx = 0
-		}
-		if idx >= len(chars) {
-			idx = len(chars) - 1
-		}
-		result = append(result, chars[idx])
-	}
-	return string(result)
-}
-
 // renderTableRow renderiza uma linha de tabela ocupando exatamente totalWidth.
 // Usa lipgloss.Width (ANSI-aware) para garantir que a linha não wrap.
 func renderTableRow(cells []string, totalWidth int, selected bool) string {

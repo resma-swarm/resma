@@ -2,33 +2,15 @@ package main
 
 import "strings"
 
-// sparkline gera uma sparkline Unicode de 1 linha a partir de dados.
+// sparkline gera uma sparkline braille de 1 linha (2× densidade horizontal, 4× vertical vs blocks).
+// Cores com gradiente: cyan → green → yellow → red.
 func sparkline(data []float64, width int) string {
-	if len(data) == 0 {
-		return strings.Repeat(" ", width)
-	}
-	chars := []rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
-	result := make([]rune, 0, len(data))
-	maxVal := 0.0
-	for _, v := range data {
-		if v > maxVal {
-			maxVal = v
-		}
-	}
-	if maxVal == 0 {
-		return strings.Repeat(" ", width)
-	}
-	for _, v := range data {
-		idx := int((v / maxVal) * float64(len(chars)-1))
-		if idx < 0 {
-			idx = 0
-		}
-		if idx >= len(chars) {
-			idx = len(chars) - 1
-		}
-		result = append(result, chars[idx])
-	}
-	return sHighlight.Render(string(result))
+	return brailleSparkline(data, width)
+}
+
+// sparklinePlain é a versão sem cores (para linhas selecionadas).
+func sparklinePlain(data []float64) string {
+	return brailleSparklinePlain(data, len(data)/2+1)
 }
 
 // truncate trunca string para width com ellipsis.

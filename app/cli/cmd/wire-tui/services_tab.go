@@ -41,7 +41,7 @@ func renderServicesTab(m model) string {
 
 		if i == m.cursor {
 			// Linha selecionada: texto plain, cursor background cuida das cores
-			spark = sparklinePlain(s.spark)
+			spark = brailleSparklinePlain(s.spark, trendW)
 			statusCell = statusStr
 		} else {
 			spark = sparkline(s.spark, trendW)

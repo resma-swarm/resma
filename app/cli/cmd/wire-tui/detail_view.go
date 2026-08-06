@@ -39,7 +39,11 @@ func renderServiceDetail(m model) string {
 		sb.WriteString(fmt.Sprintf("   CPU:  %s%% (Limit: 2 cores)\n\n", fmt.Sprintf("%.1f", s.cpu)))
 		sb.WriteString(fmt.Sprintf("   MEM:  %s%% (Limit: 4Gi)\n\n", fmt.Sprintf("%.1f", s.mem)))
 		sb.WriteString(" CPU Trend:\n\n")
-		sb.WriteString("   " + sparkline(s.spark, 50))
+		chartW := 60
+		if m.width-6 < chartW {
+			chartW = m.width - 6
+		}
+		sb.WriteString(brailleChart(s.spark, chartW, 4))
 		return sb.String()
 	}
 	return ""
