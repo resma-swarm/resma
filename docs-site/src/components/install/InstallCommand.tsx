@@ -25,7 +25,7 @@ import {Check, Copy} from 'lucide-react';
 import clsx from 'clsx';
 
 type InstallTab = {
-  id: 'installer' | 'standalone';
+  id: 'installer' | 'standalone' | 'upgrade' | 'uninstall';
   label: string;
   /** Linguagem Prism para highlight. */
   language: 'bash';
@@ -59,6 +59,34 @@ docker compose -f docker-compose.standalone.yml up -d
 
 # 3. Acesse o dashboard em http://localhost:8080`,
   },
+  {
+    id: 'upgrade',
+    label: 'Upgrade',
+    language: 'bash',
+    command: `# 1. Pull das novas imagens nos nodes do Swarm
+docker pull docker.io/resmaswarm/resma-api:latest
+docker pull docker.io/resmaswarm/resma-ml:latest
+docker pull docker.io/resmaswarm/resma-agent:latest
+
+# 2. Atualize cada service para usar a nova imagem
+docker service update --image docker.io/resmaswarm/resma-api:latest resma_api
+docker service update --image docker.io/resmaswarm/resma-ml:latest resma_ml
+docker service update --image docker.io/resmaswarm/resma-agent:latest resma_agent
+
+# 3. Verifique
+docker service ls
+curl http://localhost:8080/health`,
+  },
+  {
+    id: 'uninstall',
+    label: 'Uninstall',
+    language: 'bash',
+    command: `docker run -it --rm \\
+  --name resma-uninstaller \\
+  --volume /var/run/docker.sock:/var/run/docker.sock \\
+  -e MODE=uninstall \\
+  resmaswarm/resma-install:latest`,
+  },
 ];
 
 export default function InstallCommand(): React.JSX.Element {
@@ -85,8 +113,9 @@ export default function InstallCommand(): React.JSX.Element {
             Install
           </h2>
           <p className="mb-8 text-center text-sm text-muted">
-            One command to deploy RESMA — installer container (recommended) or
-            standalone dev setup.
+            Install, upgrade, or uninstall RESMA on Docker Swarm — installer
+            container (recommended), standalone dev setup, in-place upgrade, or
+            clean uninstall.
           </p>
 
           <div className="rounded-lg border border-hairline bg-surface-2 overflow-hidden">
