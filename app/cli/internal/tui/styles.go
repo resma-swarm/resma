@@ -2,51 +2,96 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
-// Styles holds all the Lipgloss style definitions used by the dashboard.
-type Styles struct {
-	HeaderStyle      lipgloss.Style
-	TabBarStyle      lipgloss.Style
-	TabActiveStyle   lipgloss.Style
-	TabInactiveStyle lipgloss.Style
-	FooterStyle      lipgloss.Style
-	ContentStyle     lipgloss.Style
-	TitleStyle       lipgloss.Style
-	SubtitleStyle    lipgloss.Style
-	BorderStyle      lipgloss.Style
-	HighlightStyle   lipgloss.Style
-	ErrorStyle       lipgloss.Style
-	SuccessStyle     lipgloss.Style
-	WarningStyle     lipgloss.Style
-	MutedStyle       lipgloss.Style
-}
+// Cores da paleta RESMA Dashboard
+var (
+	cResmaBlack   = lipgloss.Color("#000000")
+	cResmaGray    = lipgloss.Color("#A9A9A9")
+	cResmaMuted   = lipgloss.Color("#808080")
+	cResmaAqua    = lipgloss.Color("#00FFFF")
+	cResmaCyan    = lipgloss.Color("#00CED1")
+	cResmaGreen   = lipgloss.Color("#04E762")
+	cResmaRed     = lipgloss.Color("#FF5C5C")
+	cResmaWarning = lipgloss.Color("#FFB400")
+	cResmaWhite   = lipgloss.Color("#FFFFFF")
+	cResmaCursor  = lipgloss.Color("#4B0082") // Indigo cursor background
+	cResmaBorder  = lipgloss.Color("#3D3D5C")
+	cResmaPrimary = lipgloss.Color("#7D56F3") // RESMA Violet
+	cResmaTabBg   = lipgloss.Color("#2A2A3E")
+)
 
-// NewStyles returns a Styles struct initialized with default styles.
-func NewStyles() Styles {
-	return Styles{
-		HeaderStyle: lipgloss.NewStyle().
+// Estilos de alta fidelidade
+var (
+	sHeader = lipgloss.NewStyle().
+		Padding(0, 1)
+
+	sClusterTitle = lipgloss.NewStyle().
 			Bold(true).
-			Padding(0, 1),
-		TabBarStyle: lipgloss.NewStyle().
-			Padding(0, 1),
-		TabActiveStyle: lipgloss.NewStyle().
+			Foreground(cResmaAqua)
+
+	sInfoKey = lipgloss.NewStyle().
+			Foreground(cResmaGray)
+
+	sInfoVal = lipgloss.NewStyle().
 			Bold(true).
-			Padding(0, 2),
-		TabInactiveStyle: lipgloss.NewStyle().
-			Padding(0, 2),
-		FooterStyle: lipgloss.NewStyle().
-			Padding(0, 1),
-		ContentStyle:  lipgloss.NewStyle(),
-		TitleStyle:    lipgloss.NewStyle().Bold(true),
-		SubtitleStyle: lipgloss.NewStyle().Faint(true),
-		BorderStyle:   lipgloss.NewStyle().BorderLeft(true),
-		HighlightStyle: lipgloss.NewStyle().
-			Bold(true),
-		ErrorStyle: lipgloss.NewStyle().
-			Bold(true),
-		SuccessStyle: lipgloss.NewStyle().
-			Bold(true),
-		WarningStyle: lipgloss.NewStyle().
-			Bold(true),
-		MutedStyle: lipgloss.NewStyle().Faint(true),
-	}
-}
+			Foreground(cResmaWhite)
+
+	sMenuKey = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(cResmaCyan)
+
+	sMenuDesc = lipgloss.NewStyle().
+			Foreground(cResmaGray)
+
+	sLogo = lipgloss.NewStyle().
+		Foreground(cResmaPrimary).
+		Bold(true)
+
+	sStatus = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(cResmaBlack).
+		Padding(0, 2).
+		AlignHorizontal(lipgloss.Center)
+
+	sTableCursor = lipgloss.NewStyle().
+			Background(cResmaCursor).
+			Foreground(cResmaWhite).
+			Bold(true)
+
+	sTableHeader = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(cResmaAqua).
+			Underline(true)
+
+	sTabActive = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(cResmaWhite).
+			Background(cResmaPrimary).
+			Padding(0, 2).
+			MarginRight(1)
+
+	sTabInactive = lipgloss.NewStyle().
+			Foreground(cResmaMuted).
+			Background(cResmaTabBg).
+			Padding(0, 2).
+			MarginRight(1)
+
+	sCrumbActive = lipgloss.NewStyle().
+			Bold(true).
+			Background(cResmaPrimary).
+			Foreground(cResmaWhite)
+
+	sCrumbInactive = lipgloss.NewStyle().
+			Background(cResmaBorder).
+			Foreground(cResmaGray)
+
+	sFlash = lipgloss.NewStyle().
+		Bold(true).
+		AlignHorizontal(lipgloss.Center)
+
+	// Semantics
+	sSuccess   = lipgloss.NewStyle().Foreground(cResmaGreen).Bold(true)
+	sWarning   = lipgloss.NewStyle().Foreground(cResmaWarning).Bold(true)
+	sError     = lipgloss.NewStyle().Foreground(cResmaRed).Bold(true)
+	sMuted     = lipgloss.NewStyle().Foreground(cResmaMuted)
+	sHighlight = lipgloss.NewStyle().Foreground(cResmaPrimary).Bold(true)
+)
