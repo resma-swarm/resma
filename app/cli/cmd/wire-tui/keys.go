@@ -1,0 +1,194 @@
+package main
+
+import (
+	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Teclas globais
+	switch msg.String() {
+	case "q", "ctrl+c":
+		if m.viewMode == ViewHelp || m.viewMode == ViewFilter || m.viewMode == ViewCommand {
+			m.viewMode = ViewList
+			m.inputBuf = ""
+			return m, nil
+		}
+		m.quitting = true
+		return m, tea.Quit
+
+	case "esc":
+		if m.viewMode == ViewDetail {
+			m.viewMode = ViewList
+			m.selectedItem = ""
+		} else if m.viewMode == ViewFilter || m.viewMode == ViewCommand || m.viewMode == ViewHelp {
+			m.viewMode = ViewList
+			m.inputBuf = ""
+		}
+		return m, nil
+
+	case "?":
+		if m.viewMode == ViewHelp {
+			m.viewMode = ViewList
+		} else {
+			m.viewMode = ViewHelp
+		}
+		return m, nil
+
+	case ":":
+		if m.viewMode == ViewList {
+			m.viewMode = ViewCommand
+			m.inputBuf = ""
+		}
+		return m, nil
+
+	case "/":
+		if m.viewMode == ViewList {
+			m.viewMode = ViewFilter
+			m.inputBuf = m.filter
+		}
+		return m, nil
+
+	case "1":
+		return m.switchTab(TabServices)
+	case "2":
+		return m.switchTab(TabNodes)
+	case "3":
+		return m.switchTab(TabAgents)
+	case "4":
+		return m.switchTab(TabTasks)
+	case "5":
+		return m.switchTab(TabAlerts)
+	case "6":
+		return m.switchTab(TabRecommendations)
+
+	case "tab":
+		if m.viewMode == ViewList {
+			if m.focusedPanel == PanelSide {
+				m.focusedPanel = PanelMain
+			} else {
+				m.focusedPanel = PanelSide
+			}
+		}
+		return m, nil
+
+	case "shift+tab":
+		if m.viewMode == ViewList {
+			if m.focusedPanel == PanelMain {
+				m.focusedPanel = PanelSide
+			} else {
+				m.focusedPanel = PanelMain
+			}
+		}
+		return m, nil
+
+	case "r":
+		// mock refresh
+		return m, nil
+	}
+
+	// Navegação na lista
+	if m.viewMode == ViewList {
+		switch msg.String() {
+		case "j", "down":
+			m.cursor++
+			return m, nil
+		case "k", "up":
+			if m.cursor > 0 {
+				m.cursor--
+			}
+			return m, nil
+		case "g":
+			m.cursor = 0
+			return m, nil
+		case "G":
+			m.cursor = m.listLen() - 1
+			return m, nil
+		case "enter":
+			return m.enterDetail()
+		}
+	}
+
+	// Input modes
+	if m.viewMode == ViewFilter || m.viewMode == ViewCommand {
+		return m.handleInput(msg)
+	}
+
+	return m, nil
+}
+
+func (m model) switchTab(tab TabID) (tea.Model, tea.Cmd) {
+	m.activeTab = tab
+	m.viewMode = ViewList
+	m.cursor = 0
+	m.filter = ""
+	m.selectedItem = ""
+	return m, nil
+}
+
+func (m model) enterDetail() (tea.Model, tea.Cmd) {
+	items := m.currentItems()
+	if m.cursor < 0 || m.cursor >= len(items) {
+		return m, nil
+	}
+	m.selectedItem = items[m.cursor]
+	m.viewMode = ViewDetail
+	return m, nil
+}
+
+func (m model) handleInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		if m.viewMode == ViewFilter {
+			m.filter = m.inputBuf
+		} else if m.viewMode == ViewCommand {
+			return m.executeCommand(m.inputBuf)
+		}
+		m.viewMode = ViewList
+		m.inputBuf = ""
+		return m, nil
+	case "backspace":
+		if len(m.inputBuf) > 0 {
+			m.inputBuf = m.inputBuf[:len(m.inputBuf)-1]
+		}
+		return m, nil
+	default:
+		// só aceitar chars imprimíveis
+		s := msg.String()
+		if len(s) == 1 && s[0] >= 32 && s[0] < 127 {
+			m.inputBuf += s
+		}
+		return m, nil
+	}
+}
+
+func (m model) executeCommand(input string) (tea.Model, tea.Cmd) {
+	m.viewMode = ViewList
+	m.inputBuf = ""
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return m, nil
+	}
+	parts := strings.Fields(input)
+	switch parts[0] {
+	case "services":
+		return m.switchTab(TabServices)
+	case "nodes":
+		return m.switchTab(TabNodes)
+	case "agents":
+		return m.switchTab(TabAgents)
+	case "tasks":
+		return m.switchTab(TabTasks)
+	case "alerts":
+		return m.switchTab(TabAlerts)
+	case "recs", "recommendations":
+		return m.switchTab(TabRecommendations)
+	case "q", "quit":
+		m.quitting = true
+		return m, tea.Quit
+	case "help":
+		m.viewMode = ViewHelp
+	}
+	return m, nil
+}
