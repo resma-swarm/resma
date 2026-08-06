@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-06
+
+### Added
+- **Installer upgrade mode** — `MODE=upgrade` faz pull das novas imagens e
+  atualiza os services do Swarm in-place via `docker service update --image`,
+  preservando dados (DuckDB) e secrets. Suporta `RESMA_VERSION` para
+  especificar versão (default: latest)
+
 ## [0.2.0] - 2026-08-06
 
 Major release: Right-Sizing Studio (apply com rollback automático), RBAC com
