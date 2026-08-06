@@ -218,6 +218,15 @@ export default function Studio() {
     queryFn: () => api.get("/templates"),
   })
 
+  // Capacidade total do cluster Swarm (soma dos nodes ready) — usada como max do slider em modo template
+  const { data: clusterCapacity } = useQuery<{ cluster_capacity?: { cpu_total: number; mem_total: number } }>({
+    queryKey: ["dashboard-cluster-capacity"],
+    queryFn: () => api.get("/dashboard"),
+    staleTime: 60_000,
+  })
+  const clusterCpuTotal = clusterCapacity?.cluster_capacity?.cpu_total ?? 16
+  const clusterMemTotal = clusterCapacity?.cluster_capacity?.mem_total ?? 16 * 1024 * 1024 * 1024
+
   // --- counts ---
   const statusCounts = useMemo(() => {
     const c: Record<string, number> = {}
@@ -682,6 +691,8 @@ export default function Studio() {
                   templates={templates ?? []}
                   selectedTemplateName={selectedTemplateName}
                   onTemplateChange={setSelectedTemplateName}
+                  clusterCpuTotal={clusterCpuTotal}
+                  clusterMemTotal={clusterMemTotal}
                 />
               </div>
 
@@ -950,16 +961,19 @@ interface SheetBodyProps {
   templates: { id: number; name: string; description: string; yaml_content: string; stacks: string[] }[]
   selectedTemplateName: string
   onTemplateChange: (name: string) => void
+  clusterCpuTotal: number
+  clusterMemTotal: number
 }
 
-function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem, onCpuChange, onMemChange, tierData, templates, selectedTemplateName, onTemplateChange }: SheetBodyProps) {
+function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem, onCpuChange, onMemChange, tierData, templates, selectedTemplateName, onTemplateChange, clusterCpuTotal, clusterMemTotal }: SheetBodyProps) {
   const hasLeak = rec.memory_trend?.has_leak ?? false
   const isTemplate = selectedTier === "template"
 
-  // Em modo template, expande o max do slider para acomodar valores do template
-  // que podem ser maiores que o range default baseado no current config
-  const expandMax = (base: number, value: number) =>
-    isTemplate ? Math.max(base, value * 1.3) : base
+  // Capacidade real do cluster Swarm (soma dos nodes ready)
+  // Em modo template, o slider max = capacidade do cluster (recursos disponíveis)
+  // Em modo ML, o slider max = heurística baseada no current config (comportamento original)
+  const cpuMaxFor = (base: number) => isTemplate ? Math.max(base, clusterCpuTotal) : base
+  const memMaxFor = (base: number) => isTemplate ? Math.max(base, clusterMemTotal) : base
 
   // Helper: renderiza LayerToggle + TemplateSelector (se template)
   const tierSection = (
@@ -1014,9 +1028,9 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           cpuCores={whatIfCpu}
           memBytes={whatIfMem}
           cpuMin={0.1}
-          cpuMax={expandMax(8, whatIfCpu)}
+          cpuMax={cpuMaxFor(8)}
           memMin={16 * 1024 * 1024}
-          memMax={expandMax(8 * 1024 * 1024 * 1024, whatIfMem)}
+          memMax={memMaxFor(8 * 1024 * 1024 * 1024)}
           cpuCurrent={0}
           memCurrent={0}
           cpuSuggested={0}
@@ -1054,9 +1068,9 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           cpuCores={whatIfCpu}
           memBytes={whatIfMem}
           cpuMin={(rec.cpu?.p95 ?? 0.1) * 0.8}
-          cpuMax={expandMax(8, whatIfCpu)}
+          cpuMax={cpuMaxFor(8)}
           memMin={(rec.mem?.p99 ?? 16e6) * 0.8}
-          memMax={expandMax(8e9, whatIfMem)}
+          memMax={memMaxFor(8e9)}
           cpuCurrent={0}
           memCurrent={0}
           cpuSuggested={tierData?.cpu_limit ?? 0}
@@ -1118,9 +1132,9 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           cpuCores={whatIfCpu}
           memBytes={whatIfMem}
           cpuMin={(rec.cpu?.p95 ?? 0.1) * 0.8}
-          cpuMax={expandMax((rec.current?.cpu_limit ?? 4) * 3, whatIfCpu)}
+          cpuMax={cpuMaxFor((rec.current?.cpu_limit ?? 4) * 3)}
           memMin={(rec.mem?.p99 ?? 16e6) * 0.8}
-          memMax={expandMax((rec.current?.mem_limit ?? 8e9) * 3, whatIfMem)}
+          memMax={memMaxFor((rec.current?.mem_limit ?? 8e9) * 3)}
           cpuCurrent={rec.current?.cpu_limit ?? 0}
           memCurrent={rec.current?.mem_limit ?? 0}
           cpuSuggested={tierData?.cpu_limit ?? 0}
@@ -1184,9 +1198,9 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           cpuCores={whatIfCpu}
           memBytes={whatIfMem}
           cpuMin={(rec.cpu?.p95 ?? 0.1) * 0.5}
-          cpuMax={expandMax((rec.current?.cpu_limit ?? 4) * 2, whatIfCpu)}
+          cpuMax={cpuMaxFor((rec.current?.cpu_limit ?? 4) * 2)}
           memMin={(rec.mem?.p99 ?? 16e6) * 0.5}
-          memMax={expandMax((rec.current?.mem_limit ?? 8e9) * 2, whatIfMem)}
+          memMax={memMaxFor((rec.current?.mem_limit ?? 8e9) * 2)}
           cpuCurrent={rec.current?.cpu_limit ?? 0}
           memCurrent={rec.current?.mem_limit ?? 0}
           cpuSuggested={tierData?.cpu_limit ?? 0}
@@ -1236,9 +1250,9 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
         cpuCores={whatIfCpu}
         memBytes={whatIfMem}
         cpuMin={(rec.cpu?.p95 ?? 0.1) * 0.8}
-        cpuMax={expandMax((rec.current?.cpu_limit ?? 4) * 1.5, whatIfCpu)}
+        cpuMax={cpuMaxFor((rec.current?.cpu_limit ?? 4) * 1.5)}
         memMin={(rec.mem?.p99 ?? 16e6) * 0.8}
-        memMax={expandMax((rec.current?.mem_limit ?? 8e9) * 1.5, whatIfMem)}
+        memMax={memMaxFor((rec.current?.mem_limit ?? 8e9) * 1.5)}
         cpuCurrent={rec.current?.cpu_limit ?? 0}
         memCurrent={rec.current?.mem_limit ?? 0}
         cpuSuggested={tierData?.cpu_limit ?? 0}
