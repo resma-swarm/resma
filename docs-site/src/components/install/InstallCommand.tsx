@@ -63,19 +63,11 @@ docker compose -f docker-compose.standalone.yml up -d
     id: 'upgrade',
     label: 'Upgrade',
     language: 'bash',
-    command: `# 1. Pull das novas imagens nos nodes do Swarm
-docker pull docker.io/resmaswarm/resma-api:latest
-docker pull docker.io/resmaswarm/resma-ml:latest
-docker pull docker.io/resmaswarm/resma-agent:latest
-
-# 2. Atualize cada service para usar a nova imagem
-docker service update --image docker.io/resmaswarm/resma-api:latest resma_api
-docker service update --image docker.io/resmaswarm/resma-ml:latest resma_ml
-docker service update --image docker.io/resmaswarm/resma-agent:latest resma_agent
-
-# 3. Verifique
-docker service ls
-curl http://localhost:8080/health`,
+    command: `docker run -it --rm \\
+  --name resma-upgrader \\
+  --volume /var/run/docker.sock:/var/run/docker.sock \\
+  -e MODE=upgrade \\
+  resmaswarm/resma-install:latest`,
   },
   {
     id: 'uninstall',

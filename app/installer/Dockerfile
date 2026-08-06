@@ -39,10 +39,11 @@ WORKDIR /install
 # para o stack file (só para pull das imagens de runtime).
 COPY docker-stack.yml ./docker-stack.yml
 COPY app/installer/install.sh ./install.sh
+COPY app/installer/upgrade.sh ./upgrade.sh
 COPY app/installer/uninstall.sh ./uninstall.sh
 COPY app/installer/entrypoint.sh ./entrypoint.sh
 COPY app/installer/logo.txt ./logo.txt
 
-RUN chmod +x install.sh uninstall.sh entrypoint.sh
+RUN chmod +x install.sh upgrade.sh uninstall.sh entrypoint.sh
 
 ENTRYPOINT ["/install/entrypoint.sh"]
