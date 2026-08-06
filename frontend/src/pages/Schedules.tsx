@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom"
+import { useMemo, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/api/client"
 import { useEventSource } from "@/hooks/use-event-source"
@@ -12,11 +13,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { HelpIcon } from "@/components/help-icon"
 import { formatBytes, formatCPU } from "@/lib/utils"
-import { CalendarClock, CheckCircle2, XCircle, AlertCircle, Clock, X, History, Filter, Search, ArrowRight, FileText } from "lucide-react"
+import { CalendarClock, CheckCircle2, XCircle, AlertCircle, Clock, X, History, Filter, Search, ArrowRight, FileText, ChevronLeft, ChevronRight } from "lucide-react"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { useFilterStore } from "@/stores/filter-store"
 import { toast } from "sonner"
+
+const PAGE_SIZE = 20
 
 interface Schedule {
   id: number
@@ -191,6 +195,28 @@ export default function Schedules() {
   // Aba Auditoria: change-log, filtrado por source + busca.
   const filteredLog = (logFilter === "all" ? (changeLog || []) : (changeLog || []).filter((e) => e.source === logFilter)).filter(searchFilter)
 
+  // Paginação client-side (PAGE_SIZE=20) — apenas Histórico e Auditoria (volume cresce).
+  // Aba Pendentes não pagina (volume baixo por natureza).
+  const [historyPage, setHistoryPage] = useState(0)
+  const [auditPage, setAuditPage] = useState(0)
+
+  // Reset de página quando filtros/busca/aba mudam (evita página fora do range).
+  // useEffect implícito via useMemo — recalcula slice a partir dos filtros atuais.
+  const historyTotalPages = Math.max(1, Math.ceil(filteredHistory.length / PAGE_SIZE))
+  const auditTotalPages = Math.max(1, Math.ceil(filteredLog.length / PAGE_SIZE))
+  const safeHistoryPage = Math.min(historyPage, historyTotalPages - 1)
+  const safeAuditPage = Math.min(auditPage, auditTotalPages - 1)
+
+  const pagedHistory = useMemo(() => {
+    const start = safeHistoryPage * PAGE_SIZE
+    return filteredHistory.slice(start, start + PAGE_SIZE)
+  }, [filteredHistory, safeHistoryPage])
+
+  const pagedLog = useMemo(() => {
+    const start = safeAuditPage * PAGE_SIZE
+    return filteredLog.slice(start, start + PAGE_SIZE)
+  }, [filteredLog, safeAuditPage])
+
   const summaryCards = [
     { label: "Pendentes", value: pending.length, icon: Clock, color: "text-warning", bg: "bg-warning/10", status: "pending", tab: "pending" },
     { label: "Concluídos", value: completed.length, icon: CheckCircle2, color: "text-success", bg: "bg-success/10", status: "completed", tab: "history" },
@@ -355,7 +381,12 @@ export default function Schedules() {
                           </TableCell>
                           <TableCell className="text-right tabular-nums text-muted-foreground">{formatVal(s.cpu_limit, "cpu")}</TableCell>
                           <TableCell className="text-right tabular-nums text-muted-foreground">{formatVal(s.mem_limit, "mem")}</TableCell>
-                          <TableCell><TimestampCell ts={s.scheduled_at} /></TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <TimestampCell ts={s.scheduled_at} />
+                              <HelpIcon text="Data e hora em que o schedule está configurado para executar automaticamente." />
+                            </div>
+                          </TableCell>
                           <TableCell>
                             {s.status === "pending" && (
                               <Button
@@ -444,11 +475,16 @@ export default function Schedules() {
                       <TableHead className="text-right">Mem Lim</TableHead>
                       <TableHead>Agendado para</TableHead>
                       <TableHead>Aplicado em</TableHead>
-                      <TableHead className="text-center">Tentativas</TableHead>
+                      <TableHead className="text-center">
+                        <span className="inline-flex items-center gap-1">
+                          Tentativas
+                          <HelpIcon text="Número de tentativas de aplicação (retry automático em caso de falha transiente)." />
+                        </span>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredHistory.map((s) => {
+                    {pagedHistory.map((s) => {
                       const cfg = statusConfig[s.status] ?? { label: s.status, variant: "outline" as const, icon: AlertCircle }
                       return (
                         <TableRow key={s.id}>
@@ -474,6 +510,37 @@ export default function Schedules() {
                   </TableBody>
                 </Table>
               </CardContent>
+              {historyTotalPages > 1 && (
+                <div className="flex items-center justify-between p-4 border-t">
+                  <span className="text-xs text-muted-foreground">
+                    Página {safeHistoryPage + 1} de {historyTotalPages} · {filteredHistory.length} agendamentos
+                  </span>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setHistoryPage(p => Math.max(0, p - 1))}
+                      disabled={safeHistoryPage === 0}
+                      aria-label="Página anterior"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                      Anterior
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setHistoryPage(p => Math.min(historyTotalPages - 1, p + 1))}
+                      disabled={safeHistoryPage >= historyTotalPages - 1}
+                      aria-label="Próxima página"
+                    >
+                      Próxima
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Card>
           )}
         </TabsContent>
@@ -529,8 +596,18 @@ export default function Schedules() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Serviço</TableHead>
-                      <TableHead>Ação</TableHead>
-                      <TableHead>Fonte</TableHead>
+                      <TableHead>
+                        <span className="inline-flex items-center gap-1">
+                          Ação
+                          <HelpIcon text="Tipo de mudança aplicada: apply (aplicar limites), scheduled_apply (agendado), rollback (reverter para valores anteriores)." />
+                        </span>
+                      </TableHead>
+                      <TableHead>
+                        <span className="inline-flex items-center gap-1">
+                          Fonte
+                          <HelpIcon text="Origem da mudança: manual (usuário aplicou via Studio), scheduler (agendamento executou automaticamente), auto (rollback automático por instabilidade)." />
+                        </span>
+                      </TableHead>
                       <TableHead>Usuário</TableHead>
                       <TableHead className="text-right">CPU Antes→Depois</TableHead>
                       <TableHead className="text-right">Mem Antes→Depois</TableHead>
@@ -539,7 +616,7 @@ export default function Schedules() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredLog.map((e) => (
+                    {pagedLog.map((e) => (
                       <TableRow key={e.id}>
                         <TableCell className="font-medium">
                           <Link to={`/services/${e.service}`} className="text-primary hover:underline">{e.service}</Link>
@@ -575,6 +652,37 @@ export default function Schedules() {
                   </TableBody>
                 </Table>
               </CardContent>
+              {auditTotalPages > 1 && (
+                <div className="flex items-center justify-between p-4 border-t">
+                  <span className="text-xs text-muted-foreground">
+                    Página {safeAuditPage + 1} de {auditTotalPages} · {filteredLog.length} alterações
+                  </span>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setAuditPage(p => Math.max(0, p - 1))}
+                      disabled={safeAuditPage === 0}
+                      aria-label="Página anterior"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                      Anterior
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setAuditPage(p => Math.min(auditTotalPages - 1, p + 1))}
+                      disabled={safeAuditPage >= auditTotalPages - 1}
+                      aria-label="Próxima página"
+                    >
+                      Próxima
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Card>
           )}
         </TabsContent>
