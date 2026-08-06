@@ -115,11 +115,6 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Navegação na lista (loop infinito como k9s)
 	if m.viewMode == ViewList {
-		// Se modo sort ativo, tratar teclas de sort primeiro
-		if m.sortMode {
-			return m.handleSortModeKey(msg)
-		}
-
 		n := m.listLen()
 		if n == 0 {
 			n = 1
@@ -147,12 +142,24 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "shift+right":
 			m.selColRight()
 			return m, nil
-		case "s":
-			// 's' entra no modo sort da coluna selecionada
+		case "shift+up":
+			// Alternar direção reverso: None → Desc → Asc → None
 			if m.selCol >= 0 {
-				m.sortMode = true
 				m.sortCol = m.selCol
-				m.flash = flashText("Sort mode: ↑/↓ cycle, Enter confirm, Esc cancel", FlashInfo)
+				m.sortDir = (m.sortDir + 2) % 3
+				if m.sortDir == SortNone {
+					m.sortCol = -1
+				}
+			}
+			return m, nil
+		case "shift+down":
+			// Alternar direção: None → Asc → Desc → None
+			if m.selCol >= 0 {
+				m.sortCol = m.selCol
+				m.sortDir = (m.sortDir + 1) % 3
+				if m.sortDir == SortNone {
+					m.sortCol = -1
+				}
 			}
 			return m, nil
 		}
@@ -174,42 +181,8 @@ func (m model) switchTab(tab TabID) (tea.Model, tea.Cmd) {
 	m.selectedItem = ""
 	m.sortCol = -1
 	m.sortDir = SortNone
-	m.sortMode = false
 	m.selCol = -1
 	m.flash = flashText("Viewing "+tabNames[tab][4:], FlashInfo)
-	return m, nil
-}
-
-// handleSortModeKey trata teclas no modo de seleção de ordenação.
-// ↑/↓ alterna direção (None → Asc → Desc → None), Enter confirma, Esc cancela.
-func (m model) handleSortModeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "up", "k":
-		m.sortDir = (m.sortDir + 2) % 3 // None→Desc→Asc→None (reverso)
-		return m, nil
-	case "down", "j":
-		m.sortDir = (m.sortDir + 1) % 3 // None→Asc→Desc→None
-		return m, nil
-	case "enter":
-		m.sortMode = false
-		if m.sortDir == SortNone {
-			m.sortCol = -1
-			m.flash = flashText("Sort cleared", FlashInfo)
-		} else {
-			dirStr := "asc"
-			if m.sortDir == SortDesc {
-				dirStr = "desc"
-			}
-			m.flash = flashText("Sorted: "+dirStr, FlashInfo)
-		}
-		return m, nil
-	case "esc":
-		m.sortMode = false
-		m.sortCol = -1
-		m.sortDir = SortNone
-		m.flash = flashText("Sort cancelled", FlashInfo)
-		return m, nil
-	}
 	return m, nil
 }
 

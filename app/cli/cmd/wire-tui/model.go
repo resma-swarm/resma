@@ -68,10 +68,9 @@ type model struct {
 	logFilter      string // filtro de logs
 	filterFromLogs bool   // filter foi aberto da view de logs
 	// Sort state para a tabela da view ativa
-	sortCol  int     // coluna de ordenação (-1 = nenhuma)
-	sortDir  SortDir // direção da ordenação
-	sortMode bool    // modo de seleção de ordenação ativo
-	selCol   int     // coluna selecionada pelo Shift+←/→
+	sortCol int     // coluna de ordenação (-1 = nenhuma)
+	sortDir SortDir // direção da ordenação
+	selCol  int     // coluna selecionada pelo Shift+←/→
 }
 
 func initialModel() model {

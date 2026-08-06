@@ -62,7 +62,6 @@ func applySortState(t *TableModel, m model) {
 	t.selCol = m.selCol
 	t.sortCol = m.sortCol
 	t.sortDir = m.sortDir
-	t.sortMode = m.sortMode
 	if m.sortCol >= 0 && m.sortDir != SortNone {
 		t.applySort()
 	}

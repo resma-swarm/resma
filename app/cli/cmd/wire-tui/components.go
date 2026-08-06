@@ -47,16 +47,15 @@ type TableRow struct {
 
 // TableModel é um componente de tabela reutilizável.
 type TableModel struct {
-	cols     []TableColumn
-	rows     []TableRow
-	cursor   int
-	width    int
-	height   int
-	header   string  // título opcional acima das colunas
-	sortCol  int     // coluna selecionada para ordenação (-1 = nenhuma)
-	sortDir  SortDir // direção da ordenação
-	sortMode bool    // modo de seleção de ordenação ativo
-	selCol   int     // coluna atualmente selecionada pelo Shift+←/→
+	cols    []TableColumn
+	rows    []TableRow
+	cursor  int
+	width   int
+	height  int
+	header  string  // título opcional acima das colunas
+	sortCol int     // coluna selecionada para ordenação (-1 = nenhuma)
+	sortDir SortDir // direção da ordenação
+	selCol  int     // coluna atualmente selecionada pelo Shift+←/→
 }
 
 // NewTable cria uma nova tabela com as colunas especificadas.
@@ -152,36 +151,6 @@ func (t *TableModel) SelColRight() {
 	}
 }
 
-// EnterSortMode entra no modo de seleção de ordenação.
-func (t *TableModel) EnterSortMode() {
-	if t.selCol < 0 {
-		return
-	}
-	t.sortMode = true
-	// Se a coluna selecionada já é a coluna de sort, manter a direção atual
-	// Senão, começar com a direção atual da coluna selecionada (ou None)
-	if t.sortCol != t.selCol {
-		t.sortCol = t.selCol
-		// Começar com None para o usuário escolher
-	}
-}
-
-// ConfirmSort confirma a ordenação e sai do modo sort.
-func (t *TableModel) ConfirmSort() {
-	t.sortMode = false
-	if t.sortDir == SortNone {
-		t.sortCol = -1
-	}
-	t.applySort()
-}
-
-// CancelSort cancela a ordenação e limpa o sort.
-func (t *TableModel) CancelSort() {
-	t.sortMode = false
-	t.sortCol = -1
-	t.sortDir = SortNone
-}
-
 // CycleSortDir alterna a direção: None → Asc → Desc → None (loop infinito).
 func (t *TableModel) CycleSortDir() {
 	t.sortDir = (t.sortDir + 1) % 3
@@ -241,9 +210,6 @@ func (t *TableModel) SortCol() int { return t.sortCol }
 
 // SortDir retorna a direção de ordenação atual.
 func (t *TableModel) SortDir() SortDir { return t.sortDir }
-
-// SortMode retorna se o modo de seleção de ordenação está ativo.
-func (t *TableModel) SortMode() bool { return t.sortMode }
 
 // SelCol retorna o índice da coluna selecionada (-1 = nenhuma).
 func (t *TableModel) SelCol() int { return t.selCol }
@@ -313,13 +279,13 @@ func (t TableModel) View() string {
 		if ci == t.sortCol && t.sortDir != SortNone {
 			title = title + " " + t.sortDir.String()
 		}
-		// Coluna selecionada (Shift+←/→) fica em bold mais destacado
+		// Coluna selecionada (Shift+←/→) fica com background destacado
 		if ci == t.selCol {
-			h := lipgloss.NewStyle().Bold(true).Foreground(cResmaAqua).Render(title)
-			headerCells = append(headerCells, padToWidth(h, c.Width, c.Align))
-		} else if t.sortMode && ci == t.sortCol {
-			// Modo sort ativo — destacar coluna sendo ordenada
-			h := lipgloss.NewStyle().Bold(true).Foreground(cResmaWarning).Render(title)
+			h := lipgloss.NewStyle().
+				Bold(true).
+				Foreground(cResmaWhite).
+				Background(cResmaPrimary).
+				Render(title)
 			headerCells = append(headerCells, padToWidth(h, c.Width, c.Align))
 		} else {
 			h := sTableHeader.Render(title)
