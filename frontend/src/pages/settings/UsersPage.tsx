@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/api/client"
 import { Button } from "@/components/ui/button"
@@ -41,7 +41,9 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/empty-state"
-import { Plus, Trash2, ShieldCheck, Users as UsersIcon } from "lucide-react"
+import { Plus, Trash2, ShieldCheck, Users as UsersIcon, Search, ChevronLeft, ChevronRight } from "lucide-react"
+
+const PAGE_SIZE = 20
 import { toast } from "sonner"
 import { usePermissions } from "@/hooks/use-permissions"
 
@@ -57,12 +59,32 @@ export function UsersPage() {
   const queryClient = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
   const [newUser, setNewUser] = useState({ username: "", password: "", role: "user", name: "" })
+  const [search, setSearch] = useState("")
+  const [page, setPage] = useState(0)
 
   const { data, isLoading } = useQuery<{ users: User[] }>({
     queryKey: ["users"],
     queryFn: () => api.get<{ users: User[] }>("/users"),
   })
-  const users = data?.users || []
+  const allUsers = data?.users || []
+
+  // Busca textual — filtra por username e name (case-insensitive).
+  const filteredUsers = useMemo(() => {
+    if (!search) return allUsers
+    const q = search.toLowerCase()
+    return allUsers.filter((u) =>
+      u.username.toLowerCase().includes(q) ||
+      (u.name || "").toLowerCase().includes(q)
+    )
+  }, [allUsers, search])
+
+  // Paginação client-side (PAGE_SIZE=20) — reset automático quando busca muda.
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages - 1)
+  const pagedUsers = useMemo(() => {
+    const start = safePage * PAGE_SIZE
+    return filteredUsers.slice(start, start + PAGE_SIZE)
+  }, [filteredUsers, safePage])
 
   const createMutation = useMutation({
     mutationFn: (payload: typeof newUser) => api.post("/users", payload),
@@ -131,8 +153,21 @@ export function UsersPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{users.length} usuário(s)</p>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-1 min-w-48">
+          <div className="relative flex-1 max-w-64">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar usuário..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(0) }}
+              className="pl-8"
+            />
+          </div>
+          <span className="text-sm text-muted-foreground">
+            {filteredUsers.length} usuário(s)
+          </span>
+        </div>
         {perms.canManageUsers && (
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger asChild>
@@ -199,13 +234,13 @@ export function UsersPage() {
         )}
       </div>
 
-      {users.length === 0 ? (
+      {filteredUsers.length === 0 ? (
         <div className="rounded-md border">
           <EmptyState
             icon={UsersIcon}
-            message="Nenhum usuário cadastrado"
+            message={search ? "Nenhum usuário encontrado" : "Nenhum usuário cadastrado"}
             action={
-              perms.canManageUsers ? (
+              !search && perms.canManageUsers ? (
                 <Button size="sm" onClick={() => setCreateOpen(true)}>
                   <Plus className="h-4 w-4" />
                   Criar Usuário
@@ -226,7 +261,7 @@ export function UsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((u) => (
+              {pagedUsers.map((u) => (
                 <TableRow key={u.id}>
                   <TableCell className="font-medium">{u.username}</TableCell>
                   <TableCell className="text-muted-foreground">{u.name || "—"}</TableCell>
@@ -284,6 +319,37 @@ export function UsersPage() {
               ))}
             </TableBody>
           </Table>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-2 border-t">
+              <span className="text-xs text-muted-foreground">
+                Página {safePage + 1} de {totalPages}
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={safePage === 0}
+                  aria-label="Página anterior"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  disabled={safePage >= totalPages - 1}
+                  aria-label="Próxima página"
+                >
+                  Próxima
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/api/client"
 import { Button } from "@/components/ui/button"
@@ -42,7 +42,9 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/empty-state"
-import { Plus, Trash2, Copy, AlertTriangle, Check, KeyRound } from "lucide-react"
+import { Plus, Trash2, Copy, AlertTriangle, Check, KeyRound, Search, ChevronLeft, ChevronRight } from "lucide-react"
+
+const PAGE_SIZE = 20
 import { toast } from "sonner"
 import {
   Tooltip,
@@ -119,12 +121,32 @@ export function ApiKeysPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [newKey, setNewKey] = useState({ name: "", scopes: "read" })
   const [revealedKey, setRevealedKey] = useState<string | null>(null)
+  const [search, setSearch] = useState("")
+  const [page, setPage] = useState(0)
 
   const { data: keys, isLoading } = useQuery<APIKey[]>({
     queryKey: ["api-keys"],
     queryFn: () => api.get<APIKey[]>("/auth/api-keys"),
   })
-  const keyList = Array.isArray(keys) ? keys : []
+  const allKeys = Array.isArray(keys) ? keys : []
+
+  // Busca textual — filtra por name e prefix (case-insensitive).
+  const filteredKeys = useMemo(() => {
+    if (!search) return allKeys
+    const q = search.toLowerCase()
+    return allKeys.filter((k) =>
+      k.name.toLowerCase().includes(q) ||
+      k.prefix.toLowerCase().includes(q)
+    )
+  }, [allKeys, search])
+
+  // Paginação client-side (PAGE_SIZE=20) — reset automático quando busca muda.
+  const totalPages = Math.max(1, Math.ceil(filteredKeys.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages - 1)
+  const pagedKeys = useMemo(() => {
+    const start = safePage * PAGE_SIZE
+    return filteredKeys.slice(start, start + PAGE_SIZE)
+  }, [filteredKeys, safePage])
 
   const createMutation = useMutation({
     mutationFn: (payload: typeof newKey) =>
@@ -191,8 +213,21 @@ export function ApiKeysPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{keyList.length} API key(s) ativa(s)</p>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-1 min-w-48">
+          <div className="relative flex-1 max-w-64">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar API key..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(0) }}
+              className="pl-8"
+            />
+          </div>
+          <span className="text-sm text-muted-foreground">
+            {filteredKeys.length} API key(s) ativa(s)
+          </span>
+        </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
             <Button size="sm">
@@ -262,16 +297,18 @@ export function ApiKeysPage() {
         </Alert>
       )}
 
-      {keyList.length === 0 ? (
+      {filteredKeys.length === 0 ? (
         <div className="rounded-md border">
           <EmptyState
             icon={KeyRound}
-            message="Nenhuma API key ativa"
+            message={search ? "Nenhuma API key encontrada" : "Nenhuma API key ativa"}
             action={
-              <Button size="sm" onClick={() => setCreateOpen(true)}>
-                <Plus className="h-4 w-4" />
-                Criar API Key
-              </Button>
+              !search ? (
+                <Button size="sm" onClick={() => setCreateOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  Criar API Key
+                </Button>
+              ) : undefined
             }
           />
         </div>
@@ -289,7 +326,7 @@ export function ApiKeysPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {keyList.map((k) => (
+              {pagedKeys.map((k) => (
                 <TableRow key={k.id}>
                   <TableCell className="font-medium">{k.name}</TableCell>
                   <TableCell><code className="text-xs">{k.prefix}...</code></TableCell>
@@ -332,6 +369,37 @@ export function ApiKeysPage() {
               ))}
             </TableBody>
           </Table>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-2 border-t">
+              <span className="text-xs text-muted-foreground">
+                Página {safePage + 1} de {totalPages}
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={safePage === 0}
+                  aria-label="Página anterior"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  disabled={safePage >= totalPages - 1}
+                  aria-label="Próxima página"
+                >
+                  Próxima
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
