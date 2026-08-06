@@ -65,11 +65,6 @@ func renderDashboard(m model) string {
 
 	dashboard := lipgloss.JoinVertical(lipgloss.Left, parts...)
 
-	// Popup overlay (renderizado por cima do dashboard completo)
-	if m.viewMode == ViewLogs && m.logPopup {
-		return renderLogPopupOverlay(m, dashboard)
-	}
-
 	return dashboard
 }
 
@@ -80,6 +75,8 @@ func renderContentArea(m model, height int) string {
 		body = renderDetailView(m)
 	case ViewLogs:
 		body = renderLogsView(m, height)
+	case ViewLogDetail:
+		body = renderLogDetailView(m, height)
 	default:
 		body = renderMainPanel(m)
 	}

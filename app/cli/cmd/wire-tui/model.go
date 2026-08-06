@@ -16,6 +16,7 @@ const (
 	ViewCommand
 	ViewHelp
 	ViewLogs
+	ViewLogDetail
 )
 
 // PanelID identifica qual painel está focado.
@@ -65,7 +66,6 @@ type model struct {
 	logCursor      int    // cursor de navegação nos logs
 	logFollow      bool   // auto-scroll para o fim (tail)
 	logFilter      string // filtro de logs
-	logPopup       bool   // popup de mensagem completa aberto
 	filterFromLogs bool   // filter foi aberto da view de logs
 }
 

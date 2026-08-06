@@ -12,8 +12,8 @@ func renderCrumbs(m model) string {
 	// Tab atual como primeiro crumb
 	crumbs = append(crumbs, tabNames[m.activeTab][4:]) // remove "[N] "
 
-	// Item selecionado em drill-down ou logs
-	if (m.viewMode == ViewDetail || m.viewMode == ViewLogs) && m.selectedItem != "" {
+	// Item selecionado em drill-down, logs ou log detail
+	if (m.viewMode == ViewDetail || m.viewMode == ViewLogs || m.viewMode == ViewLogDetail) && m.selectedItem != "" {
 		crumbs = append(crumbs, m.selectedItem)
 	}
 
@@ -27,6 +27,9 @@ func renderCrumbs(m model) string {
 		crumbs = append(crumbs, "help")
 	case ViewLogs:
 		crumbs = append(crumbs, "logs")
+	case ViewLogDetail:
+		crumbs = append(crumbs, "logs")
+		crumbs = append(crumbs, "detail")
 	}
 
 	if len(crumbs) == 0 {

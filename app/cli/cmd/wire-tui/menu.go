@@ -46,6 +46,11 @@ func menuHints(m model) []KeyHint {
 			KeyHint{"/", "Filter"},
 			KeyHint{"Esc", "Back"},
 		)
+	case ViewLogDetail:
+		hints = append(hints,
+			KeyHint{"Esc", "Back"},
+			KeyHint{"j/k", "Next/Prev"},
+		)
 	case ViewFilter:
 		hints = append(hints,
 			KeyHint{"Enter", "Apply"},

@@ -19,11 +19,10 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case "esc":
-		if m.logPopup {
-			m.logPopup = false
-			return m, nil
-		}
-		if m.viewMode == ViewDetail {
+		if m.viewMode == ViewLogDetail {
+			m.viewMode = ViewLogs
+			m.flash = flashText("Back to logs", FlashInfo)
+		} else if m.viewMode == ViewDetail {
 			m.viewMode = ViewList
 			m.selectedItem = ""
 			m.flash = flashText("Back to list", FlashInfo)
@@ -109,6 +108,11 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleLogsKey(msg)
 	}
 
+	// Navegação na view de detalhe de log (j/k navega entre entradas)
+	if m.viewMode == ViewLogDetail {
+		return m.handleLogDetailKey(msg)
+	}
+
 	// Navegação na lista (loop infinito como k9s)
 	if m.viewMode == ViewList {
 		n := m.listLen()
@@ -174,20 +178,11 @@ func (m model) enterLogs() (tea.Model, tea.Cmd) {
 	m.logCursor = 0
 	m.logFollow = true
 	m.logFilter = ""
-	m.logPopup = false
 	m.flash = flashText("Logs: "+m.selectedItem, FlashInfo)
 	return m, nil
 }
 
 func (m model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Se popup estiver aberto, só Esc fecha
-	if m.logPopup {
-		if msg.String() == "esc" || msg.String() == "enter" || msg.String() == "q" {
-			m.logPopup = false
-		}
-		return m, nil
-	}
-
 	logs := mockLogsFor(m.selectedItem)
 
 	// Aplicar filtro para contar
@@ -243,7 +238,8 @@ func (m model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.filterFromLogs = true
 		return m, nil
 	case "enter":
-		m.logPopup = true
+		m.viewMode = ViewLogDetail
+		m.flash = flashText("Log detail", FlashInfo)
 		return m, nil
 	}
 	return m, nil
@@ -254,6 +250,45 @@ func boolStr(b bool) string {
 		return "ON"
 	}
 	return "OFF"
+}
+
+// handleLogDetailKey navega entre entradas de log na view de detalhe.
+func (m model) handleLogDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	logs := mockLogsFor(m.selectedItem)
+
+	if m.logFilter != "" {
+		filtered := make([]mockLogEntry, 0)
+		for _, l := range logs {
+			if strings.Contains(strings.ToLower(l.message), strings.ToLower(m.logFilter)) ||
+				strings.Contains(strings.ToLower(l.level), strings.ToLower(m.logFilter)) {
+				filtered = append(filtered, l)
+			}
+		}
+		logs = filtered
+	}
+
+	n := len(logs)
+	if n == 0 {
+		n = 1
+	}
+
+	switch msg.String() {
+	case "j", "down":
+		m.logFollow = false
+		m.logCursor = (m.logCursor + 1) % n
+		return m, nil
+	case "k", "up":
+		m.logFollow = false
+		m.logCursor = (m.logCursor - 1 + n) % n
+		return m, nil
+	case "g":
+		m.logCursor = 0
+		return m, nil
+	case "G":
+		m.logCursor = n - 1
+		return m, nil
+	}
+	return m, nil
 }
 
 func (m model) handleInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
