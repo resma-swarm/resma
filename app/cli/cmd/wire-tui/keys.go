@@ -22,9 +22,11 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.viewMode == ViewDetail {
 			m.viewMode = ViewList
 			m.selectedItem = ""
+			m.flash = flashText("Back to list", FlashInfo)
 		} else if m.viewMode == ViewFilter || m.viewMode == ViewCommand || m.viewMode == ViewHelp {
 			m.viewMode = ViewList
 			m.inputBuf = ""
+			m.flash = flashText("", FlashInfo)
 		}
 		return m, nil
 
@@ -124,6 +126,7 @@ func (m model) switchTab(tab TabID) (tea.Model, tea.Cmd) {
 	m.cursor = 0
 	m.filter = ""
 	m.selectedItem = ""
+	m.flash = flashText("Viewing "+tabNames[tab][4:], FlashInfo)
 	return m, nil
 }
 
@@ -134,6 +137,7 @@ func (m model) enterDetail() (tea.Model, tea.Cmd) {
 	}
 	m.selectedItem = items[m.cursor]
 	m.viewMode = ViewDetail
+	m.flash = flashText("Detail: "+m.selectedItem, FlashInfo)
 	return m, nil
 }
 
@@ -189,6 +193,10 @@ func (m model) executeCommand(input string) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "help":
 		m.viewMode = ViewHelp
+		m.flash = flashText("Help", FlashInfo)
+		return m, nil
+	default:
+		m.flash = flashText("Unknown command: "+parts[0], FlashErr)
 	}
 	return m, nil
 }

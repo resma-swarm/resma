@@ -59,6 +59,8 @@ type model struct {
 	inputBuf     string
 	filter       string
 	selectedItem string // nome do item em drill-down
+	flash        flashMessage
+	splash       bool // mostrar splash no startup
 }
 
 func initialModel() model {
@@ -67,6 +69,8 @@ func initialModel() model {
 		viewMode:     ViewList,
 		focusedPanel: PanelMain,
 		clock:        time.Now(),
+		splash:       true,
+		flash:        flashText("Welcome to RESMA Monitor — press ? for help", FlashInfo),
 	}
 }
 
@@ -91,6 +95,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		m.clock = time.Time(msg)
+		// Desligar splash após primeiro tick
+		if m.splash {
+			m.splash = false
+		}
 		return m, tick()
 
 	case tea.KeyMsg:

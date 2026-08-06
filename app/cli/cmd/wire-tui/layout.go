@@ -17,40 +17,92 @@ func renderDashboard(m model) string {
 		return ""
 	}
 
+	// Splash screen no startup
+	if m.splash {
+		return renderSplash(m)
+	}
+
 	// Terminal muito pequeno
 	if m.width < minWidth || m.height < minHeight {
 		return sError.Render(
-			"Terminal too small: "+itoa(m.width)+"x"+itoa(m.height)+
-				" (min: "+itoa(minWidth)+"x"+itoa(minHeight)+")\nPress q to quit")
+			"Terminal too small: " + itoa(m.width) + "x" + itoa(m.height) +
+				" (min: " + itoa(minWidth) + "x" + itoa(minHeight) + ")\nPress q to quit")
 	}
 
-	// Help overlay
+	// Help overlay (fullscreen)
 	if m.viewMode == ViewHelp {
 		return renderHelp(m)
 	}
 
-	header := renderHeader(m)
-	tabBar := renderTabBar(m)
-	content := renderContent(m)
-	breadcrumb := renderBreadcrumb(m)
-	footer := renderFooter(m)
+	// Layout principal estilo k9s:
+	//   Header (clusterInfo + menu + logo)  — 7 linhas
+	//   Content (two-column ou detail)      — flex
+	//   Crumbs                               — 1 linha
+	//   Flash                                — 1 linha
+	//   Prompt (se command/filter ativo)     — 3 linhas
 
-	return lipgloss.JoinVertical(lipgloss.Left,
-		header,
-		tabBar,
-		content,
-		breadcrumb,
-		footer,
+	header := renderHeaderRich(m)
+	content := renderContent(m)
+	crumbs := renderCrumbs(m)
+	flash := renderFlash(m)
+
+	parts := []string{header, content}
+	if crumbs != "" {
+		parts = append(parts, crumbs)
+	}
+	if flash != "" {
+		parts = append(parts, flash)
+	}
+
+	prompt := renderPrompt(m)
+	if prompt != "" {
+		parts = append(parts, prompt)
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
+}
+
+// renderSplash mostra o logo por 1 tick no startup.
+func renderSplash(m model) string {
+	logo := renderLogo(m)
+	tagline := sMuted.Render("  Docker Swarm Resource Manager")
+	version := sMuted.Render("  v0.1.0-wireframe")
+	return lipgloss.JoinVertical(lipgloss.Center,
+		"\n\n\n",
+		logo,
+		tagline,
+		version,
+		"\n\n",
+		sMuted.Render("  Loading..."),
 	)
+}
+
+// renderHeaderRich renderiza o header com 3 seções (k9s style).
+func renderHeaderRich(m model) string {
+	clusterInfo := renderClusterInfo(m)
+	menu := renderMenu(m)
+	logo := renderLogo(m)
+
+	// Larguras: clusterInfo ~25, logo ~26, menu = resto
+	availW := m.width
+	logoW := 26
+	clusterW := 25
+	menuW := availW - logoW - clusterW
+	if menuW < 30 {
+		menuW = 30
+	}
+
+	clusterStyled := lipgloss.NewStyle().Width(clusterW).Render(clusterInfo)
+	menuStyled := lipgloss.NewStyle().Width(menuW).Render(menu)
+	logoStyled := lipgloss.NewStyle().Width(logoW).Render(logo)
+
+	return lipgloss.JoinHorizontal(lipgloss.Top,
+		clusterStyled, menuStyled, logoStyled)
 }
 
 // renderContent roteia para o modo de visualização atual.
 func renderContent(m model) string {
 	switch m.viewMode {
-	case ViewCommand:
-		return renderCommandInput(m)
-	case ViewFilter:
-		return renderFilterInput(m)
 	case ViewDetail:
 		return renderDetailView(m)
 	default:
@@ -88,8 +140,8 @@ func renderListView(m model) string {
 func renderSidePanel(m model) string {
 	items := m.currentItems()
 	var sb strings.Builder
-	sb.WriteString(sMuted.Render("Filter: " + m.filter + "\n"))
-	sb.WriteString(strings.Repeat("─", 20))
+	sb.WriteString(sMuted.Render(" Filter: " + m.filter + "\n"))
+	sb.WriteString(sMuted.Render(strings.Repeat("─", 20)))
 	sb.WriteString("\n")
 	for i, item := range items {
 		marker := "  "
