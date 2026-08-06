@@ -18,9 +18,9 @@ func renderHeaderRich(m model) string {
 	// 3. Brand & Status (Direita)
 	logoSection := renderBrandSection(m)
 
-	// Regras de largura — logo ASCII precisa de 30 chars mínimo
-	logoW := 30
-	infoW := 31
+	// Regras de largura — balancear as 3 seções
+	logoW := 28
+	infoW := 28
 	menuW := m.width - logoW - infoW
 	if menuW < 0 {
 		menuW = 0
@@ -37,20 +37,20 @@ func renderClusterInfo(m model) string {
 	var sb strings.Builder
 	sb.WriteString(sClusterTitle.Render(" Context: default "))
 	sb.WriteString("\n")
-	sb.WriteString(sInfoKey.Render(" Stack:   ") + sInfoVal.Render("resma-swarm"))
+	sb.WriteString(sInfoKey.Render(" Stack: ") + sInfoVal.Render("resma-swarm"))
 	sb.WriteString("\n")
-	sb.WriteString(sInfoKey.Render(" Role:    ") + sInfoVal.Render("manager"))
+	sb.WriteString(sInfoKey.Render(" Role:  ") + sInfoVal.Render("manager"))
 	sb.WriteString("\n")
-	sb.WriteString(sInfoKey.Render(" CLI:     ") + sInfoVal.Render("v0.1.0-wireframe"))
+	sb.WriteString(sInfoKey.Render(" CLI:   ") + sInfoVal.Render("v0.1.0"))
 	sb.WriteString("\n")
-	sb.WriteString(sInfoKey.Render(" CPU:     ") + renderMetricBar(65, cResmaGreen))
+	sb.WriteString(sInfoKey.Render(" CPU:   ") + renderMetricBar(65, cResmaGreen))
 	sb.WriteString("\n")
-	sb.WriteString(sInfoKey.Render(" MEM:     ") + renderMetricBar(42, cResmaGreen))
+	sb.WriteString(sInfoKey.Render(" MEM:   ") + renderMetricBar(42, cResmaGreen))
 	return sb.String()
 }
 
 func renderMetricBar(pct int, color lipgloss.Color) string {
-	width := 12
+	width := 10
 	filled := (pct * width) / 100
 	bar := strings.Repeat("■", filled) + strings.Repeat("□", width-filled)
 	return lipgloss.NewStyle().Foreground(color).Render(bar) + fmt.Sprintf(" %d%%", pct)
@@ -62,13 +62,12 @@ func renderMetricBar(pct int, color lipgloss.Color) string {
 func renderBrandSection(m model) string {
 	// Figlet "Small" — 4 linhas de logo + 1 linha em branco no topo
 	// para alinhar com a ClusterInfo (6 linhas).
-	// Todas as linhas têm exatamente 28 chars para consistência.
-	logoBlock := "                            \n" +
-		"  ___ ___ ___ __  __   _    \n" +
-		" | _ \\ __/ __|  \\/  | /_\\   \n" +
-		" |   / _|\\__ \\ |\\/| |/ _ \\  \n" +
-		" |_|_\\___|___/_|  |_/_/ \\_\\ \n" +
-		"                            \n"
+	logoBlock := "                          \n" +
+		" ___ ___ ___ __  __   _   \n" +
+		"| _ \\ __/ __|  \\/  | /_\\  \n" +
+		"|   / _|\\__ \\ |\\/| |/ _ \\ \n" +
+		"|_|_\\___|___/_|  |_/_/ \\_\\\n" +
+		"                          \n"
 
 	status := " ONLINE "
 	style := sStatus.Copy().Background(cResmaGreen)
@@ -90,7 +89,7 @@ func renderBrandSection(m model) string {
 
 	// Status centralizado na largura do logo
 	statusStyled := lipgloss.NewStyle().
-		Width(28).
+		Width(26).
 		AlignHorizontal(lipgloss.Center).
 		Render(style.Render(status))
 
