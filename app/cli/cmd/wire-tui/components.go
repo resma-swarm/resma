@@ -215,6 +215,8 @@ func (t TableModel) View() string {
 			} else if ci < len(row.Cells) {
 				cellContent = row.Cells[ci]
 			}
+			// Truncar com "…" se exceder a largura da coluna (ANSI-aware)
+			cellContent = truncateAnsi(cellContent, c.Width)
 			cells = append(cells, lipgloss.NewStyle().
 				Width(c.Width).
 				AlignHorizontal(c.Align).
@@ -349,4 +351,27 @@ func wrapText(text string, width int) []string {
 	}
 	lines = append(lines, current)
 	return lines
+}
+
+// truncateAnsi trunca uma string (que pode conter ANSI escape codes) para
+// no máximo width chars visíveis, adicionando "…" se truncada.
+// Usa lipgloss.Width para medir largura visual (ignora ANSI).
+func truncateAnsi(s string, width int) string {
+	if width <= 0 {
+		return s
+	}
+	visW := lipgloss.Width(s)
+	if visW <= width {
+		return s
+	}
+	// Truncar: precisamos remover chars do final até caber + "…"
+	// Como a string pode ter ANSI, precisamos iterar removendo runes do final
+	runes := []rune(s)
+	for len(runes) > 0 {
+		runes = runes[:len(runes)-1]
+		if lipgloss.Width(string(runes))+1 <= width { // +1 for "…"
+			return string(runes) + "…"
+		}
+	}
+	return "…"
 }
