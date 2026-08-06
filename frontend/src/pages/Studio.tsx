@@ -956,6 +956,11 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
   const hasLeak = rec.memory_trend?.has_leak ?? false
   const isTemplate = selectedTier === "template"
 
+  // Em modo template, expande o max do slider para acomodar valores do template
+  // que podem ser maiores que o range default baseado no current config
+  const expandMax = (base: number, value: number) =>
+    isTemplate ? Math.max(base, value * 1.3) : base
+
   // Helper: renderiza LayerToggle + TemplateSelector (se template)
   const tierSection = (
     <>
@@ -1009,9 +1014,9 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           cpuCores={whatIfCpu}
           memBytes={whatIfMem}
           cpuMin={0.1}
-          cpuMax={8}
+          cpuMax={expandMax(8, whatIfCpu)}
           memMin={16 * 1024 * 1024}
-          memMax={8 * 1024 * 1024 * 1024}
+          memMax={expandMax(8 * 1024 * 1024 * 1024, whatIfMem)}
           cpuCurrent={0}
           memCurrent={0}
           cpuSuggested={0}
@@ -1049,9 +1054,9 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           cpuCores={whatIfCpu}
           memBytes={whatIfMem}
           cpuMin={(rec.cpu?.p95 ?? 0.1) * 0.8}
-          cpuMax={8}
+          cpuMax={expandMax(8, whatIfCpu)}
           memMin={(rec.mem?.p99 ?? 16e6) * 0.8}
-          memMax={8e9}
+          memMax={expandMax(8e9, whatIfMem)}
           cpuCurrent={0}
           memCurrent={0}
           cpuSuggested={tierData?.cpu_limit ?? 0}
@@ -1113,9 +1118,9 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           cpuCores={whatIfCpu}
           memBytes={whatIfMem}
           cpuMin={(rec.cpu?.p95 ?? 0.1) * 0.8}
-          cpuMax={(rec.current?.cpu_limit ?? 4) * 3}
+          cpuMax={expandMax((rec.current?.cpu_limit ?? 4) * 3, whatIfCpu)}
           memMin={(rec.mem?.p99 ?? 16e6) * 0.8}
-          memMax={(rec.current?.mem_limit ?? 8e9) * 3}
+          memMax={expandMax((rec.current?.mem_limit ?? 8e9) * 3, whatIfMem)}
           cpuCurrent={rec.current?.cpu_limit ?? 0}
           memCurrent={rec.current?.mem_limit ?? 0}
           cpuSuggested={tierData?.cpu_limit ?? 0}
@@ -1179,9 +1184,9 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           cpuCores={whatIfCpu}
           memBytes={whatIfMem}
           cpuMin={(rec.cpu?.p95 ?? 0.1) * 0.5}
-          cpuMax={(rec.current?.cpu_limit ?? 4) * 2}
+          cpuMax={expandMax((rec.current?.cpu_limit ?? 4) * 2, whatIfCpu)}
           memMin={(rec.mem?.p99 ?? 16e6) * 0.5}
-          memMax={(rec.current?.mem_limit ?? 8e9) * 2}
+          memMax={expandMax((rec.current?.mem_limit ?? 8e9) * 2, whatIfMem)}
           cpuCurrent={rec.current?.cpu_limit ?? 0}
           memCurrent={rec.current?.mem_limit ?? 0}
           cpuSuggested={tierData?.cpu_limit ?? 0}
@@ -1231,9 +1236,9 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
         cpuCores={whatIfCpu}
         memBytes={whatIfMem}
         cpuMin={(rec.cpu?.p95 ?? 0.1) * 0.8}
-        cpuMax={(rec.current?.cpu_limit ?? 4) * 1.5}
+        cpuMax={expandMax((rec.current?.cpu_limit ?? 4) * 1.5, whatIfCpu)}
         memMin={(rec.mem?.p99 ?? 16e6) * 0.8}
-        memMax={(rec.current?.mem_limit ?? 8e9) * 1.5}
+        memMax={expandMax((rec.current?.mem_limit ?? 8e9) * 1.5, whatIfMem)}
         cpuCurrent={rec.current?.cpu_limit ?? 0}
         memCurrent={rec.current?.mem_limit ?? 0}
         cpuSuggested={tierData?.cpu_limit ?? 0}
