@@ -29,9 +29,6 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
 } from "@/components/ui/alert-dialog"
 import {
-  Accordion, AccordionContent, AccordionItem, AccordionTrigger,
-} from "@/components/ui/accordion"
-import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import {
@@ -901,37 +898,40 @@ function TemplateSelector({ templates, selectedTemplateName, onTemplateChange }:
   )
 }
 
-// --- Template YAML accordion (preview do YAML, vai acima dos sliders) ---
+// --- Template YAML collapsible (mesmo design do SectionLabel, vai acima dos sliders) ---
 function TemplateYamlAccordion({ templates, selectedTemplateName }: {
   templates: { id: number; name: string; description: string; yaml_content: string; stacks: string[] }[]
   selectedTemplateName: string
 }) {
+  const [open, setOpen] = useState(false)
   const selected = templates.find((t) => t.name === selectedTemplateName)
   if (!selected) return null
   return (
-    <Accordion type="single" collapsible className="w-full">
-      <AccordionItem value="yaml" className="border-b pb-1">
-        <AccordionTrigger className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:no-underline py-0 [&[data-state=open]>svg]:rotate-0">
-          <div className="flex items-center gap-1.5">
-            <Package className="h-3.5 w-3.5 text-chart-5" />
-            <span>Ver YAML — {selected.name}</span>
-            {selected.stacks?.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {selected.stacks.map((s) => (
-                  <Badge key={s} variant="outline" className="text-[10px] border-chart-5/40 text-chart-5 normal-case tracking-normal">{s}</Badge>
-                ))}
-              </div>
-            )}
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors w-full"
+      >
+        <Package className="h-3.5 w-3.5 text-chart-5" />
+        Ver YAML — {selected.name}
+        {selected.stacks?.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {selected.stacks.map((s) => (
+              <Badge key={s} variant="outline" className="text-[10px] border-chart-5/40 text-chart-5 normal-case tracking-normal">{s}</Badge>
+            ))}
           </div>
-        </AccordionTrigger>
-        <AccordionContent className="pt-2 pb-2">
+        )}
+        <ChevronDown className={`h-3.5 w-3.5 ml-0.5 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="pt-2 pb-1">
           <p className="text-xs text-muted-foreground mb-2">{selected.description}</p>
           <pre className="text-[10px] font-mono text-muted-foreground bg-background rounded p-2 overflow-auto max-h-40 border">
             {selected.yaml_content}
           </pre>
-        </AccordionContent>
-      </AccordionItem>
-    </Accordion>
+        </div>
+      )}
+    </div>
   )
 }
 
