@@ -20,7 +20,7 @@ import {
   CalendarClock, Calendar as CalendarIcon, Trash2, Database, HardDrive, Eye,
 } from "lucide-react"
 import { toast } from "sonner"
-import { useState, useMemo, useRef } from "react"
+import { useState, useMemo, useRef, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
@@ -246,6 +246,18 @@ export function ScheduleDialog({ rec, open, onOpenChange, onScheduled }: {
   const [popoverOpen, setPopoverOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Resetar estado quando o dialog fecha (evita valores residual de agendamento anterior)
+  useEffect(() => {
+    if (!open) {
+      setMode("suggest")
+      setSelectedDate(undefined)
+      setTimeHour("02")
+      setTimeMin("00")
+      setPopoverOpen(false)
+      setError(null)
+    }
+  }, [open])
 
   const suggestedTime = rec.suggested_apply_time ? parseISO(rec.suggested_apply_time) : null
 
