@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Major release: Right-Sizing Studio (apply com rollback automático), RBAC com
 3 roles, gestão de usuários e API keys, Settings area, installer container
-com uninstall, redesign da landing page e dezenas de fixes de UX.
+com uninstall e upgrade in-place, redesign da landing page e dezenas de fixes
+de UX.
 
 ### Added
 - **Right-Sizing Studio** — nova página `/optimizations` (ex-`/recommendations`)
@@ -36,8 +37,9 @@ com uninstall, redesign da landing page e dezenas de fixes de UX.
 - **Profile page** com change password
 - **StaleServiceDays** config (RESMA_STALE_SERVICE_DAYS, default 7)
 - **CleanupExpiredRefreshTokens** in retention loop
-- **Installer container** no padrão SwarmPit — install + uninstall mode, logo
-  ASCII, intervals de produção, modo não-interativo
+- **Installer container** no padrão SwarmPit — install + uninstall + upgrade
+  mode (in-place, preserva dados e secrets), logo ASCII, intervals de produção,
+  modo não-interativo
 - **Frontend estático em produção** (SPA) servido pelo Go API
 - **ML payload estendido** com tiers, risk, explainability, histograms
 - **Landing page redesign** (uiux T1-T11) — hero split com terminal mockup,
