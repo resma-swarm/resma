@@ -18,9 +18,9 @@ func renderHeaderRich(m model) string {
 	// 3. Brand & Status (Direita)
 	logoSection := renderBrandSection(m)
 
-	// Regras de largura
-	logoW := 26
-	infoW := 35
+	// Regras de largura — logo ASCII precisa de 28 chars mínimo
+	logoW := 30
+	infoW := 31
 	menuW := m.width - logoW - infoW
 	if menuW < 0 {
 		menuW = 0
@@ -50,7 +50,7 @@ func renderClusterInfo(m model) string {
 }
 
 func renderMetricBar(pct int, color lipgloss.Color) string {
-	width := 14
+	width := 12
 	filled := (pct * width) / 100
 	bar := strings.Repeat("■", filled) + strings.Repeat("□", width-filled)
 	return lipgloss.NewStyle().Foreground(color).Render(bar) + fmt.Sprintf(" %d%%", pct)
