@@ -30,11 +30,11 @@ func renderAlertsTab(m model) string {
 		} else {
 			switch a.level {
 			case "critical":
-				levelCell = sError.Render("CRIT")
+				levelCell = sError.Render("critical")
 			case "warning":
-				levelCell = sWarning.Render("WARN")
+				levelCell = sWarning.Render("warning")
 			default:
-				levelCell = sMuted.Render("INFO")
+				levelCell = sMuted.Render("info")
 			}
 		}
 
