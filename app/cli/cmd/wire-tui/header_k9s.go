@@ -78,6 +78,7 @@ func renderBrandSection(m model) string {
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Center,
+		"\n",
 		sLogo.Render(logo),
 		"\n",
 		style.Render(status),
