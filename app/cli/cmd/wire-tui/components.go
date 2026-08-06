@@ -355,23 +355,70 @@ func wrapText(text string, width int) []string {
 
 // truncateAnsi trunca uma string (que pode conter ANSI escape codes) para
 // no máximo width chars visíveis, adicionando "…" se truncada.
-// Usa lipgloss.Width para medir largura visual (ignora ANSI).
+// O(1) para strings sem ANSI (caso comum na coluna MESSAGE).
+// Para strings com ANSI, preserva os escapes e trunca o conteúdo visível.
 func truncateAnsi(s string, width int) string {
 	if width <= 0 {
-		return s
+		return ""
 	}
+	if width <= 1 {
+		return "…"
+	}
+
+	// Verificar se tem ANSI escape codes
+	hasAnsi := strings.Contains(s, "\x1b[")
+
+	if !hasAnsi {
+		// Sem ANSI: truncar diretamente por contagem de runes
+		runes := []rune(s)
+		if len(runes) <= width {
+			return s
+		}
+		return string(runes[:width-1]) + "…"
+	}
+
+	// Com ANSI: medir largura visual e truncar preservando escapes
 	visW := lipgloss.Width(s)
 	if visW <= width {
 		return s
 	}
-	// Truncar: precisamos remover chars do final até caber + "…"
-	// Como a string pode ter ANSI, precisamos iterar removendo runes do final
-	runes := []rune(s)
-	for len(runes) > 0 {
-		runes = runes[:len(runes)-1]
-		if lipgloss.Width(string(runes))+1 <= width { // +1 for "…"
-			return string(runes) + "…"
+
+	// Percorrer a string caractere por caractere, acumulando largura visual
+	// e parando quando atingir width-1 (deixando espaço para "…")
+	var result strings.Builder
+	result.Grow(len(s))
+	currentW := 0
+	inEscape := false
+
+	for _, r := range s {
+		if inEscape {
+			result.WriteRune(r)
+			if r == 'm' || (r >= 'A' && r <= 'Z') {
+				inEscape = false
+			}
+			continue
 		}
+		if r == '\x1b' {
+			result.WriteRune(r)
+			inEscape = true
+			continue
+		}
+		// Caractere visível
+		rw := runeWidth(r)
+		if currentW+rw > width-1 {
+			break
+		}
+		result.WriteRune(r)
+		currentW += rw
 	}
-	return "…"
+
+	return result.String() + "…"
+}
+
+// runeWidth retorna a largura visual de um rune (1 para a maioria, 0 para controle).
+func runeWidth(r rune) int {
+	if r < 32 || r == 127 {
+		return 0 // caracteres de controle
+	}
+	return 1
 }
