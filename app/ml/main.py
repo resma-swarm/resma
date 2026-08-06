@@ -26,7 +26,7 @@ from .recommender import ResourceRecommender
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("resma.ml")
 
-API_URL = os.environ.get("RESMA_API_URL", "http://go-dev:8080")
+API_URL = os.environ.get("RESMA_API_URL", "http://api:8080")
 
 
 @asynccontextmanager
@@ -48,7 +48,7 @@ app = FastAPI(title="RESMA ML Sidecar", version="1.0.0", lifespan=lifespan)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "resma-ml", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "ok", "service": "ml", "timestamp": datetime.utcnow().isoformat()}
 
 
 @app.get("/analyze")

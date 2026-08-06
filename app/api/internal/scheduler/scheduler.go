@@ -10,8 +10,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/resma/api/internal/db"
-	"github.com/resma/api/internal/docker"
+	"github.com/resma-swarm/resma/app/api/internal/db"
+	"github.com/resma-swarm/resma/app/api/internal/docker"
 )
 
 const (
@@ -171,6 +171,25 @@ func (e *Executor) executeOne(item db.Schedule) {
 		now := time.Now()
 		_ = e.db.UpdateScheduleStatus(ctx, scheduleID, "completed", "", &now)
 		e.log.Info("schedule skipped — valores já aplicados", "id", scheduleID)
+
+		// Registrar no change_log mesmo no caso de skip (valores já estavam aplicados)
+		// para que o ML sidecar detecte o apply e classifique como "observing".
+		e.db.AddChangeLog(ctx, db.ChangeLogEntry{
+			Service:              service,
+			Action:               "apply",
+			Source:               "schedule",
+			ScheduleID:           sql.NullInt32{Int32: scheduleID, Valid: true},
+			CPULimitBefore:       toNullFloat(current.CPULimit),
+			MemLimitBefore:       toNullInt64(current.MemLimit),
+			CPUReservationBefore: toNullFloat(current.CPUReservation),
+			MemReservationBefore: toNullInt64(current.MemReservation),
+			CPULimitAfter:        item.CPULimit,
+			MemLimitAfter:        item.MemLimit,
+			CPUReservationAfter:  item.CPUReservation,
+			MemReservationAfter:  item.MemReservation,
+			Status:               "completed",
+		})
+
 		e.publishChangeLog("completed", service, scheduleID)
 		return
 	}
@@ -207,6 +226,25 @@ func (e *Executor) executeOne(item db.Schedule) {
 		now := time.Now()
 		_ = e.db.UpdateScheduleStatus(ctx, scheduleID, "completed", "", &now)
 		e.log.Info("schedule aplicado com sucesso", "id", scheduleID, "service", service)
+
+		// Registrar no change_log para que o ML sidecar detecte o apply via
+		// /api/internal/services/{service}/last-apply e classifique como "observing".
+		e.db.AddChangeLog(ctx, db.ChangeLogEntry{
+			Service:              service,
+			Action:               "apply",
+			Source:               "schedule",
+			ScheduleID:           sql.NullInt32{Int32: scheduleID, Valid: true},
+			CPULimitBefore:       toNullFloat(current.CPULimit),
+			MemLimitBefore:       toNullInt64(current.MemLimit),
+			CPUReservationBefore: toNullFloat(current.CPUReservation),
+			MemReservationBefore: toNullInt64(current.MemReservation),
+			CPULimitAfter:        item.CPULimit,
+			MemLimitAfter:        item.MemLimit,
+			CPUReservationAfter:  item.CPUReservation,
+			MemReservationAfter:  item.MemReservation,
+			Status:               "completed",
+		})
+
 		e.publishChangeLog("completed", service, scheduleID)
 	} else {
 		e.failSchedule(ctx, item, result.Error)
@@ -234,4 +272,20 @@ func nullInt64(n sql.NullInt64) int64 {
 		return n.Int64
 	}
 	return 0
+}
+
+// toNullFloat converte float64 em sql.NullFloat64 (valid se != 0).
+func toNullFloat(f float64) sql.NullFloat64 {
+	if f == 0 {
+		return sql.NullFloat64{}
+	}
+	return sql.NullFloat64{Float64: f, Valid: true}
+}
+
+// toNullInt64 converte int64 em sql.NullInt64 (valid if != 0).
+func toNullInt64(n int64) sql.NullInt64 {
+	if n == 0 {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: n, Valid: true}
 }

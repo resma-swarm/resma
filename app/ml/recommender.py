@@ -36,7 +36,7 @@ ALERT_DRIFT_THRESHOLD = float(os.environ.get("RESMA_ALERT_DRIFT_THRESHOLD", "0.3
 ALERT_ACTIVE_WINDOW_MIN = int(os.environ.get("RESMA_ALERT_ACTIVE_WINDOW_MIN", "5"))
 
 # URL do Go API para endpoints internos (nome do serviço Docker)
-API_URL = os.environ.get("RESMA_API_URL", "http://go-dev:8080")
+API_URL = os.environ.get("RESMA_API_URL", "http://api:8080")
 
 
 class ResourceRecommender:
@@ -85,6 +85,27 @@ class ResourceRecommender:
         )
         r.raise_for_status()
         return r.json().get("count", 0)
+
+    def _get_last_apply(self, service: str) -> dict | None:
+        """GET /api/internal/services/{service}/last-apply
+
+        Retorna o timestamp do último apply bem-sucedido, ou None se não houver.
+        Usado para distinguir OOMs antes vs depois do apply e classificar
+        o status 'observing' (em observação pós-apply).
+        """
+        try:
+            r = self.client.get(
+                f"{API_URL}/api/internal/services/{service}/last-apply",
+                timeout=10.0,
+            )
+            r.raise_for_status()
+            data = r.json()
+            if not data.get("applied_at"):
+                return None
+            return data
+        except Exception as e:
+            logger.debug("last-apply indisponível para %s: %s", service, e)
+            return None
 
     def _get_services_with_metrics(self, days: int = ANALYSIS_WINDOW_DAYS) -> list[str]:
         """GET /api/internal/services/with-metrics"""
@@ -155,6 +176,30 @@ class ResourceRecommender:
                 "current": current,
                 "suggested": early,
                 "suggested_apply_time": None,
+                # Right-Sizing Studio — estado collecting_data (spec ml-payload-schema §5)
+                "suggested_tiers": None,
+                "risk": {
+                    "level": "attention",
+                    "score": 3,
+                    "color": "yellow",
+                    "reasons": [f"dados insuficientes (<100 amostras: {len(raw)})"],
+                    "margin_cpu": 0,
+                    "margin_mem": 0,
+                    "forecast_vs_limit_pct": 0,
+                },
+                "explainability": {
+                    "summary": f"Coletando dados — {len(raw)} de 100 amostras mínimas. Recomendação disponível em ~1 minuto.",
+                    "factors": [
+                        {
+                            "label": "Amostras",
+                            "value": f"{len(raw)}/100",
+                            "detail": "mínimo de 100 amostras para análise estatística",
+                        }
+                    ],
+                },
+                "histograms": None,
+                "resources_freed": None,
+                "confidence": "low",
             }
 
         ts = [r["ts"] for r in raw]
@@ -169,7 +214,9 @@ class ResourceRecommender:
 
         cpu_p50 = float(np.percentile(cpu_clean, 50))
         cpu_p95 = float(np.percentile(cpu_clean, CPU_PERCENTILE))
+        cpu_p99 = float(np.percentile(cpu_clean, 99))
         mem_p50 = float(np.percentile(mem_clean, 50))
+        mem_p95 = float(np.percentile(mem_clean, 95))
         mem_p99 = float(np.percentile(mem_clean, MEM_PERCENTILE))
 
         leak = self._detect_leak(mem)
@@ -178,27 +225,52 @@ class ResourceRecommender:
 
         oom_count = self._get_oom_count(service_name)
 
+        # Buscar último apply bem-sucedido para distinguir OOMs antes vs depois.
+        # Se houve apply, o status passa a "observing" (em observação) enquanto
+        # não houver OOMs novos pós-apply — o usuário já tomou uma ação e o
+        # serviço está sendo reavaliado.
+        last_apply = self._get_last_apply(service_name)
+        oom_count_since_apply = 0
+        applied_at = None
+        if last_apply and last_apply.get("applied_at"):
+            applied_at = last_apply["applied_at"]
+            oom_count_since_apply = self._get_oom_count_since(service_name, applied_at)
+
         drift = self._detect_drift(cpu, mem)
         mem_margin, cpu_margin = self._data_driven_margin(
             cpu_p50, cpu_p95, mem_p50, mem_p99, pattern, oom_count, leak["has_leak"]
         )
 
-        suggested_cpu = max((cpu_p95 * cpu_margin) / 100, 0.1)
-        suggested_mem = int(mem_p99 * mem_margin)
-        if leak["has_leak"]:
-            forecast_mem = forecast["projected_mem_p99"]
-            suggested_mem = max(suggested_mem, int(forecast_mem * 1.1))
-
-        res_ratio = 0.75
+        # Right-Sizing Studio: 3 tiers (conservative/balanced/aggressive).
+        # `suggested` continua existindo como alias de suggested_tiers.balanced
+        # (backward compatibility — frontend antigo só lê `suggested`).
+        suggested_tiers = self._calculate_tiers(
+            cpu_p95, mem_p99, cpu_p50, mem_p50, current, pattern,
+            oom_count, leak["has_leak"], forecast,
+        )
+        balanced = suggested_tiers["balanced"]
         suggested = {
-            "cpu_limit": round(suggested_cpu, 2),
-            "mem_limit": suggested_mem,
-            "cpu_reservation": round((cpu_p50 * res_ratio) / 100, 2),
-            "mem_reservation": int(mem_p50 * res_ratio),
+            "cpu_limit": balanced["cpu_limit"],
+            "mem_limit": balanced["mem_limit"],
+            "cpu_reservation": balanced["cpu_reservation"],
+            "mem_reservation": balanced["mem_reservation"],
         }
 
-        status = self._classify_status(current, suggested, cpu_p95, mem_p99, oom_count, leak["has_leak"], drift)
+        status = self._classify_status(
+            current, suggested, cpu_p95, mem_p99, oom_count, leak["has_leak"], drift,
+            oom_count_since_apply=oom_count_since_apply, applied_at=applied_at,
+        )
         suggested_apply_time = self._suggest_apply_time(pattern)
+
+        risk = self._calculate_risk(
+            cpu_p95, mem_p99, suggested, oom_count, leak["has_leak"], drift, forecast, status,
+            oom_count_since_apply=oom_count_since_apply,
+        )
+        explainability = self._build_explainability(
+            service_name, cpu_p95, mem_p99, cpu_p50, mem_p50, pattern,
+            oom_count, leak, cpu_margin, suggested, len(raw),
+        )
+        histograms = self._build_histograms(cpu_clean, mem_clean)
 
         result = {
             "service": service_name,
@@ -208,9 +280,11 @@ class ResourceRecommender:
             "preset": "data-driven",
             "current": current,
             "outliers_removed": len(cpu) - len(cpu_clean),
-            "cpu": {"p50": round(cpu_p50, 2), "p95": round(cpu_p95, 2)},
-            "mem": {"p50": int(mem_p50), "p99": int(mem_p99)},
+            "cpu": {"p50": round(cpu_p50, 2), "p95": round(cpu_p95, 2), "p99": round(cpu_p99, 2)},
+            "mem": {"p50": int(mem_p50), "p95": int(mem_p95), "p99": int(mem_p99)},
             "oom_events": oom_count,
+            "oom_events_since_apply": oom_count_since_apply,
+            "applied_at": applied_at,
             "has_drift": drift,
             "pattern": pattern,
             "memory_trend": leak,
@@ -218,6 +292,12 @@ class ResourceRecommender:
             "suggested": suggested,
             "suggested_apply_time": suggested_apply_time,
             "confidence": self._confidence(len(raw), leak["r_squared"]),
+            # Right-Sizing Studio — campos novos (ml-payload-schema.md §3)
+            "suggested_tiers": suggested_tiers,
+            "risk": risk,
+            "explainability": explainability,
+            "histograms": histograms,
+            "resources_freed": {"balanced": balanced["resources_freed"]},
         }
 
         self._last_recommendation_ts[service_name] = ts[-1] if ts else None
@@ -479,6 +559,8 @@ class ResourceRecommender:
         slope = model.coef_[0]
         r2 = model.score(x, mem)
         daily_mb = (slope * 24) / (1024 * 1024)
+        # projected_mem_7d = última amostra + slope * 24h * 7d
+        projected_7d = float(mem[-1] + slope * 24 * 7) if len(mem) > 0 else 0.0
         return {
             "slope_bytes_per_hour": float(slope),
             "daily_growth_mb": round(daily_mb, 2),
@@ -486,6 +568,7 @@ class ResourceRecommender:
             "has_leak": bool(
                 slope > 0 and r2 > LEAK_R2_THRESHOLD and daily_mb > LEAK_DAILY_MB_THRESHOLD
             ),
+            "projected_mem_7d": int(projected_7d),
         }
 
     def _detect_drift(self, cpu: np.ndarray, mem: np.ndarray) -> bool:
@@ -594,6 +677,184 @@ class ResourceRecommender:
             mem_margin = max(mem_margin, 1.5)
         return mem_margin, cpu_margin
 
+    # --- Right-Sizing Studio: helpers para payload estendido (ml-payload-schema.md §3) ---
+
+    def _calc_freed(self, current: dict, cpu_limit: float, mem_limit: int) -> dict:
+        """Delta de recursos liberados (current - suggested), nunca negativo."""
+        cur_cpu = current.get("cpu_limit", 0) or 0
+        cur_mem = current.get("mem_limit", 0) or 0
+        cpu_freed = max(cur_cpu - cpu_limit, 0)
+        mem_freed = max(cur_mem - mem_limit, 0)
+        cpu_pct = int((cpu_freed / cur_cpu * 100)) if cur_cpu > 0 else 0
+        mem_pct = int((mem_freed / cur_mem * 100)) if cur_mem > 0 else 0
+        return {
+            "cpu_cores": round(cpu_freed, 2),
+            "mem_bytes": int(mem_freed),
+            "cpu_pct": cpu_pct,
+            "mem_pct": mem_pct,
+        }
+
+    def _calculate_tiers(
+        self, cpu_p95: float, mem_p99: float, cpu_p50: float, mem_p50: float,
+        current: dict, pattern: str, oom: int, has_leak: bool, forecast: dict,
+    ) -> dict:
+        """3 tiers: conservative (margem fixa 2.0/1.8), balanced (data-driven),
+        aggressive (fixa 1.1/1.1). `suggested` (top-level) é alias de balanced."""
+        mem_margin_balanced, cpu_margin_balanced = self._data_driven_margin(
+            cpu_p50, cpu_p95, mem_p50, mem_p99, pattern, oom, has_leak
+        )
+        res_ratio = 0.75
+        tier_margins = {
+            "conservative": (2.0, 1.8),
+            "balanced": (cpu_margin_balanced, mem_margin_balanced),
+            "aggressive": (1.1, 1.1),
+        }
+        tiers = {}
+        for name, (cpu_m, mem_m) in tier_margins.items():
+            cpu_limit = max((cpu_p95 * cpu_m) / 100, 0.1)
+            mem_limit = int(mem_p99 * mem_m)
+            if has_leak:
+                mem_limit = max(mem_limit, int(forecast["projected_mem_p99"] * 1.1))
+            tiers[name] = {
+                "cpu_limit": round(cpu_limit, 2),
+                "mem_limit": mem_limit,
+                "cpu_reservation": round((cpu_p50 * res_ratio) / 100, 2),
+                "mem_reservation": int(mem_p50 * res_ratio),
+                "margin_cpu": round(cpu_m, 2),
+                "margin_mem": round(mem_m, 2),
+                "resources_freed": self._calc_freed(current, cpu_limit, mem_limit),
+            }
+        return tiers
+
+    def _calculate_risk(
+        self, cpu_p95: float, mem_p99: float, suggested: dict,
+        oom_count: int, has_leak: bool, has_drift: bool, forecast: dict, status: str,
+        oom_count_since_apply: int = 0,
+    ) -> dict:
+        """Score de risco estruturado (5 níveis: very_low/low/attention/high/critical).
+
+        Se houve apply e não há OOMs novos pós-apply, o risk score é reduzido
+        — o serviço está em observação e os OOMs antigos não devem mantê-lo
+        como "high"/"critical".
+        """
+        # OOMs relevantes para risk: se houve apply, usa apenas OOMs pós-apply.
+        # Se não houve apply, usa o total.
+        oom_for_risk = oom_count_since_apply if oom_count_since_apply > 0 or status == "observing" else oom_count
+        observing = status == "observing"
+
+        margin_cpu = (suggested["cpu_limit"] * 100 / cpu_p95) if cpu_p95 > 0 else 99
+        margin_mem = (suggested["mem_limit"] / mem_p99) if mem_p99 > 0 else 99
+        forecast_pct = (
+            (forecast["projected_mem_p99"] / suggested["mem_limit"] * 100)
+            if suggested["mem_limit"] > 0 else 0
+        )
+
+        reasons = []
+        if oom_count == 0:
+            reasons.append("0 OOMs em 30d")
+        elif observing and oom_count_since_apply == 0:
+            reasons.append(f"{oom_count} OOMs antes do apply, 0 após")
+        else:
+            reasons.append(f"{oom_count} OOMs em 30d ({oom_count_since_apply} após apply)")
+        reasons.append("sem leak detectado" if not has_leak else "leak detectado")
+        if margin_cpu >= 1.3:
+            reasons.append(f"margem CPU {margin_cpu:.1f}x")
+        if forecast_pct < 90:
+            reasons.append(f"forecast {forecast_pct:.0f}% do limite")
+        if observing:
+            reasons.append("em observação pós-apply")
+
+        if status == "under_provisioned":
+            level, score, color = "critical", 5, "red"
+        elif oom_for_risk > 0 or has_leak:
+            level, score, color = "high", 4, "orange"
+        elif observing:
+            # Em observação: risk baixo (ação já tomada, sem novos problemas)
+            level, score, color = "low", 2, "blue"
+        elif margin_cpu < 1.2 or margin_mem < 1.2 or forecast_pct > 90:
+            level, score, color = "attention", 3, "yellow"
+        elif margin_cpu >= 1.3 and oom_count == 0 and not has_leak:
+            level, score, color = "very_low", 1, "green"
+        else:
+            level, score, color = "low", 2, "green"
+
+        return {
+            "level": level,
+            "score": score,
+            "color": color,
+            "reasons": reasons,
+            "margin_cpu": round(margin_cpu, 2),
+            "margin_mem": round(margin_mem, 2),
+            "forecast_vs_limit_pct": round(forecast_pct, 0),
+        }
+
+    def _pattern_label(self, pattern: str) -> str:
+        """Mapeia valores reais do ML para rótulos de exibição amigáveis.
+        NÃO usar web/db/mixed — não existem no payload."""
+        return {
+            "constant": "Constante",
+            "business_hours": "Horário comercial",
+            "batch": "Batch",
+            "unknown": "Desconhecido",
+        }.get(pattern, pattern.capitalize())
+
+    def _pattern_detail(self, pattern: str) -> str:
+        return {
+            "constant": "uso constante sem spikes — permite margem menor",
+            "business_hours": "uso concentrado em horário comercial — margem intermediária",
+            "batch": "spikes periódicos — requer margem maior",
+            "unknown": "padrão não classificado — margem conservadora",
+        }.get(pattern, "padrão não classificado")
+
+    def _build_explainability(
+        self, service: str, cpu_p95: float, mem_p99: float, cpu_p50: float,
+        mem_p50: float, pattern: str, oom_count: int, leak: dict,
+        margin: float, suggested: dict, samples: int,
+    ) -> dict:
+        """Texto em linguagem natural + fatores estruturados para o frontend."""
+        cpu_p95_cores = cpu_p95 / 100
+        leak_text = (
+            "sem leak detectado" if not leak["has_leak"]
+            else f"leak detectado (R²={leak['r_squared']:.2f})"
+        )
+        margin_reason = (
+            "data-driven: baixa variabilidade" if margin < 1.5
+            else "data-driven: alta variabilidade"
+        )
+        pattern_label = self._pattern_label(pattern)
+
+        summary = (
+            f"Sugerido {suggested['cpu_limit']:.2f} cores porque P95 dos últimos 7d = {cpu_p95:.1f}% "
+            f"({cpu_p95_cores:.2f} cores), padrão {pattern_label}, "
+            f"{oom_count} OOMs, {leak_text}. "
+            f"Margem {margin:.1f}x aplicada ({margin_reason})."
+        )
+
+        factors = [
+            {"label": "P95 CPU", "value": f"{cpu_p95:.1f}%", "detail": "percentil 95 do uso de CPU nos últimos 7d"},
+            {"label": "P99 Mem", "value": f"{mem_p99 / 1e6:.0f}MB", "detail": "percentil 99 do uso de memória nos últimos 7d"},
+            {"label": "Padrão", "value": pattern_label, "detail": self._pattern_detail(pattern)},
+            {"label": "OOMs", "value": str(oom_count), "detail": f"OOM kills nos últimos {ANALYSIS_WINDOW_DAYS}d"},
+            {"label": "Leak", "value": "não" if not leak["has_leak"] else "sim",
+             "detail": f"R²={leak['r_squared']:.2f} (threshold {LEAK_R2_THRESHOLD})"},
+            {"label": "Margem", "value": f"{margin:.1f}x", "detail": margin_reason},
+        ]
+        return {"summary": summary, "factors": factors}
+
+    def _build_histograms(self, cpu_clean: np.ndarray, mem_clean: np.ndarray) -> dict:
+        """Distribuição pré-bucketed para o frontend renderizar histogramas."""
+        cpu_buckets = [0, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100]
+        cpu_counts, _ = np.histogram(cpu_clean, bins=cpu_buckets)
+
+        mem_mb = mem_clean / 1e6
+        mem_buckets_mb = [0, 100, 200, 300, 350, 400, 500, 750, 1000, 1500, 2000, 4000]
+        mem_counts, _ = np.histogram(mem_mb, bins=mem_buckets_mb)
+
+        return {
+            "cpu": {"buckets": cpu_buckets, "counts": cpu_counts.tolist()},
+            "mem": {"buckets_mb": mem_buckets_mb, "counts": mem_counts.tolist()},
+        }
+
     def _early_recommendation(self) -> dict:
         return {"source": "template"}
 
@@ -623,13 +884,28 @@ class ResourceRecommender:
             return "medium"
         return "low"
 
-    def _classify_status(self, current, suggested, cpu_p95, mem_p99, oom_count, has_leak, has_drift) -> str:
+    def _classify_status(
+        self, current, suggested, cpu_p95, mem_p99, oom_count, has_leak, has_drift,
+        oom_count_since_apply: int = 0, applied_at: str | None = None,
+    ) -> str:
         has_config = (
             current.get("cpu_limit", 0) > 0 or current.get("mem_limit", 0) > 0
             or current.get("cpu_reservation", 0) > 0 or current.get("mem_reservation", 0) > 0
         )
         if not has_config:
             return "unconfigured"
+
+        # Se houve apply e não há OOMs novos desde o apply, o serviço está em
+        # observação — o usuário já tomou uma ação e o serviço está sendo
+        # reavaliado. O status "observing" tem precedência sobre "alerted" e
+        # "under_provisioned" porque as métricas atuais ainda incluem dados
+        # pré-apply (janela de 7 dias) e não refletem a nova config.
+        # Precisa de tempo para que métricas pós-apply se acumulem.
+        if applied_at and oom_count_since_apply == 0 and not has_leak and not has_drift:
+            return "observing"
+
+        # Se houve apply mas há OOMs novos pós-apply, o problema persiste —
+        # mantém "alerted" para indicar que a ação não resolveu.
         if oom_count > 0 or has_leak or has_drift:
             return "alerted"
         cpu_limit = current.get("cpu_limit", 0)

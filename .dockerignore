@@ -13,3 +13,15 @@ data/
 *.duckdb
 *.duckdb.wal
 .pnpm-store
+docs/
+scripts/
+tests/
+*.md
+*.png
+*.jpg
+studio-sheet-final.png
+.playwright-mcp/
+__pycache__/
+.venv/
+venv/
+node_modules/

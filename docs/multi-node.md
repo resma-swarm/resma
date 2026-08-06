@@ -144,7 +144,7 @@ docker compose up -d
 ```
 
 O `agent-dev` coleta stats dos containers locais (do host Docker) e faz push
-para o `go-dev`. Em dev single-node, o agent-dev e o go-dev veem o mesmo
+para o `api`. Em dev single-node, o agent-dev e o api veem o mesmo
 `docker.sock` — útil para validar o fluxo end-to-end.
 
 ### Dev (multi-node simulado)

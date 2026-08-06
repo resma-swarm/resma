@@ -29,7 +29,7 @@ export function AppSidebar() {
           </div>
           <div className="flex flex-col group-data-[collapsible=icon]:hidden">
             <span className="text-sm font-bold tracking-tight">RESMA</span>
-            <span className="text-[10px] text-muted-foreground">Otus7 Infrastructure</span>
+            <span className="text-[10px] text-muted-foreground">Optimize Infrastructure</span>
           </div>
         </Link>
       </SidebarHeader>

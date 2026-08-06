@@ -199,8 +199,8 @@ The Go API is built and run inside a Docker container to ensure the correct
 CGO toolchain for `go-duckdb`:
 
 ```bash
-docker compose up -d go-dev
-docker compose exec go-dev go run ./cmd/server
+docker compose up -d api
+docker compose exec api go run ./cmd/server
 ```
 
 The API is available at `http://localhost:8080`.

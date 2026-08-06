@@ -17,56 +17,31 @@ import {
   CheckCircle, AlertCircle, Clock, Zap, Cpu, MemoryStick, RotateCcw,
   TrendingUp, TrendingDown, AlertTriangle, Pencil, BrainCircuit,
   Search, Filter, ChevronDown, X, MoreVertical, Settings, ChevronRight,
-  CalendarClock, Calendar as CalendarIcon, Trash2, Database, HardDrive,
+  CalendarClock, Calendar as CalendarIcon, Trash2, Database, HardDrive, Eye,
 } from "lucide-react"
 import { toast } from "sonner"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { useFilterStore } from "@/stores/filter-store"
 import { format, parseISO } from "date-fns"
+import { HeroMetric } from "@/components/right-sizing/HeroMetric"
+import { LayerToggle } from "@/components/right-sizing/LayerToggle"
+import { ExplainabilityPanel } from "@/components/right-sizing/ExplainabilityPanel"
+import { ResourceSlider } from "@/components/right-sizing/ResourceSlider"
+import { WhatIfPanel } from "@/components/right-sizing/WhatIfPanel"
+import {
+  calculateHero,
+  riskColorClasses,
+  riskLevelLabel,
+  patternLabel as rsPatternLabel,
+  type Recommendation,
+  type ResourceValues,
+  type TierName,
+} from "@/components/right-sizing/types"
 
-export interface ResourceValues {
-  cpu_limit: number
-  mem_limit: number
-  cpu_reservation: number
-  mem_reservation: number
-}
-
-interface MemoryTrend {
-  slope_bytes_per_hour: number
-  daily_growth_mb: number
-  r_squared: number
-  has_leak: boolean
-}
-
-interface Forecast {
-  days_ahead: number
-  projected_mem: number
-  projected_mem_p99: number
-  slope_bytes_per_hour: number
-}
-
-export interface Recommendation {
-  service: string
-  samples: number
-  status: string
-  stack?: string
-  preset?: string
-  current?: ResourceValues
-  outliers_removed?: number
-  cpu?: { p50: number; p95: number }
-  mem?: { p50: number; p99: number }
-  oom_events?: number
-  has_drift?: boolean
-  pattern?: string
-  memory_trend?: MemoryTrend
-  forecast?: Forecast
-  suggested?: ResourceValues
-  suggested_apply_time?: string | null
-  confidence?: string
-}
+export type { Recommendation, ResourceValues }
 
 interface Schedule {
   id: number
@@ -89,17 +64,13 @@ const confidenceLabel = (conf?: string) => {
   return "Baixa"
 }
 
-const patternLabel = (p?: string) => {
-  if (p === "business_hours") return "Business Hours"
-  if (p === "constant") return "Constante"
-  if (p === "batch") return "Batch"
-  return "Desconhecido"
-}
+const patternLabel = rsPatternLabel
 
 const statusConfig: Record<string, { icon: typeof AlertTriangle; border: string; label: string; labelClass: string }> = {
   unconfigured: { icon: Settings, border: "border-l-warning", label: "Sem configuração", labelClass: "text-warning" },
   alerted: { icon: AlertTriangle, border: "border-l-destructive", label: "Crítico", labelClass: "text-destructive" },
   under_provisioned: { icon: TrendingUp, border: "border-l-warning", label: "Atenção", labelClass: "text-warning" },
+  observing: { icon: Eye, border: "border-l-blue-500", label: "Em observação", labelClass: "text-blue-600" },
   over_provisioned: { icon: TrendingDown, border: "border-l-primary", label: "Otimizar", labelClass: "text-primary" },
   healthy: { icon: CheckCircle, border: "border-l-success", label: "Saudável", labelClass: "text-success" },
   collecting_data: { icon: Clock, border: "border-l-muted", label: "Coletando", labelClass: "text-muted-foreground" },
@@ -275,6 +246,18 @@ export function ScheduleDialog({ rec, open, onOpenChange, onScheduled }: {
   const [popoverOpen, setPopoverOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Resetar estado quando o dialog fecha (evita valores residual de agendamento anterior)
+  useEffect(() => {
+    if (!open) {
+      setMode("suggest")
+      setSelectedDate(undefined)
+      setTimeHour("02")
+      setTimeMin("00")
+      setPopoverOpen(false)
+      setError(null)
+    }
+  }, [open])
 
   const suggestedTime = rec.suggested_apply_time ? parseISO(rec.suggested_apply_time) : null
 
@@ -502,10 +485,34 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
   const navigate = useNavigate()
   const [editOpen, setEditOpen] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [selectedTier, setSelectedTier] = useState<TierName>("balanced")
+  const [showWhatIf, setShowWhatIf] = useState(false)
   const suggested = rec.suggested ?? { cpu_limit: 0, mem_limit: 0, cpu_reservation: 0, mem_reservation: 0 }
   const current = rec.current ?? { cpu_limit: 0, mem_limit: 0, cpu_reservation: 0, mem_reservation: 0 }
   const sc = getStatusConfig(rec.status)
   const StatusIcon = sc.icon
+
+  // Normalizar pendingSchedule: API retorna PascalCase (ScheduledAt), frontend usa camelCase
+  const schedAt = pendingSchedule ? ((pendingSchedule as { ScheduledAt?: string }).ScheduledAt ?? pendingSchedule.scheduled_at) : null
+  const schedId = pendingSchedule?.id
+
+  // Right-Sizing Studio: tier selecionado determina os valores exibidos
+  const tiers = rec.suggested_tiers
+  const activeTier = tiers ? (tiers as unknown as Record<string, typeof tiers.balanced>)[selectedTier] : null
+  const displaySuggested = activeTier ?? suggested
+  const displayFreed = activeTier?.resources_freed ?? rec.resources_freed?.balanced
+
+  // What-if state: inicializa com o tier selecionado, reseta ao trocar tier
+  const [whatIfCpu, setWhatIfCpu] = useState(displaySuggested.cpu_limit)
+  const [whatIfMem, setWhatIfMem] = useState(displaySuggested.mem_limit)
+  // Reset when tier changes (useEffect via key trick — simpler: derive from displaySuggested)
+  const whatIfKey = `${selectedTier}-${rec.service}`
+  const whatIfKeyRef = useRef(whatIfKey)
+  if (whatIfKeyRef.current !== whatIfKey) {
+    whatIfKeyRef.current = whatIfKey
+    setWhatIfCpu(displaySuggested.cpu_limit)
+    setWhatIfMem(displaySuggested.mem_limit)
+  }
 
   if (rec.status === "collecting_data" || !rec.suggested) {
     return (
@@ -545,6 +552,11 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
               >
                 {rec.service}
               </button>
+              {pendingSchedule && schedAt && (
+                <span title={`Agendado para ${format(parseISO(schedAt), "dd/MM/yyyy 'às' HH:mm")}`}>
+                  <CalendarClock className="h-3.5 w-3.5 text-chart-5 shrink-0" aria-label="Apply agendado" />
+                </span>
+              )}
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -559,7 +571,7 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
                 </DropdownMenuItem>
                 {pendingSchedule ? (
                   <DropdownMenuItem
-                    onClick={() => onCancelSchedule(pendingSchedule.id)}
+                    onClick={() => onCancelSchedule(schedId!)}
                     className="gap-2 text-destructive"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -599,12 +611,20 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
                 <span className="text-muted-foreground">{patternLabel(rec.pattern)}</span>
               </>
             )}
-            {pendingSchedule && (
+            {rec.risk && (
+              <>
+                <span className="text-muted-foreground/50">·</span>
+                <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded border", riskColorClasses[rec.risk.color])}>
+                  Risco: {riskLevelLabel[rec.risk.level]}
+                </span>
+              </>
+            )}
+            {pendingSchedule && schedAt && (
               <>
                 <span className="text-muted-foreground/50">·</span>
                 <span className="text-warning flex items-center gap-0.5">
                   <CalendarClock className="h-3 w-3" />
-                  Agendado: {format(parseISO(pendingSchedule.scheduled_at), "dd/MM HH:mm")}
+                  Agendado: {format(parseISO(schedAt), "dd/MM HH:mm")}
                 </span>
               </>
             )}
@@ -612,6 +632,34 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
         </CardHeader>
 
         <CardContent className="space-y-2 pt-0">
+          {/* Right-Sizing Studio: LayerToggle (3 camadas) */}
+          {tiers && (
+            <div className="py-1">
+              <LayerToggle
+                value={selectedTier}
+                onChange={setSelectedTier}
+                suggestedTiers={tiers}
+              />
+            </div>
+          )}
+
+          {/* Right-Sizing Studio: Resources freed badge */}
+          {displayFreed && (displayFreed.cpu_cores > 0 || displayFreed.mem_bytes > 0) && (
+            <div className="flex items-center gap-2 text-[11px] bg-primary/5 rounded px-2 py-1">
+              <TrendingDown className="h-3 w-3 text-primary" />
+              <span className="text-muted-foreground">Libera:</span>
+              <span className="font-medium text-primary tabular-nums">
+                {displayFreed.cpu_cores > 0 && `${displayFreed.cpu_cores.toFixed(1)} cores`}
+                {displayFreed.cpu_cores > 0 && displayFreed.mem_bytes > 0 && " · "}
+                {displayFreed.mem_bytes > 0 && formatBytes(displayFreed.mem_bytes)}
+              </span>
+              {displayFreed.cpu_pct > 0 && (
+                <span className="text-muted-foreground text-[10px]">
+                  (CPU -{displayFreed.cpu_pct}% · Mem -{displayFreed.mem_pct}%)
+                </span>
+              )}
+            </div>
+          )}
           {(hasOom || hasLeak || hasDrift) && (
             <div className="space-y-1">
               {hasOom && (
@@ -644,28 +692,97 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
             <CompareRow
               label="CPU Lim"
               currentVal={current.cpu_limit}
-              suggestedVal={suggested.cpu_limit}
+              suggestedVal={displaySuggested.cpu_limit}
               formatVal={(v) => v.toFixed(2)}
             />
             <CompareRow
               label="Mem Lim"
               currentVal={current.mem_limit}
-              suggestedVal={suggested.mem_limit}
+              suggestedVal={displaySuggested.mem_limit}
               formatVal={formatBytes}
             />
             <CompareRow
               label="CPU Res"
               currentVal={current.cpu_reservation}
-              suggestedVal={suggested.cpu_reservation}
+              suggestedVal={displaySuggested.cpu_reservation}
               formatVal={(v) => v.toFixed(2)}
             />
             <CompareRow
               label="Mem Res"
               currentVal={current.mem_reservation}
-              suggestedVal={suggested.mem_reservation}
+              suggestedVal={displaySuggested.mem_reservation}
               formatVal={formatBytes}
             />
           </div>
+
+          {/* Right-Sizing Studio: ExplainabilityPanel */}
+          {rec.explainability && rec.memory_trend && rec.forecast && (
+            <ExplainabilityPanel
+              explainability={rec.explainability}
+              histograms={rec.histograms ?? null}
+              cpuStats={{
+                p50: rec.cpu?.p50 ?? 0,
+                p95: rec.cpu?.p95 ?? 0,
+                p99: rec.cpu?.p99,
+              }}
+              memStats={{
+                p50: rec.mem?.p50 ?? 0,
+                p95: rec.mem?.p95,
+                p99: rec.mem?.p99 ?? 0,
+              }}
+              memoryTrend={rec.memory_trend}
+              forecast={rec.forecast}
+              suggestedMemLimit={displaySuggested.mem_limit}
+              selectedTier={selectedTier}
+            />
+          )}
+
+          {/* Right-Sizing Studio: What-If toggle + sliders + panel */}
+          {rec.cpu && rec.mem && (current.cpu_limit > 0 || current.mem_limit > 0) && (
+            <div className="space-y-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-between text-xs"
+                onClick={() => setShowWhatIf(!showWhatIf)}
+              >
+                <span className="text-muted-foreground">
+                  {showWhatIf ? "Ocultar simulação" : "Simular configuração"}
+                </span>
+                {showWhatIf ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              </Button>
+              {showWhatIf && (
+                <>
+                  <ResourceSlider
+                    cpuCores={whatIfCpu}
+                    memBytes={whatIfMem}
+                    cpuMin={0.1}
+                    cpuMax={Math.max(current.cpu_limit * 2, displaySuggested.cpu_limit * 2, 1)}
+                    memMin={16 * 1e6}
+                    memMax={Math.max(current.mem_limit * 2, displaySuggested.mem_limit * 2, 256 * 1e6)}
+                    cpuCurrent={current.cpu_limit}
+                    memCurrent={current.mem_limit}
+                    cpuSuggested={displaySuggested.cpu_limit}
+                    memSuggested={displaySuggested.mem_limit}
+                    onCpuChange={setWhatIfCpu}
+                    onMemChange={setWhatIfMem}
+                  />
+                  <WhatIfPanel
+                    service={rec.service}
+                    whatIfCpu={whatIfCpu}
+                    whatIfMem={whatIfMem}
+                    currentCpu={current.cpu_limit}
+                    currentMem={current.mem_limit}
+                    p95Cpu={rec.cpu.p95}
+                    p99Mem={rec.mem.p99}
+                    forecastP99={rec.forecast?.projected_mem_p99 ?? 0}
+                    oomEvents={rec.oom_events ?? 0}
+                    hasLeak={rec.memory_trend?.has_leak ?? false}
+                  />
+                </>
+              )}
+            </div>
+          )}
 
           <div className="flex items-center gap-3 text-[10px] text-muted-foreground border-t pt-2">
             <span><span className="font-medium text-foreground">{rec.samples.toLocaleString()}</span> amostras</span>
@@ -750,6 +867,7 @@ export default function Recommendations() {
   const queryClient = useQueryClient()
   const [applying, setApplying] = useState<string | null>(null)
   const [showHealthy, setShowHealthy] = useState(false)
+  const [showObserving, setShowObserving] = useState(false)
   const [showStorage, setShowStorage] = useState(true)
 
   const { data: recs, isLoading } = useQuery<Recommendation[]>({
@@ -805,6 +923,7 @@ export default function Recommendations() {
 
   const handleScheduled = () => {
     queryClient.invalidateQueries({ queryKey: ["schedules"] })
+    queryClient.invalidateQueries({ queryKey: ["schedules", "pending"] })
     toast.success("Agendamento criado com sucesso")
   }
 
@@ -815,7 +934,9 @@ export default function Recommendations() {
   const pendingScheduleMap = useMemo(() => {
     const map: Record<string, Schedule> = {}
     for (const s of pendingSchedules ?? []) {
-      map[s.service] = s
+      // API retorna PascalCase (Service) — aceitar ambos
+      const svc = (s as { Service?: string }).Service ?? s.service
+      if (svc) map[svc] = s
     }
     return map
   }, [pendingSchedules])
@@ -834,9 +955,10 @@ export default function Recommendations() {
   const setEventFilters = (s: Set<string>) => setRecEventsList(Array.from(s))
 
   const statusPriority = (r: Recommendation) => {
-    if (r.status === "alerted") return 4
-    if (r.status === "unconfigured") return 3
-    if (r.status === "under_provisioned") return 2
+    if (r.status === "alerted") return 5
+    if (r.status === "unconfigured") return 4
+    if (r.status === "under_provisioned") return 3
+    if (r.status === "observing") return 2
     if (r.status === "over_provisioned") return 1
     if (r.status === "healthy") return 0
     return 0
@@ -852,6 +974,7 @@ export default function Recommendations() {
   const unconfiguredCount = statusCounts["unconfigured"] ?? 0
   const alertedCount = statusCounts["alerted"] ?? 0
   const underProvCount = statusCounts["under_provisioned"] ?? 0
+  const observingCount = statusCounts["observing"] ?? 0
   const overProvCount = statusCounts["over_provisioned"] ?? 0
   const healthyCount = statusCounts["healthy"] ?? 0
   const leakCount = (recs ?? []).filter((r) => r.memory_trend?.has_leak).length
@@ -888,6 +1011,7 @@ export default function Recommendations() {
     unconfigured: "Sem config",
     alerted: "Crítico",
     under_provisioned: "Atenção",
+    observing: "Em observação",
     over_provisioned: "Otimizar",
     healthy: "Saudável",
     collecting_data: "Coletando",
@@ -918,22 +1042,31 @@ export default function Recommendations() {
     )
   }
 
-  const actionRecs = sortedRecs.filter(r => r.status !== "healthy" && r.status !== "collecting_data")
+  const actionRecs = sortedRecs.filter(r => r.status !== "healthy" && r.status !== "collecting_data" && r.status !== "observing")
+  const observingRecs = sortedRecs.filter(r => r.status === "observing")
   const healthyRecs = sortedRecs.filter(r => r.status === "healthy")
   const collectingRecs = sortedRecs.filter(r => r.status === "collecting_data")
 
   return (
     <div className="space-y-6">
       <PageHeader title="Recomendações" description="Sugestões de limites baseadas em dados">
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           {unconfiguredCount > 0 && <Badge variant="warning">{unconfiguredCount} sem config</Badge>}
           {alertedCount > 0 && <Badge variant="danger">{alertedCount} críticos</Badge>}
           {underProvCount > 0 && <Badge variant="warning">{underProvCount} atenção</Badge>}
+          {observingCount > 0 && <Badge variant="outline" className="text-blue-600 border-blue-500/30">{observingCount} observação</Badge>
+          }
           {overProvCount > 0 && <Badge variant="secondary">{overProvCount} otimizar</Badge>
           }
           {healthyCount > 0 && <Badge variant="success">{healthyCount} saudáveis</Badge>}
         </div>
       </PageHeader>
+
+      {/* Right-Sizing Studio: Hero Metric */}
+      <HeroMetric
+        data={calculateHero(recs)}
+        loading={isLoading}
+      />
 
       {pendingSchedules && pendingSchedules.length > 0 && (
         <div className="space-y-2">
@@ -942,11 +1075,14 @@ export default function Recommendations() {
             <span className="font-medium">Agendamentos pendentes ({pendingSchedules.length})</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {pendingSchedules.map((s) => (
+            {pendingSchedules.map((s) => {
+              const svc = (s as { Service?: string }).Service ?? s.service
+              const at = (s as { ScheduledAt?: string }).ScheduledAt ?? s.scheduled_at
+              return (
               <div key={s.id} className="flex items-center gap-2 rounded-md border border-warning/20 bg-warning/5 px-3 py-1.5 text-xs">
                 <CalendarClock className="h-3 w-3 text-warning" />
-                <span className="font-medium text-foreground">{s.service}</span>
-                <span className="text-muted-foreground">{format(parseISO(s.scheduled_at), "dd/MM 'às' HH:mm")}</span>
+                <span className="font-medium text-foreground">{svc}</span>
+                <span className="text-muted-foreground">{at ? format(parseISO(at), "dd/MM 'às' HH:mm") : "—"}</span>
                 <button
                   className="text-muted-foreground hover:text-destructive transition-colors"
                   onClick={() => handleCancelSchedule(s.id)}
@@ -954,7 +1090,8 @@ export default function Recommendations() {
                   <X className="h-3 w-3" />
                 </button>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
@@ -995,6 +1132,9 @@ export default function Recommendations() {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setStatusFilter("under_provisioned")}>
               {statusFilter === "under_provisioned" && "✓ "}Atenção ({underProvCount})
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setStatusFilter("observing")}>
+              {statusFilter === "observing" && "✓ "}Em observação ({observingCount})
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setStatusFilter("over_provisioned")}>
               {statusFilter === "over_provisioned" && "✓ "}Otimizar ({overProvCount})
@@ -1126,6 +1266,40 @@ export default function Recommendations() {
               />
             ))}
           </div>
+        </div>
+      )}
+
+      {observingRecs.length > 0 && (
+        <div className="space-y-3">
+          <button
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setShowObserving(!showObserving)}
+          >
+            <ChevronDown className={cn("h-4 w-4 transition-transform", !showObserving && "-rotate-90")} />
+            <Eye className="h-4 w-4 text-blue-600" />
+            <span className="font-medium">{observingCount} em observação</span>
+            <span className="text-xs text-muted-foreground/70">
+              {showObserving ? "ocultar" : "ver recomendações"}
+            </span>
+          </button>
+          {showObserving && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {observingRecs.map((rec) => (
+                <RecommendationCard
+                  key={rec.service}
+                  rec={rec}
+                  onApply={handleApply}
+                  applying={applying}
+                  error={applyMutation.isError ? rec.service : null}
+                  onRecalculate={(service) => recalculateMutation.mutate(service)}
+                  recalculating={recalculateMutation.isPending ? recalculateMutation.variables ?? null : null}
+                  pendingSchedule={pendingScheduleMap[rec.service] ?? null}
+                  onSchedule={handleScheduled}
+                  onCancelSchedule={handleCancelSchedule}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 

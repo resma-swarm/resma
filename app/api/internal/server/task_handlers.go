@@ -17,7 +17,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/resma/api/internal/db"
+	"github.com/resma-swarm/resma/app/api/internal/db"
 )
 
 // registerAgentAdminRoutes registra as rotas admin de agents no mux interno.

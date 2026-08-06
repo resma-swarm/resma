@@ -5,9 +5,9 @@ import {
   Boxes,
   ListTodo,
   ShieldAlert,
-  Lightbulb,
   FileCode,
   CalendarClock,
+  Layers,
   type LucideIcon,
 } from "lucide-react"
 import {
@@ -28,7 +28,7 @@ const navItems: NavItem[] = [
   { to: "/services", label: "Serviços", icon: Boxes },
   { to: "/tasks", label: "Tasks", icon: ListTodo },
   { to: "/alerts", label: "Alertas", icon: ShieldAlert },
-  { to: "/recommendations", label: "Recomendações", icon: Lightbulb },
+  { to: "/optimizations", label: "Otimização de Recursos", icon: Layers },
   { to: "/templates", label: "Templates", icon: FileCode },
   { to: "/schedules", label: "Agendamentos", icon: CalendarClock },
 ]

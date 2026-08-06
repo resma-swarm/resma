@@ -18,3 +18,8 @@ export function formatCPU(cpu: number | undefined | null): string {
   if (cpu === undefined || cpu === null) return "0.00%"
   return `${cpu.toFixed(2)}%`
 }
+
+export function formatCores(cores: number | undefined | null): string {
+  if (cores === undefined || cores === null || isNaN(cores)) return "0.00"
+  return `${cores.toFixed(2)}`
+}

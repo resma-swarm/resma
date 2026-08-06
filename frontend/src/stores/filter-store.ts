@@ -43,6 +43,16 @@ interface FilterState {
   alertsSeverity: string
   setAlertsType: (v: string) => void
   setAlertsSeverity: (v: string) => void
+
+  // Schedules page
+  schedulesStatus: string
+  schedulesLogSource: string
+  schedulesSearch: string
+  schedulesTab: string
+  setSchedulesStatus: (v: string) => void
+  setSchedulesLogSource: (v: string) => void
+  setSchedulesSearch: (v: string) => void
+  setSchedulesTab: (v: string) => void
 }
 
 export const useFilterStore = create<FilterState>()(
@@ -82,6 +92,15 @@ export const useFilterStore = create<FilterState>()(
       alertsSeverity: "all",
       setAlertsType: (v) => set({ alertsType: v }),
       setAlertsSeverity: (v) => set({ alertsSeverity: v }),
+
+      schedulesStatus: "all",
+      schedulesLogSource: "all",
+      schedulesSearch: "",
+      schedulesTab: "pending",
+      setSchedulesStatus: (v) => set({ schedulesStatus: v }),
+      setSchedulesLogSource: (v) => set({ schedulesLogSource: v }),
+      setSchedulesSearch: (v) => set({ schedulesSearch: v }),
+      setSchedulesTab: (v) => set({ schedulesTab: v }),
     }),
     { name: "resma-filters" }
   )

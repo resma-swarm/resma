@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/marcboeker/go-duckdb"
 )
 
 // ---------------------------------------------------------------------------
@@ -809,17 +811,70 @@ type ContainerNodeMapRow struct {
 }
 
 // UpsertContainerNodeMapBatch faz upsert em lote de mapeamentos container→nó.
+//
+// Pattern: temp table + Appender + MERGE INTO (bypassa SQL parser no insert,
+// faz upsert em single statement). ~10x-180x mais rápido que INSERT 1-por-1.
+// Ver docs/specs/oss/phase-perf-ingest/spec.md seção 3.1.
 func (s *Store) UpsertContainerNodeMapBatch(ctx context.Context, rows []ContainerNodeMapRow) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	for _, r := range rows {
-		if _, err := s.db.ExecContext(ctx,
-			`INSERT OR REPLACE INTO container_node_map (container_id, node_id, service, updated_at)
-			 VALUES (?, ?, ?, now())`,
-			r.ContainerID, r.NodeID, r.Service); err != nil {
-			return err
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire conn for upsert: %w", err)
+	}
+	defer conn.Close()
+
+	// Temp table é session-scoped (dropped on conn close). Criar/clear por batch.
+	if _, err := conn.ExecContext(ctx,
+		`CREATE TEMP TABLE IF NOT EXISTS _cnm_staging (
+			container_id VARCHAR,
+			node_id      VARCHAR,
+			service      VARCHAR,
+			updated_at   TIMESTAMP
+		)`); err != nil {
+		return fmt.Errorf("create staging: %w", err)
+	}
+	if _, err := conn.ExecContext(ctx, `DELETE FROM _cnm_staging`); err != nil {
+		return fmt.Errorf("clear staging: %w", err)
+	}
+
+	// Appender para popular staging (ultra rápido, bypassa SQL parser).
+	now := time.Now()
+	if err := func() error {
+		var app *duckdb.Appender
+		if err := conn.Raw(func(driverConn any) error {
+			dc, ok := driverConn.(*duckdb.Conn)
+			if !ok {
+				return fmt.Errorf("driver conn is %T, not *duckdb.Conn", driverConn)
+			}
+			var aerr error
+			app, aerr = duckdb.NewAppenderFromConn(dc, "", "_cnm_staging")
+			return aerr
+		}); err != nil {
+			return fmt.Errorf("new appender for staging: %w", err)
 		}
+		defer app.Close()
+		for _, r := range rows {
+			if err := app.AppendRow(r.ContainerID, r.NodeID, r.Service, now); err != nil {
+				return fmt.Errorf("append staging row: %w", err)
+			}
+		}
+		return app.Flush()
+	}(); err != nil {
+		return err
+	}
+
+	// MERGE: insere novos, atualiza existentes (single statement, usa PK).
+	_, err = conn.ExecContext(ctx,
+		`INSERT INTO container_node_map (container_id, node_id, service, updated_at)
+		 SELECT container_id, node_id, service, updated_at FROM _cnm_staging
+		 ON CONFLICT (container_id) DO UPDATE SET
+		     node_id = excluded.node_id,
+		     service = excluded.service,
+		     updated_at = excluded.updated_at`)
+	if err != nil {
+		return fmt.Errorf("merge into container_node_map: %w", err)
 	}
 	return nil
 }
@@ -983,18 +1038,18 @@ func (s *Store) GetClusterSummary(ctx context.Context, analysisWindowDays int) (
 
 // Schedule representa um agendamento de aplicação de limites.
 type Schedule struct {
-	ID             int32
-	Service        string
-	CPULimit       sql.NullFloat64
-	MemLimit       sql.NullInt64
-	CPUReservation sql.NullFloat64
-	MemReservation sql.NullInt64
-	ScheduledAt    time.Time
-	Status         string
-	AppliedAt      sql.NullTime
-	Error          sql.NullString
-	Attempts       int32
-	CreatedAt      time.Time
+	ID             int32           `json:"id"`
+	Service        string          `json:"service"`
+	CPULimit       sql.NullFloat64 `json:"cpu_limit"`
+	MemLimit       sql.NullInt64   `json:"mem_limit"`
+	CPUReservation sql.NullFloat64 `json:"cpu_reservation"`
+	MemReservation sql.NullInt64   `json:"mem_reservation"`
+	ScheduledAt    time.Time       `json:"scheduled_at"`
+	Status         string          `json:"status"`
+	AppliedAt      sql.NullTime    `json:"applied_at"`
+	Error          sql.NullString  `json:"error"`
+	Attempts       int32           `json:"attempts"`
+	CreatedAt      time.Time       `json:"created_at"`
 }
 
 // CreateSchedule insere um novo schedule e retorna o id.
@@ -1192,6 +1247,35 @@ func (s *Store) AddChangeLog(ctx context.Context, e ChangeLogEntry) (int32, erro
 		e.CPULimitAfter, e.MemLimitAfter, e.CPUReservationAfter, e.MemReservationAfter,
 		e.User, e.Status, e.Error, e.DockerResponse).Scan(&id)
 	return id, err
+}
+
+// LastApplyInfo contém dados do último apply bem-sucedido de um serviço.
+// Usado pelo ML sidecar para distinguir OOMs antes vs depois do apply e
+// classificar o status "observing" (em observação pós-apply).
+type LastApplyInfo struct {
+	AppliedAt           time.Time
+	CPULimitAfter       sql.NullFloat64
+	MemLimitAfter       sql.NullInt64
+	CPUReservationAfter sql.NullFloat64
+	MemReservationAfter sql.NullInt64
+}
+
+// GetLastApply retorna o último apply bem-sucedido (status='completed') de um serviço.
+// Retorna nil se não houver apply registrado.
+func (s *Store) GetLastApply(ctx context.Context, service string) (*LastApplyInfo, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT created_at, cpu_limit_after, mem_limit_after,
+		        cpu_reservation_after, mem_reservation_after
+		 FROM change_log
+		 WHERE service = ? AND action = 'apply' AND status = 'completed'
+		 ORDER BY created_at DESC LIMIT 1`, service)
+	var info LastApplyInfo
+	err := row.Scan(&info.AppliedAt, &info.CPULimitAfter, &info.MemLimitAfter,
+		&info.CPUReservationAfter, &info.MemReservationAfter)
+	if err != nil {
+		return nil, err // sql.ErrNoRows se não houver
+	}
+	return &info, nil
 }
 
 // GetChangeLog retorna entradas do change_log, opcionalmente por serviço.
@@ -1588,4 +1672,180 @@ func round2(f float64) float64 {
 
 func round1(f float64) float64 {
 	return float64(int64(f*10+0.5)) / 10
+}
+
+// ---------------------------------------------------------------------------
+// rollback_watches (Right-Sizing Studio R5 — watcher de rollback automático)
+// ---------------------------------------------------------------------------
+
+// RollbackWatch representa uma entrada de rollback_watches.
+type RollbackWatch struct {
+	ID                   int32
+	ChangeLogID          int32
+	Service              string
+	CPULimitBefore       sql.NullFloat64
+	MemLimitBefore       sql.NullInt64
+	CPUReservationBefore sql.NullFloat64
+	MemReservationBefore sql.NullInt64
+	CPULimitAfter        sql.NullFloat64
+	MemLimitAfter        sql.NullInt64
+	CPUReservationAfter  sql.NullFloat64
+	MemReservationAfter  sql.NullInt64
+	Strategy             string
+	ObservationWindow    int
+	Criteria             string // JSON
+	Status               string // monitoring | optimized | rolled_back | expired | cancelled
+	TriggeredCriteria    sql.NullString
+	StartedAt            time.Time
+	ExpiresAt            time.Time
+	RolledBackAt         sql.NullTime
+	CreatedAt            time.Time
+}
+
+const rollbackWatchCols = `id, change_log_id, service,
+	cpu_limit_before, mem_limit_before, cpu_reservation_before, mem_reservation_before,
+	cpu_limit_after, mem_limit_after, cpu_reservation_after, mem_reservation_after,
+	strategy, observation_window, criteria, status, triggered_criteria,
+	started_at, expires_at, rolled_back_at, created_at`
+
+func scanRollbackWatch(rows *sql.Rows) (RollbackWatch, error) {
+	var w RollbackWatch
+	err := rows.Scan(&w.ID, &w.ChangeLogID, &w.Service,
+		&w.CPULimitBefore, &w.MemLimitBefore, &w.CPUReservationBefore, &w.MemReservationBefore,
+		&w.CPULimitAfter, &w.MemLimitAfter, &w.CPUReservationAfter, &w.MemReservationAfter,
+		&w.Strategy, &w.ObservationWindow, &w.Criteria, &w.Status, &w.TriggeredCriteria,
+		&w.StartedAt, &w.ExpiresAt, &w.RolledBackAt, &w.CreatedAt)
+	return w, err
+}
+
+// CreateRollbackWatch insere um novo watch e retorna o id.
+// expires_at é calculado como started_at + observation_window horas.
+func (s *Store) CreateRollbackWatch(ctx context.Context, w RollbackWatch) (int32, error) {
+	var id int32
+	err := s.db.QueryRowContext(ctx,
+		`INSERT INTO rollback_watches (change_log_id, service,
+			cpu_limit_before, mem_limit_before, cpu_reservation_before, mem_reservation_before,
+			cpu_limit_after, mem_limit_after, cpu_reservation_after, mem_reservation_after,
+			strategy, observation_window, criteria, status, started_at, expires_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'monitoring', now(),
+			cast(now() as TIMESTAMP) + INTERVAL '`+fmt.Sprintf("%d", w.ObservationWindow)+`' HOUR)
+		 RETURNING id`,
+		w.ChangeLogID, w.Service,
+		w.CPULimitBefore, w.MemLimitBefore, w.CPUReservationBefore, w.MemReservationBefore,
+		w.CPULimitAfter, w.MemLimitAfter, w.CPUReservationAfter, w.MemReservationAfter,
+		w.Strategy, w.ObservationWindow, w.Criteria).Scan(&id)
+	return id, err
+}
+
+// GetActiveRollbackWatches retorna watches com status='monitoring' e não expirados.
+func (s *Store) GetActiveRollbackWatches(ctx context.Context) ([]RollbackWatch, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+rollbackWatchCols+` FROM rollback_watches
+		 WHERE status = 'monitoring' AND expires_at > now()
+		 ORDER BY expires_at`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []RollbackWatch
+	for rows.Next() {
+		w, err := scanRollbackWatch(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, w)
+	}
+	return result, rows.Err()
+}
+
+// GetRollbackWatchByID busca um watch pelo id.
+func (s *Store) GetRollbackWatchByID(ctx context.Context, id int32) (*RollbackWatch, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT `+rollbackWatchCols+` FROM rollback_watches WHERE id = ?`, id)
+	var w RollbackWatch
+	if err := row.Scan(&w.ID, &w.ChangeLogID, &w.Service,
+		&w.CPULimitBefore, &w.MemLimitBefore, &w.CPUReservationBefore, &w.MemReservationBefore,
+		&w.CPULimitAfter, &w.MemLimitAfter, &w.CPUReservationAfter, &w.MemReservationAfter,
+		&w.Strategy, &w.ObservationWindow, &w.Criteria, &w.Status, &w.TriggeredCriteria,
+		&w.StartedAt, &w.ExpiresAt, &w.RolledBackAt, &w.CreatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &w, nil
+}
+
+// ListRollbackWatches lista watches com filtros opcionais (status, service, limit).
+func (s *Store) ListRollbackWatches(ctx context.Context, status, service string, limit int32) ([]RollbackWatch, error) {
+	q := `SELECT ` + rollbackWatchCols + ` FROM rollback_watches WHERE 1=1`
+	args := []any{}
+	if status != "" {
+		q += ` AND status = ?`
+		args = append(args, status)
+	}
+	if service != "" {
+		q += ` AND service = ?`
+		args = append(args, service)
+	}
+	q += ` ORDER BY created_at DESC LIMIT ?`
+	args = append(args, limit)
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []RollbackWatch
+	for rows.Next() {
+		w, err := scanRollbackWatch(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, w)
+	}
+	return result, rows.Err()
+}
+
+// UpdateRollbackWatchStatus atualiza status/triggered_criteria/rolled_back_at.
+func (s *Store) UpdateRollbackWatchStatus(ctx context.Context, id int32,
+	status, reason string, rolledBackAt *time.Time) error {
+	if rolledBackAt != nil {
+		_, err := s.db.ExecContext(ctx,
+			`UPDATE rollback_watches SET status = ?, triggered_criteria = ?,
+			 rolled_back_at = ?, updated_at = now() WHERE id = ?`,
+			status, reason, *rolledBackAt, id)
+		return err
+	}
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE rollback_watches SET status = ?, triggered_criteria = ?,
+		 updated_at = now() WHERE id = ?`, status, reason, id)
+	return err
+}
+
+// GetMetricsSince retorna métricas de um serviço desde um timestamp.
+// Usado pelo watcher para avaliar critérios de throttle e mem_pressure.
+func (s *Store) GetMetricsSince(ctx context.Context, service string, since time.Time) ([]MetricRow, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT ts, cpu_percent, mem_usage, mem_limit, mem_percent,
+				cpu_throttled_periods, cpu_throttled_time
+		 FROM metrics WHERE service = ? AND ts > ? ORDER BY ts`, service, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []MetricRow
+	for rows.Next() {
+		var r MetricRow
+		var memPercent sql.NullFloat64
+		var throttledPeriods, throttledTime sql.NullInt64
+		if err := rows.Scan(&r.TS, &r.CPUPercent, &r.MemUsage, &r.MemLimit,
+			&memPercent, &throttledPeriods, &throttledTime); err != nil {
+			return nil, err
+		}
+		r.MemPercent = memPercent.Float64
+		r.CPUThrottledPeriods = throttledPeriods.Int64
+		r.CPUThrottledTime = throttledTime.Int64
+		result = append(result, r)
+	}
+	return result, rows.Err()
 }

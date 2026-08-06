@@ -214,11 +214,11 @@ func pushLoop(ctx context.Context, p *internal.Pusher, buf *internal.Buffer, int
 				continue
 			}
 			if err := p.PushMetrics(ctx, points); err != nil {
-				log.Error("push metrics falhou — pontos perdidos (buffer drenado)", "count", len(points), "err", err)
-				// NOTA: não recolocamos no buffer para evitar duplicação.
-				// O ring buffer já descarta os mais antigos quando cheio,
-				// e o próximo ciclo de coleta adiciona novos pontos.
-				// Para OOM (crítico) usamos persistência em disco.
+				log.Warn("push metrics falhou — pontos retidos no buffer para reenvio", "count", len(points), "err", err)
+				// NOTA: Drain() retorna cópia sem limpar; Ack() não é chamado em falha,
+				// então os pontos permanecem no buffer e serão reenviados no próximo ciclo.
+				// O ring buffer descarta os mais antigos quando enche (FIFO).
+				// Para OOM (crítico) usamos persistência em disco (events.go).
 				continue
 			}
 			buf.Ack(len(points))

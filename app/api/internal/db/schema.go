@@ -251,6 +251,31 @@ func (s *Store) initSchema(ctx context.Context) error {
 			status     VARCHAR,
 			ts         TIMESTAMP DEFAULT now()
 		)`,
+		// --- rollback_watches (Right-Sizing Studio R5 — watcher de rollback automático pós-apply) ---
+		`CREATE SEQUENCE IF NOT EXISTS rollback_watches_id_seq START 1`,
+		`CREATE TABLE IF NOT EXISTS rollback_watches (
+			id                       INTEGER PRIMARY KEY DEFAULT nextval('rollback_watches_id_seq'),
+			change_log_id            INTEGER NOT NULL,
+			service                  VARCHAR NOT NULL,
+			cpu_limit_before         DOUBLE,
+			mem_limit_before         BIGINT,
+			cpu_reservation_before   DOUBLE,
+			mem_reservation_before   BIGINT,
+			cpu_limit_after          DOUBLE,
+			mem_limit_after          BIGINT,
+			cpu_reservation_after    DOUBLE,
+			mem_reservation_after    BIGINT,
+			strategy                 VARCHAR DEFAULT 'deferred',
+			observation_window       INTEGER DEFAULT 24,
+			criteria                 VARCHAR DEFAULT '{}',
+			status                   VARCHAR DEFAULT 'monitoring',
+			triggered_criteria       VARCHAR,
+			started_at               TIMESTAMP DEFAULT now(),
+			expires_at               TIMESTAMP NOT NULL,
+			rolled_back_at           TIMESTAMP,
+			created_at               TIMESTAMP DEFAULT now(),
+			updated_at               TIMESTAMP DEFAULT now()
+		)`,
 	}
 
 	for _, stmt := range stmts {

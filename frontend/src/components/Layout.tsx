@@ -31,8 +31,13 @@ function buildBreadcrumbs(pathname: string) {
         crumbs.push({ label: `Container ${decodeURIComponent(segments[3]).substring(0, 12)}` })
       }
     }
-  } else if (segments[0] === "recommendations") {
-    crumbs.push({ label: "Recomendações", to: "/recommendations" })
+  } else if (segments[0] === "optimizations") {
+    crumbs.push({ label: "Otimização de Recursos", to: "/optimizations" })
+    if (segments[1] === "rollback-watches") {
+      crumbs.push({ label: "Monitoramentos de Rollback", to: "/optimizations/rollback-watches" })
+    }
+  } else if (segments[0] === "rollback-watches") {
+    crumbs.push({ label: "Monitoramentos de Rollback", to: "/optimizations/rollback-watches" })
   } else if (segments[0] === "schedules") {
     crumbs.push({ label: "Agendamentos", to: "/schedules" })
   } else if (segments[0] === "templates") {
@@ -46,6 +51,8 @@ function buildBreadcrumbs(pathname: string) {
     crumbs.push({ label: "Tasks", to: "/tasks" })
   } else if (segments[0] === "alerts") {
     crumbs.push({ label: "Alertas", to: "/alerts" })
+  } else if (segments[0] === "rollback-watches") {
+    crumbs.push({ label: "Rollback Watches", to: "/rollback-watches" })
   } else if (segments[0] === "settings") {
     crumbs.push({ label: "Configurações", to: "/settings" })
     if (segments[1] === "users") crumbs.push({ label: "Usuários" })
@@ -78,7 +85,7 @@ export function Layout() {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="h-svh overflow-hidden">
         <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-card px-4">
           <SidebarTrigger />
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground overflow-hidden">

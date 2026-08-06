@@ -343,7 +343,7 @@ bench_sse() {
     # Coletar RAM (tentar docker, fallback para contagem de processos)
     local ram_during
     if [[ "${label}" == "Go" ]]; then
-        ram_during=$(measure_ram_docker "resma-api\|go-dev" 3 2>/dev/null || echo "N/A")
+        ram_during=$(measure_ram_docker "resma-api\|api" 3 2>/dev/null || echo "N/A")
     else
         ram_during=$(measure_ram_docker "resma-python\|backend" 3 2>/dev/null || echo "N/A")
     fi
@@ -436,7 +436,7 @@ main() {
     write_section "RAM — Idle (sem carga)"
 
     local go_ram_idle py_ram_idle
-    go_ram_idle=$(measure_ram_docker "resma-api\|go-dev\|api" 5 2>/dev/null || echo "N/A")
+    go_ram_idle=$(measure_ram_docker "resma-api\|api" 5 2>/dev/null || echo "N/A")
     echo "Go API RAM (idle):      ${go_ram_idle}" | tee -a "$RESULTS_FILE"
 
     if [[ "$py_available" == "true" ]]; then

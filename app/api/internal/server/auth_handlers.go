@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/resma/api/internal/auth"
+	"github.com/resma-swarm/resma/app/api/internal/auth"
 )
 
 // registerPublicAuthRoutes registra as rotas de auth SEM JWT (onboarding flow).

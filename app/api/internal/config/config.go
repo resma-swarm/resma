@@ -36,7 +36,7 @@ type Config struct {
 	LoginRateLimit int           // RESMA_LOGIN_RATE_LIMIT (tentativas/min)
 
 	// ML sidecar
-	MLURL     string // RESMA_ML_URL — ex: http://resma-ml:8081
+	MLURL     string // RESMA_ML_URL — ex: http://ml:8081
 	MLEnabled bool   // RESMA_ML_ENABLED
 
 	// Docker
@@ -63,6 +63,16 @@ type Config struct {
 	// Multi-node Agent (Fase 7)
 	AgentToken            string        // RESMA_AGENT_TOKEN (ou RESMA_AGENT_TOKEN_FILE) — bearer compartilhado
 	AgentTaskPollInterval time.Duration // RESMA_AGENT_TASK_POLL_INTERVAL (segundos) — default 15
+
+	// Rollback watcher (Right-Sizing Studio R5)
+	RollbackEnabled        bool          // RESMA_ROLLBACK_ENABLED — default false (opt-in)
+	RollbackPollInterval   time.Duration // RESMA_ROLLBACK_POLL_INTERVAL — default 30s
+	RollbackDefaultWindow  int           // RESMA_ROLLBACK_DEFAULT_WINDOW — default 24 (horas)
+	RollbackOOMThreshold   int           // RESMA_ROLLBACK_OOM_THRESHOLD — default 1
+	RollbackThrottlePct    float64       // RESMA_ROLLBACK_THROTTLE_PCT — default 10.0 (%)
+	RollbackThrottleMin    int           // RESMA_ROLLBACK_THROTTLE_MIN — default 5 (minutos consecutivos)
+	RollbackMemPressurePct float64       // RESMA_ROLLBACK_MEM_PRESSURE_PCT — default 95.0 (%)
+	RollbackMemPressureMin int           // RESMA_ROLLBACK_MEM_PRESSURE_MIN — default 5 (min consecutivos)
 }
 
 // Load lê as variáveis de ambiente e devolve uma Config pronta para uso.
@@ -71,7 +81,7 @@ type Config struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		DBPath:                getenv("RESMA_DB_PATH", "data/resma.duckdb"),
-		CollectInterval:       getDurationSecs("RESMA_COLLECT_INTERVAL", 1),
+		CollectInterval:       getDurationSecs("RESMA_COLLECT_INTERVAL", 10),
 		RetentionDays:         getInt("RESMA_RETENTION_DAYS", 30),
 		OutlierThreshold:      getFloat("RESMA_OUTLIER_THRESHOLD", 3.0),
 		LeakR2Threshold:       getFloat("RESMA_LEAK_R2_THRESHOLD", 0.7),
@@ -97,6 +107,16 @@ func Load() (*Config, error) {
 		APIKeyRateLimit:       getInt("RESMA_API_KEY_RATE_LIMIT", 100),
 		AgentToken:            getenvOrFile("RESMA_AGENT_TOKEN", "RESMA_AGENT_TOKEN_FILE", ""),
 		AgentTaskPollInterval: getDurationSecs("RESMA_AGENT_TASK_POLL_INTERVAL", 15),
+
+		// Rollback watcher (Right-Sizing Studio R5)
+		RollbackEnabled:        getBool("RESMA_ROLLBACK_ENABLED", false),
+		RollbackPollInterval:   getDurationSecs("RESMA_ROLLBACK_POLL_INTERVAL", 30),
+		RollbackDefaultWindow:  getInt("RESMA_ROLLBACK_DEFAULT_WINDOW", 24),
+		RollbackOOMThreshold:   getInt("RESMA_ROLLBACK_OOM_THRESHOLD", 1),
+		RollbackThrottlePct:    getFloat("RESMA_ROLLBACK_THROTTLE_PCT", 10.0),
+		RollbackThrottleMin:    getInt("RESMA_ROLLBACK_THROTTLE_MIN", 5),
+		RollbackMemPressurePct: getFloat("RESMA_ROLLBACK_MEM_PRESSURE_PCT", 95.0),
+		RollbackMemPressureMin: getInt("RESMA_ROLLBACK_MEM_PRESSURE_MIN", 5),
 	}
 
 	// Validação de JWT secret em produção (Fase 2.4)

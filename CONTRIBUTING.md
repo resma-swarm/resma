@@ -16,7 +16,7 @@ seguimos e o fluxo para enviar contribuições.
 | pre-commit    | 4+       | Hooks de pré-commit (`pip install pre-commit`)     |
 
 > **Importante:** O build, test e run do Go acontecem **dentro do container
-> `go-dev`** (profile `dev` do docker-compose.yml). O Go instalado no host é
+> `api`** (profile `dev` do docker-compose.yml). O Go instalado no host é
 > apenas para validações rápidas (`go vet`, `gofmt`), pois `go-duckdb` requer
 > CGO com ABI GNU libstdc++ (Debian).
 
@@ -73,23 +73,23 @@ pnpm dev
 
 ## Comandos de Desenvolvimento
 
-### API Go (dentro do container `go-dev`)
+### API Go (dentro do container `api`)
 
 ```bash
 # Build
-docker compose exec go-dev go build ./...
+docker compose exec api go build ./...
 
 # Testes
-docker compose exec go-dev go test -race -cover -timeout 120s ./...
+docker compose exec api go test -race -cover -timeout 120s ./...
 
 # Vet
-docker compose exec go-dev go vet ./...
+docker compose exec api go vet ./...
 
 # Formatar
-docker compose exec go-dev gofmt -l .
+docker compose exec api gofmt -l .
 
 # Rodar o servidor
-docker compose exec go-dev go run ./cmd/server
+docker compose exec api go run ./cmd/server
 ```
 
 ### ML Sidecar (dentro do container `ml-dev`)
@@ -188,9 +188,9 @@ git rebase upstream/main
 
 ```bash
 # Go
-docker compose exec go-dev go test -race -cover ./...
-docker compose exec go-dev go vet ./...
-docker compose exec go-dev gofmt -l .
+docker compose exec api go test -race -cover ./...
+docker compose exec api go vet ./...
+docker compose exec api gofmt -l .
 
 # Frontend
 cd frontend && pnpm build
@@ -307,13 +307,13 @@ resma/
 
 ```bash
 # Todos os testes com race detector e coverage
-docker compose exec go-dev go test -race -cover -timeout 120s ./...
+docker compose exec api go test -race -cover -timeout 120s ./...
 
 # Teste de um pacote específico
-docker compose exec go-dev go test -v ./internal/sse/...
+docker compose exec api go test -v ./internal/sse/...
 
 # Benchmark
-docker compose exec go-dev go test -bench=. ./internal/db/...
+docker compose exec api go test -bench=. ./internal/db/...
 ```
 
 ### Python (ML sidecar)
@@ -334,7 +334,7 @@ pnpm lint     # ESLint
 
 ```bash
 # Com a API rodando em dev:
-docker compose exec go-dev go run ./cmd/smoke-test
+docker compose exec api go run ./cmd/smoke-test
 ```
 
 ---

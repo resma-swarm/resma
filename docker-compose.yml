@@ -12,7 +12,7 @@
 # Para produção, usar docker-compose.swarm.yml via docker stack deploy.
 #
 # Serviços:
-#   go-dev            — Go API com air (hot reload Go)
+#   api               — Go API com air (hot reload Go)
 #   ml-dev            — ML sidecar Python com uvicorn --reload
 #   agent-dev         — RESMA Agent (node principal)
 #   frontend-dev      — Vite com hot reload React
@@ -20,19 +20,19 @@
 #
 # Uso:
 #   docker compose up -d
-#   docker compose logs -f go-dev
-#   docker compose exec go-dev bash
+#   docker compose logs -f api
+#   docker compose exec api bash
 
 services:
-  go-dev:
+  api:
     build:
       context: .
       dockerfile: app/api/Dockerfile
       target: dev
     volumes:
       - ./app/api:/src
-      - go-mod-cache:/go/pkg/mod
-      - go-build-cache:/root/.cache/go-build
+      - api-mod-cache:/go/pkg/mod
+      - api-build-cache:/root/.cache/go-build
       - ./data:/data
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
@@ -73,12 +73,12 @@ services:
     volumes:
       - ./app/ml:/app/app/ml
     environment:
-      - RESMA_API_URL=http://go-dev:8080
+      - RESMA_API_URL=http://api:8080
     ports:
       - "8081:8081"
     command: ["uvicorn", "app.ml.main:app", "--host", "0.0.0.0", "--port", "8081", "--reload"]
 
-  # Agent — coleta stats dos containers locais e faz push para o go-dev.
+  # Agent — coleta stats dos containers locais e faz push para o api.
   agent-dev:
     build:
       context: .
@@ -86,12 +86,12 @@ services:
       target: dev
     volumes:
       - ./app/agent:/src
-      - agent-go-mod-cache:/go/pkg/mod
-      - agent-go-build-cache:/root/.cache/go-build
+      - agent-mod-cache:/go/pkg/mod
+      - agent-build-cache:/root/.cache/go-build
       - /var/run/docker.sock:/var/run/docker.sock:ro
     working_dir: /src
     environment:
-      - RESMA_API_URL=http://go-dev:8080
+      - RESMA_API_URL=http://api:8080
       - RESMA_AGENT_TOKEN=${RESMA_AGENT_TOKEN:-dev-agent-token-change-me}
       - RESMA_COLLECT_INTERVAL=5
       - RESMA_HEARTBEAT_INTERVAL=60
@@ -100,7 +100,7 @@ services:
       - RESMA_OOM_EVENTS_FILE=/data/events.pending.jsonl
     command: ["go", "run", "./cmd/agent"]
     depends_on:
-      - go-dev
+      - api
 
   frontend-dev:
     image: node:22-alpine
@@ -111,10 +111,10 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_PROXY_TARGET=http://go-dev:8080
+      - VITE_PROXY_TARGET=http://api:8080
     command: ["sh", "-c", "corepack enable && corepack prepare pnpm@latest --activate && pnpm config set dangerouslyAllowAllBuilds true && pnpm install && pnpm dev --host 0.0.0.0"]
     depends_on:
-      - go-dev
+      - api
 
   # ---- Workers simulados (multi-node) ----
   # Cada agent usa um node_id/hostname distinto. Compartilham o mesmo
@@ -127,12 +127,12 @@ services:
       target: dev
     volumes:
       - ./app/agent:/src
-      - agent-go-mod-cache:/go/pkg/mod
-      - agent-go-build-cache:/root/.cache/go-build
+      - agent-mod-cache:/go/pkg/mod
+      - agent-build-cache:/root/.cache/go-build
       - /var/run/docker.sock:/var/run/docker.sock:ro
     working_dir: /src
     environment:
-      - RESMA_API_URL=http://go-dev:8080
+      - RESMA_API_URL=http://api:8080
       - RESMA_AGENT_TOKEN=${RESMA_AGENT_TOKEN:-dev-agent-token-change-me}
       - RESMA_COLLECT_INTERVAL=5
       - RESMA_HEARTBEAT_INTERVAL=30
@@ -141,7 +141,7 @@ services:
       - RESMA_OOM_EVENTS_FILE=/data/events.pending.jsonl
     command: ["go", "run", "./cmd/agent"]
     depends_on:
-      - go-dev
+      - api
 
   agent-worker-2:
     build:
@@ -150,12 +150,12 @@ services:
       target: dev
     volumes:
       - ./app/agent:/src
-      - agent-go-mod-cache:/go/pkg/mod
-      - agent-go-build-cache:/root/.cache/go-build
+      - agent-mod-cache:/go/pkg/mod
+      - agent-build-cache:/root/.cache/go-build
       - /var/run/docker.sock:/var/run/docker.sock:ro
     working_dir: /src
     environment:
-      - RESMA_API_URL=http://go-dev:8080
+      - RESMA_API_URL=http://api:8080
       - RESMA_AGENT_TOKEN=${RESMA_AGENT_TOKEN:-dev-agent-token-change-me}
       - RESMA_COLLECT_INTERVAL=5
       - RESMA_HEARTBEAT_INTERVAL=30
@@ -164,7 +164,7 @@ services:
       - RESMA_OOM_EVENTS_FILE=/data/events.pending.jsonl
     command: ["go", "run", "./cmd/agent"]
     depends_on:
-      - go-dev
+      - api
 
   agent-worker-3:
     build:
@@ -173,12 +173,12 @@ services:
       target: dev
     volumes:
       - ./app/agent:/src
-      - agent-go-mod-cache:/go/pkg/mod
-      - agent-go-build-cache:/root/.cache/go-build
+      - agent-mod-cache:/go/pkg/mod
+      - agent-build-cache:/root/.cache/go-build
       - /var/run/docker.sock:/var/run/docker.sock:ro
     working_dir: /src
     environment:
-      - RESMA_API_URL=http://go-dev:8080
+      - RESMA_API_URL=http://api:8080
       - RESMA_AGENT_TOKEN=${RESMA_AGENT_TOKEN:-dev-agent-token-change-me}
       - RESMA_COLLECT_INTERVAL=5
       - RESMA_HEARTBEAT_INTERVAL=30
@@ -187,11 +187,11 @@ services:
       - RESMA_OOM_EVENTS_FILE=/data/events.pending.jsonl
     command: ["go", "run", "./cmd/agent"]
     depends_on:
-      - go-dev
+      - api
 
 volumes:
-  go-mod-cache:
-  go-build-cache:
+  api-mod-cache:
+  api-build-cache:
   frontend-node-modules:
-  agent-go-mod-cache:
-  agent-go-build-cache:
+  agent-mod-cache:
+  agent-build-cache:

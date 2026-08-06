@@ -3,7 +3,7 @@
 // Estes endpoints (/api/internal/*) expõem dados do DuckDB para o ML sidecar
 // Python via HTTP, evitando o lock exclusivo do DuckDB quando ambos processos
 // sobem juntos. As rotas NÃO usam JWT — são acessadas apenas dentro da rede
-// Docker pelo ML sidecar (http://go-dev:8080/api/internal/*).
+// Docker pelo ML sidecar (http://api:8080/api/internal/*).
 package server
 
 import (
@@ -20,6 +20,7 @@ func (s *Server) registerInternalMLRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/internal/services/{service}/metrics", s.handleInternalServiceMetrics)
 	mux.HandleFunc("GET /api/internal/services/{service}/oom-count", s.handleInternalOOMCount)
 	mux.HandleFunc("GET /api/internal/services/{service}/config", s.handleInternalServiceConfig)
+	mux.HandleFunc("GET /api/internal/services/{service}/last-apply", s.handleInternalLastApply)
 	mux.HandleFunc("GET /api/internal/storage/volumes/metrics", s.handleInternalVolumeMetrics)
 }
 
@@ -119,31 +120,56 @@ func (s *Server) handleInternalServiceConfig(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusBadRequest, "missing service")
 		return
 	}
-	cfg, err := s.db.GetServiceConfigRow(r.Context(), service)
+	// Lê a config ao vivo do Docker (não do DB) para refletir o estado real,
+	// incluindo mudanças feitas fora da API (ex: docker service update).
+	res, err := s.docker.GetServiceResources(r.Context(), service)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if cfg == nil {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"cpu_limit":       0,
-			"mem_limit":       0,
-			"cpu_reservation": 0,
-			"mem_reservation": 0,
-			"template":        nil,
-		})
+	resp := map[string]any{
+		"cpu_limit":       res.CPULimit,
+		"mem_limit":       res.MemLimit,
+		"cpu_reservation": res.CPUReservation,
+		"mem_reservation": res.MemReservation,
+		"template":        nil,
+	}
+	// Mantém template do DB se existir (para overrides manuais)
+	if cfg, _ := s.db.GetServiceConfigRow(r.Context(), service); cfg != nil && cfg.Template.Valid {
+		resp["template"] = cfg.Template.String
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleInternalLastApply retorna o timestamp do último apply bem-sucedido de um serviço.
+// Usado pelo ML sidecar para distinguir OOMs antes vs depois do apply e classificar
+// o status "observing" (em observação pós-apply).
+func (s *Server) handleInternalLastApply(w http.ResponseWriter, r *http.Request) {
+	service := r.PathValue("service")
+	if service == "" {
+		writeError(w, http.StatusBadRequest, "missing service")
+		return
+	}
+	info, err := s.db.GetLastApply(r.Context(), service)
+	if err != nil || info == nil {
+		// Sem apply registrado — retorna null
+		writeJSON(w, http.StatusOK, map[string]any{"applied_at": nil})
 		return
 	}
 	resp := map[string]any{
-		"cpu_limit":       cfg.CPULimit.Float64,
-		"mem_limit":       cfg.MemLimit.Int64,
-		"cpu_reservation": cfg.CPUReservation.Float64,
-		"mem_reservation": cfg.MemReservation.Int64,
+		"applied_at": info.AppliedAt.Format(time.RFC3339Nano),
 	}
-	if cfg.Template.Valid {
-		resp["template"] = cfg.Template.String
-	} else {
-		resp["template"] = nil
+	if info.CPULimitAfter.Valid {
+		resp["cpu_limit_after"] = info.CPULimitAfter.Float64
+	}
+	if info.MemLimitAfter.Valid {
+		resp["mem_limit_after"] = info.MemLimitAfter.Int64
+	}
+	if info.CPUReservationAfter.Valid {
+		resp["cpu_reservation_after"] = info.CPUReservationAfter.Float64
+	}
+	if info.MemReservationAfter.Valid {
+		resp["mem_reservation_after"] = info.MemReservationAfter.Int64
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
