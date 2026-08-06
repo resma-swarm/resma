@@ -1,5 +1,5 @@
 /**
- * Studio — Right-Sizing Studio (rota /studio).
+ * Studio — Right-Sizing Studio (rota /optimizations).
  *
  * v2: cards compactos + Sheet lateral para edição + HelpIcons.
  * Layout: Hero → Filter chips → Cards compactos (botão Configurar abre Sheet).
@@ -445,7 +445,7 @@ export default function Studio() {
             {recalculating ? "Recalculando..." : "Recalcular"}
           </Button>
           <Button variant="outline" size="sm" asChild>
-            <Link to="/studio/rollback-watches">
+            <Link to="/optimizations/rollback-watches">
               <RotateCcw className="mr-2 h-4 w-4" />
               Monitoramentos de Rollback
             </Link>

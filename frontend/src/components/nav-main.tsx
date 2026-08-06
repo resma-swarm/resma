@@ -28,7 +28,7 @@ const navItems: NavItem[] = [
   { to: "/services", label: "Serviços", icon: Boxes },
   { to: "/tasks", label: "Tasks", icon: ListTodo },
   { to: "/alerts", label: "Alertas", icon: ShieldAlert },
-  { to: "/studio", label: "Otimização de Recursos", icon: Layers },
+  { to: "/optimizations", label: "Otimização de Recursos", icon: Layers },
   { to: "/templates", label: "Templates", icon: FileCode },
   { to: "/schedules", label: "Agendamentos", icon: CalendarClock },
 ]

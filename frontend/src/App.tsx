@@ -75,8 +75,8 @@ function AppGate() {
           <Route path="/nodes/:nodeId" element={<NodeDetail />} />
 
           {/* Less frequent routes — lazy loaded with Suspense */}
-          <Route path="/studio" element={<Suspense fallback={<RouteSpinner />}><Studio /></Suspense>} />
-          <Route path="/studio/rollback-watches" element={<Suspense fallback={<RouteSpinner />}><RollbackWatches /></Suspense>} />
+          <Route path="/optimizations" element={<Suspense fallback={<RouteSpinner />}><Studio /></Suspense>} />
+          <Route path="/optimizations/rollback-watches" element={<Suspense fallback={<RouteSpinner />}><RollbackWatches /></Suspense>} />
           <Route path="/templates" element={<Suspense fallback={<RouteSpinner />}><Templates /></Suspense>} />
           <Route path="/schedules" element={<Suspense fallback={<RouteSpinner />}><Schedules /></Suspense>} />
           <Route path="/tasks" element={<Suspense fallback={<RouteSpinner />}><Tasks /></Suspense>} />
