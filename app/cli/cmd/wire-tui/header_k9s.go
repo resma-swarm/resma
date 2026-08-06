@@ -57,11 +57,10 @@ func renderMetricBar(pct int, color lipgloss.Color) string {
 }
 
 func renderBrandSection(m model) string {
-	logo := " ____  ____  ____  _  _ \n" +
-		"|  _ \\|  _ \\/ ___|| || |\n" +
-		"| |_) | |_) \\___ \\| || |\n" +
-		"|  _ <|  __/ ___) |__   |\n" +
-		"|_| \\_\\_|  |____/   |_/ |"
+	logo := "  ___ ___ ___ __  __   _   \n" +
+		" | _ \\ __/ __|  \\/  | /_\\  \n" +
+		" |   / _|\\__ \\ |\\/| |/ _ \\ \n" +
+		" |_|_\\___|___/_|  |_/_/ \\_\\"
 
 	status := " ONLINE "
 	style := sStatus.Copy().Background(cResmaGreen)

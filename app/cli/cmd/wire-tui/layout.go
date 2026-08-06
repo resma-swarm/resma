@@ -101,10 +101,18 @@ func renderMainPanel(m model) string {
 }
 
 func renderSplash(m model) string {
+	logo := "  ___ ___ ___ __  __   _   \n" +
+		" | _ \\ __/ __|  \\/  | /_\\  \n" +
+		" |   / _|\\__ \\ |\\/| |/ _ \\ \n" +
+		" |_|_\\___|___/_|  |_/_/ \\_\\"
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center,
 		lipgloss.JoinVertical(lipgloss.Center,
-			sLogo.Render("RESMA MONITOR"),
-			sInfoVal.Render("Iniciando Dashboard..."),
+			sLogo.Render(logo),
+			"\n",
+			sInfoVal.Render("Docker Swarm Resource Manager"),
+			sMuted.Render("v0.1.0-wireframe"),
+			"\n",
+			sMuted.Render("Iniciando Dashboard..."),
 		))
 }
 
