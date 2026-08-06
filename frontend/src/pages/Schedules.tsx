@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { Link } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/api/client"
@@ -7,13 +6,16 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatBytes, formatCPU } from "@/lib/utils"
-import { CalendarClock, CheckCircle2, XCircle, AlertCircle, Clock, X, History, Filter } from "lucide-react"
+import { CalendarClock, CheckCircle2, XCircle, AlertCircle, Clock, X, History, Filter, Search, ArrowRight, FileText } from "lucide-react"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
+import { useFilterStore } from "@/stores/filter-store"
 import { toast } from "sonner"
 
 interface Schedule {
@@ -60,10 +62,41 @@ const statusConfig: Record<string, { label: string; variant: "success" | "second
   cancelled: { label: "Cancelado", variant: "outline", icon: XCircle },
 }
 
-function formatDate(ts: string | null): string {
+// Timestamp absoluto para tooltip (pt-BR completo com ano + segundos).
+function formatTimestamp(ts: string | null): string {
   if (!ts) return "—"
-  const d = new Date(ts)
-  return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+  try {
+    const d = new Date(ts)
+    return d.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+  } catch {
+    return ts
+  }
+}
+
+// timeAgo — timestamp relativo ("há 5min"), padrão do Studio/Alerts/RollbackWatches.
+function timeAgo(ts: string | null): string {
+  if (!ts) return "—"
+  try {
+    const d = new Date(ts)
+    const diffMs = Date.now() - d.getTime()
+    if (diffMs < 0) return formatTimestamp(ts)
+    const diffMin = Math.floor(diffMs / 60000)
+    if (diffMin < 1) return "agora"
+    if (diffMin < 60) return `há ${diffMin}min`
+    const diffH = Math.floor(diffMin / 60)
+    if (diffH < 24) return `há ${diffH}h`
+    const diffD = Math.floor(diffH / 24)
+    return `há ${diffD}d`
+  } catch {
+    return ts
+  }
 }
 
 function formatVal(v: number | null, fmt: "cpu" | "mem"): string {
@@ -71,12 +104,38 @@ function formatVal(v: number | null, fmt: "cpu" | "mem"): string {
   return fmt === "cpu" ? formatCPU(v) : formatBytes(v)
 }
 
+// TimestampCell — timestamp relativo com tooltip mostrando absoluto.
+// Padrão evoluído: Alerts, Studio, RollbackWatches.
+function TimestampCell({ ts }: { ts: string | null }) {
+  if (!ts) return <span className="text-muted-foreground">—</span>
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="cursor-help text-sm text-muted-foreground">{timeAgo(ts)}</span>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{formatTimestamp(ts)}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
 export default function Schedules() {
   const queryClient = useQueryClient()
-  const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [logFilter, setLogFilter] = useState<string>("all")
+  const {
+    schedulesStatus: statusFilter,
+    setSchedulesStatus: setStatusFilter,
+    schedulesLogSource: logFilter,
+    setSchedulesLogSource: setLogFilter,
+    schedulesSearch: search,
+    setSchedulesSearch: setSearch,
+    schedulesTab: activeTab,
+    setSchedulesTab: setActiveTab,
+  } = useFilterStore()
 
-  // SSE: assina change-log (Gap C) — disparado pelo scheduler quando um
+  // SSE: assina change-log — disparado pelo scheduler quando um
   // schedule executa/falha/pula. Substitui polling fixo de 30s por tempo real.
   const { isConnected: sseConnected } = useEventSource({
     topic: "change-log",
@@ -111,16 +170,56 @@ export default function Schedules() {
   const completed = schedules.filter((s) => s.status === "completed")
   const failed = schedules.filter((s) => s.status === "failed")
   const cancelled = schedules.filter((s) => s.status === "cancelled")
+  const historySchedules = [...completed, ...failed, ...cancelled]
 
-  const filteredSchedules = statusFilter === "all" ? schedules : schedules.filter((s) => s.status === statusFilter)
-  const filteredLog = logFilter === "all" ? (changeLog || []) : (changeLog || []).filter((e) => e.source === logFilter)
+  // Busca textual — filtra por service e message/error em todas as abas.
+  const searchFilter = (item: { service: string; error?: string | null; action?: string }) => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    if (item.service.toLowerCase().includes(q)) return true
+    if (item.error && item.error.toLowerCase().includes(q)) return true
+    if (item.action && item.action.toLowerCase().includes(q)) return true
+    return false
+  }
+
+  // Aba Pendentes: só pending, filtrado por busca.
+  const filteredPending = pending.filter(searchFilter)
+
+  // Aba Histórico: completed/failed/cancelled, filtrado por status + busca.
+  const filteredHistory = (statusFilter === "all" ? historySchedules : historySchedules.filter((s) => s.status === statusFilter)).filter(searchFilter)
+
+  // Aba Auditoria: change-log, filtrado por source + busca.
+  const filteredLog = (logFilter === "all" ? (changeLog || []) : (changeLog || []).filter((e) => e.source === logFilter)).filter(searchFilter)
 
   const summaryCards = [
-    { label: "Pendentes", value: pending.length, icon: Clock, color: "text-warning", bg: "bg-warning/10" },
-    { label: "Concluídos", value: completed.length, icon: CheckCircle2, color: "text-success", bg: "bg-success/10" },
-    { label: "Falhas", value: failed.length, icon: XCircle, color: "text-destructive", bg: "bg-destructive/10" },
-    { label: "Cancelados", value: cancelled.length, icon: XCircle, color: "text-muted-foreground", bg: "bg-muted" },
+    { label: "Pendentes", value: pending.length, icon: Clock, color: "text-warning", bg: "bg-warning/10", status: "pending", tab: "pending" },
+    { label: "Concluídos", value: completed.length, icon: CheckCircle2, color: "text-success", bg: "bg-success/10", status: "completed", tab: "history" },
+    { label: "Falhas", value: failed.length, icon: XCircle, color: "text-destructive", bg: "bg-destructive/10", status: "failed", tab: "history" },
+    { label: "Cancelados", value: cancelled.length, icon: XCircle, color: "text-muted-foreground", bg: "bg-muted", status: "cancelled", tab: "history" },
   ]
+
+  // Click no stat card → troca aba + filtra por status.
+  const handleCardClick = (card: typeof summaryCards[number]) => {
+    setActiveTab(card.tab)
+    if (card.tab === "history") {
+      setStatusFilter(card.status)
+    }
+  }
+
+  // Card ativo: quando a aba e o filtro correspondem ao card.
+  const isCardActive = (card: typeof summaryCards[number]) => {
+    if (card.tab !== activeTab) return false
+    if (card.tab === "pending") return true
+    return statusFilter === card.status
+  }
+
+  const hasFilters = search !== "" || statusFilter !== "all" || logFilter !== "all"
+
+  const clearFilters = () => {
+    setSearch("")
+    setStatusFilter("all")
+    setLogFilter("all")
+  }
 
   if (isLoading) {
     return (
@@ -146,9 +245,14 @@ export default function Schedules() {
         </Badge>
       </PageHeader>
 
+      {/* Stat cards clicáveis — filtram a tabela ao clicar (padrão RollbackWatches). */}
       <div className="grid gap-4 md:grid-cols-4">
         {summaryCards.map((card) => (
-          <Card key={card.label} className="hover:border-primary/40 transition-all">
+          <Card
+            key={card.label}
+            className={`hover:border-primary/40 transition-all cursor-pointer ${isCardActive(card) ? "ring-2 ring-primary" : ""}`}
+            onClick={() => handleCardClick(card)}
+          >
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium text-muted-foreground">{card.label}</CardTitle>
@@ -164,43 +268,62 @@ export default function Schedules() {
         ))}
       </div>
 
-      <Tabs defaultValue="schedules">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="schedules">
+          <TabsTrigger value="pending">
             <CalendarClock className="mr-1.5 h-3.5 w-3.5" />
-            Agendamentos
+            Pendentes
+            {pending.length > 0 && <Badge variant="warning" className="ml-1.5 h-4 px-1 text-xs">{pending.length}</Badge>}
           </TabsTrigger>
           <TabsTrigger value="history">
             <History className="mr-1.5 h-3.5 w-3.5" />
-            Histórico de Alterações
+            Histórico
+          </TabsTrigger>
+          <TabsTrigger value="audit">
+            <FileText className="mr-1.5 h-3.5 w-3.5" />
+            Auditoria
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="schedules" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">
-              {filteredSchedules.length} de {schedules.length} agendamentos
+        {/* Aba Pendentes — schedules aguardando execução (acionável: cancelar). */}
+        <TabsContent value="pending" className="space-y-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-48">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar serviço ou mensagem..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+            <span className="text-sm text-muted-foreground ml-auto">
+              {filteredPending.length} de {pending.length} pendentes
             </span>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1.5">
-                  <Filter className="h-3.5 w-3.5" />
-                  {statusFilter === "all" ? "Todos" : statusConfig[statusFilter]?.label ?? statusFilter}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setStatusFilter("all")}>Todos ({schedules.length})</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setStatusFilter("pending")}>Pendentes ({pending.length})</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setStatusFilter("completed")}>Concluídos ({completed.length})</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setStatusFilter("failed")}>Falhas ({failed.length})</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setStatusFilter("cancelled")}>Cancelados ({cancelled.length})</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {hasFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
+                <X className="h-3.5 w-3.5" />
+                Limpar
+              </Button>
+            )}
           </div>
 
-          {filteredSchedules.length === 0 ? (
+          {filteredPending.length === 0 ? (
             <Card>
-              <EmptyState icon={CalendarClock} message="Nenhum agendamento encontrado" />
+              <EmptyState
+                icon={CalendarClock}
+                message={pending.length === 0 ? "Nenhum agendamento pendente." : "Nenhum resultado para a busca."}
+                action={
+                  pending.length === 0 ? (
+                    <Button asChild variant="outline" size="sm" className="gap-1.5">
+                      <Link to="/optimizations">
+                        Ver recomendações
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
+                    </Button>
+                  ) : undefined
+                }
+              />
             </Card>
           ) : (
             <Card>
@@ -213,13 +336,11 @@ export default function Schedules() {
                       <TableHead className="text-right">CPU Lim</TableHead>
                       <TableHead className="text-right">Mem Lim</TableHead>
                       <TableHead>Agendado para</TableHead>
-                      <TableHead>Aplicado em</TableHead>
-                      <TableHead className="text-center">Tentativas</TableHead>
                       <TableHead className="w-12"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredSchedules.map((s) => {
+                    {filteredPending.map((s) => {
                       const cfg = statusConfig[s.status] ?? { label: s.status, variant: "outline" as const, icon: AlertCircle }
                       return (
                         <TableRow key={s.id}>
@@ -234,11 +355,7 @@ export default function Schedules() {
                           </TableCell>
                           <TableCell className="text-right tabular-nums text-muted-foreground">{formatVal(s.cpu_limit, "cpu")}</TableCell>
                           <TableCell className="text-right tabular-nums text-muted-foreground">{formatVal(s.mem_limit, "mem")}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{formatDate(s.scheduled_at)}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{formatDate(s.applied_at)}</TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant="outline" className="tabular-nums">{s.attempts}</Badge>
-                          </TableCell>
+                          <TableCell><TimestampCell ts={s.scheduled_at} /></TableCell>
                           <TableCell>
                             {s.status === "pending" && (
                               <Button
@@ -261,29 +378,149 @@ export default function Schedules() {
           )}
         </TabsContent>
 
+        {/* Aba Histórico — schedules já executados (completed/failed/cancelled). */}
         <TabsContent value="history" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">
-              {filteredLog.length} de {(changeLog || []).length} alterações
-            </span>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-48">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar serviço ou mensagem..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8"
+              />
+            </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-1.5">
                   <Filter className="h-3.5 w-3.5" />
-                  {logFilter === "all" ? "Todas as fontes" : logFilter === "manual" ? "Manual" : "Scheduler"}
+                  {statusFilter === "all" ? "Todos" : statusConfig[statusFilter]?.label ?? statusFilter}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setStatusFilter("all")}>Todos ({historySchedules.length})</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setStatusFilter("completed")}>Concluídos ({completed.length})</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setStatusFilter("failed")}>Falhas ({failed.length})</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setStatusFilter("cancelled")}>Cancelados ({cancelled.length})</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <span className="text-sm text-muted-foreground ml-auto">
+              {filteredHistory.length} de {historySchedules.length} agendamentos
+            </span>
+            {hasFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
+                <X className="h-3.5 w-3.5" />
+                Limpar
+              </Button>
+            )}
+          </div>
+
+          {filteredHistory.length === 0 ? (
+            <Card>
+              <EmptyState
+                icon={History}
+                message={historySchedules.length === 0 ? "Nenhum agendamento executado ainda." : "Nenhum resultado para os filtros selecionados."}
+                action={
+                  historySchedules.length === 0 ? (
+                    <Button asChild variant="outline" size="sm" className="gap-1.5">
+                      <Link to="/optimizations">
+                        Ver recomendações
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
+                    </Button>
+                  ) : undefined
+                }
+              />
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Serviço</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">CPU Lim</TableHead>
+                      <TableHead className="text-right">Mem Lim</TableHead>
+                      <TableHead>Agendado para</TableHead>
+                      <TableHead>Aplicado em</TableHead>
+                      <TableHead className="text-center">Tentativas</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredHistory.map((s) => {
+                      const cfg = statusConfig[s.status] ?? { label: s.status, variant: "outline" as const, icon: AlertCircle }
+                      return (
+                        <TableRow key={s.id}>
+                          <TableCell className="font-medium">
+                            <Link to={`/services/${s.service}`} className="text-primary hover:underline">{s.service}</Link>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={cfg.variant} className="gap-1">
+                              <cfg.icon className="h-3 w-3" />
+                              {cfg.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums text-muted-foreground">{formatVal(s.cpu_limit, "cpu")}</TableCell>
+                          <TableCell className="text-right tabular-nums text-muted-foreground">{formatVal(s.mem_limit, "mem")}</TableCell>
+                          <TableCell><TimestampCell ts={s.scheduled_at} /></TableCell>
+                          <TableCell><TimestampCell ts={s.applied_at} /></TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline" className="tabular-nums">{s.attempts}</Badge>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Aba Auditoria — change-log (audit de todas mudanças: manual/scheduler/rollback). */}
+        <TabsContent value="audit" className="space-y-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-48">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar serviço ou mensagem..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  <Filter className="h-3.5 w-3.5" />
+                  {logFilter === "all" ? "Todas as fontes" : logFilter === "manual" ? "Manual" : logFilter === "scheduler" ? "Scheduler" : logFilter === "auto" ? "Auto" : logFilter}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setLogFilter("all")}>Todas as fontes</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setLogFilter("manual")}>Manual</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setLogFilter("scheduler")}>Scheduler</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setLogFilter("auto")}>Auto (rollback)</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <span className="text-sm text-muted-foreground ml-auto">
+              {filteredLog.length} de {(changeLog || []).length} alterações
+            </span>
+            {hasFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
+                <X className="h-3.5 w-3.5" />
+                Limpar
+              </Button>
+            )}
           </div>
 
           {filteredLog.length === 0 ? (
             <Card>
-              <EmptyState icon={History} message="Nenhuma alteração registrada" />
+              <EmptyState
+                icon={FileText}
+                message={(changeLog || []).length === 0 ? "Nenhuma alteração registrada." : "Nenhum resultado para os filtros selecionados."}
+              />
             </Card>
           ) : (
             <Card>
@@ -309,12 +546,12 @@ export default function Schedules() {
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">
-                            {e.action === "apply" ? "Aplicar" : e.action === "scheduled_apply" ? "Agendado" : e.action}
+                            {e.action === "apply" ? "Aplicar" : e.action === "scheduled_apply" ? "Agendado" : e.action === "rollback" ? "Rollback" : e.action}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <Badge variant={e.source === "manual" ? "secondary" : "outline"} className="text-xs">
-                            {e.source === "manual" ? "Manual" : "Scheduler"}
+                            {e.source === "manual" ? "Manual" : e.source === "scheduler" ? "Scheduler" : e.source === "auto" ? "Auto" : e.source}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{e.user ?? "—"}</TableCell>
@@ -332,7 +569,7 @@ export default function Schedules() {
                             {e.status === "completed" ? "OK" : "Erro"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{formatDate(e.created_at)}</TableCell>
+                        <TableCell><TimestampCell ts={e.created_at} /></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
