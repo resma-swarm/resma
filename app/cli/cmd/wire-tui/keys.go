@@ -2,6 +2,7 @@ package main
 
 import (
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -144,10 +145,12 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.enterDetail()
 		case "shift+left":
 			m.selColLeft()
-			return m, nil
+			m.selColAt = time.Now()
+			return m, selColExpire()
 		case "shift+right":
 			m.selColRight()
-			return m, nil
+			m.selColAt = time.Now()
+			return m, selColExpire()
 		case "shift+up":
 			// Alternar direção reverso: None → Desc → Asc → None
 			if m.selCol >= 0 {
@@ -157,7 +160,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.sortCol = -1
 				}
 			}
-			return m, nil
+			m.selColAt = time.Now()
+			return m, selColExpire()
 		case "shift+down":
 			// Alternar direção: None → Asc → Desc → None
 			if m.selCol >= 0 {
@@ -167,7 +171,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.sortCol = -1
 				}
 			}
-			return m, nil
+			m.selColAt = time.Now()
+			return m, selColExpire()
 		default:
 			// Qualquer outra tecla: desmarcar seleção de coluna
 			m.selCol = -1
