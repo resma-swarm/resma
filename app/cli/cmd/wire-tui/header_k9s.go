@@ -18,7 +18,7 @@ func renderHeaderRich(m model) string {
 	// 3. Brand & Status (Direita)
 	logoSection := renderBrandSection(m)
 
-	// Regras de largura — logo ASCII precisa de 28 chars mínimo
+	// Regras de largura — logo ASCII precisa de 30 chars mínimo
 	logoW := 30
 	infoW := 31
 	menuW := m.width - logoW - infoW
@@ -56,11 +56,19 @@ func renderMetricBar(pct int, color lipgloss.Color) string {
 	return lipgloss.NewStyle().Foreground(color).Render(bar) + fmt.Sprintf(" %d%%", pct)
 }
 
+// renderBrandSection renderiza o logo ASCII + status bar.
+// O logo é renderizado como um bloco único (sem JoinVertical com separadores)
+// para preservar todos os caracteres incluindo underscores do topo.
 func renderBrandSection(m model) string {
-	logo := "  ___ ___ ___ __  __   _   \n" +
-		" | _ \\ __/ __|  \\/  | /_\\  \n" +
-		" |   / _|\\__ \\ |\\/| |/ _ \\ \n" +
-		" |_|_\\___|___/_|  |_/_/ \\_\\"
+	// Figlet "Small" — 4 linhas de logo + 1 linha em branco no topo
+	// para alinhar com a ClusterInfo (6 linhas).
+	// Todas as linhas têm exatamente 28 chars para consistência.
+	logoBlock := "                            \n" +
+		"  ___ ___ ___ __  __   _    \n" +
+		" | _ \\ __/ __|  \\/  | /_\\   \n" +
+		" |   / _|\\__ \\ |\\/| |/ _ \\  \n" +
+		" |_|_\\___|___/_|  |_/_/ \\_\\ \n" +
+		"                            \n"
 
 	status := " ONLINE "
 	style := sStatus.Copy().Background(cResmaGreen)
@@ -77,12 +85,16 @@ func renderBrandSection(m model) string {
 		style = sStatus.Copy().Background(cResmaWarning)
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Center,
-		"\n",
-		sLogo.Render(logo),
-		"\n",
-		style.Render(status),
-	)
+	// Logo colorido como bloco único
+	logoStyled := sLogo.Render(logoBlock)
+
+	// Status centralizado na largura do logo
+	statusStyled := lipgloss.NewStyle().
+		Width(28).
+		AlignHorizontal(lipgloss.Center).
+		Render(style.Render(status))
+
+	return logoStyled + statusStyled
 }
 
 func renderMenu(m model) string {
@@ -98,12 +110,10 @@ func renderMenu(m model) string {
 	}
 
 	// Calcular largura máxima de cada coluna (key+desc+espaços)
-	// Usar largura visual (sem ANSI) para alinhamento
 	colWidths := make([]int, colCount)
 	for c, col := range cols {
 		maxW := 0
 		for _, h := range col {
-			// "[key] desc" = len(key)+4 chars de brackets/espaço + len(desc)
 			w := len(h.Key) + 4 + len(h.Desc)
 			if w > maxW {
 				maxW = w
@@ -116,14 +126,12 @@ func renderMenu(m model) string {
 	for row := 0; row < maxRows; row++ {
 		for c := 0; c < colCount; c++ {
 			if row >= len(cols[c]) {
-				// padding vazio para manter alinhamento
 				sb.WriteString(strings.Repeat(" ", colWidths[c]+3))
 				continue
 			}
 			h := cols[c][row]
 			key := sMenuKey.Render("[" + h.Key + "]")
 			desc := sMenuDesc.Render(h.Desc)
-			// largura visual desta célula
 			visW := len(h.Key) + 4 + len(h.Desc)
 			pad := colWidths[c] - visW
 			if pad < 0 {
