@@ -98,7 +98,7 @@ func renderBrandSection(m model) string {
 
 func renderMenu(m model) string {
 	hints := menuHints(m)
-	const maxRows = 6
+	const maxRows = 5
 
 	// Distribuir hints em colunas de maxRows linhas cada
 	colCount := (len(hints) + maxRows - 1) / maxRows

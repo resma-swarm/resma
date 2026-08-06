@@ -25,11 +25,6 @@ func renderDashboard(m model) string {
 		return renderHelp(m)
 	}
 
-	// Logs view é fullscreen (sem header/tabs)
-	if m.viewMode == ViewLogs {
-		return renderLogsView(m)
-	}
-
 	// 1. Header Superior Rico (8 linhas)
 	header := renderHeaderRich(m)
 
@@ -47,6 +42,11 @@ func renderDashboard(m model) string {
 	}
 
 	content := renderContentArea(m, contentHeight)
+
+	// 4.5 Popup de log (overlay sobre o conteúdo)
+	if m.viewMode == ViewLogs && m.logPopup {
+		content = renderLogPopup(m)
+	}
 
 	// 4. Crumbs de Navegação
 	crumbs := renderCrumbs(m)
@@ -73,9 +73,12 @@ func renderDashboard(m model) string {
 
 func renderContentArea(m model, height int) string {
 	var body string
-	if m.viewMode == ViewDetail {
+	switch m.viewMode {
+	case ViewDetail:
 		body = renderDetailView(m)
-	} else {
+	case ViewLogs:
+		body = renderLogsView(m, height)
+	default:
 		body = renderMainPanel(m)
 	}
 

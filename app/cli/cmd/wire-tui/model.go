@@ -49,22 +49,24 @@ var tabNames = []string{
 
 // model é o estado raiz do wireframe.
 type model struct {
-	activeTab    TabID
-	viewMode     ViewMode
-	focusedPanel PanelID
-	cursor       int
-	width        int
-	height       int
-	clock        time.Time
-	quitting     bool
-	inputBuf     string
-	filter       string
-	selectedItem string // nome do item em drill-down
-	flash        flashMessage
-	splash       bool   // mostrar splash no startup
-	logScroll    int    // offset de scroll na view de logs
-	logFollow    bool   // auto-scroll para o fim (tail)
-	logFilter    string // filtro de logs
+	activeTab      TabID
+	viewMode       ViewMode
+	focusedPanel   PanelID
+	cursor         int
+	width          int
+	height         int
+	clock          time.Time
+	quitting       bool
+	inputBuf       string
+	filter         string
+	selectedItem   string // nome do item em drill-down
+	flash          flashMessage
+	splash         bool   // mostrar splash no startup
+	logCursor      int    // cursor de navegação nos logs
+	logFollow      bool   // auto-scroll para o fim (tail)
+	logFilter      string // filtro de logs
+	logPopup       bool   // popup de mensagem completa aberto
+	filterFromLogs bool   // filter foi aberto da view de logs
 }
 
 func initialModel() model {

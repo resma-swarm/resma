@@ -7,18 +7,9 @@ type KeyHint struct {
 }
 
 // menuHints retorna as keyhints ativas para o contexto atual.
+// Tab nav (0-5) é omitida — já está na tab bar.
 func menuHints(m model) []KeyHint {
 	var hints []KeyHint
-
-	// Tab navigation (sempre presente)
-	hints = append(hints,
-		KeyHint{"0", "Services"},
-		KeyHint{"1", "Nodes"},
-		KeyHint{"2", "Agents"},
-		KeyHint{"3", "Tasks"},
-		KeyHint{"4", "Alerts"},
-		KeyHint{"5", "Recs"},
-	)
 
 	// Ações por view mode
 	switch m.viewMode {
@@ -27,7 +18,7 @@ func menuHints(m model) []KeyHint {
 			KeyHint{"Enter", "Detail"},
 			KeyHint{"l", "Logs"},
 			KeyHint{"/", "Filter"},
-			KeyHint{":", "Command"},
+			KeyHint{":", "Cmd"},
 		)
 		switch m.activeTab {
 		case TabRecommendations:
@@ -43,9 +34,17 @@ func menuHints(m model) []KeyHint {
 	case ViewDetail:
 		hints = append(hints,
 			KeyHint{"Esc", "Back"},
+			KeyHint{"l", "Logs"},
 			KeyHint{"a", "Apply"},
 			KeyHint{"e", "Edit"},
-			KeyHint{"l", "Logs"},
+		)
+	case ViewLogs:
+		hints = append(hints,
+			KeyHint{"j/k", "Scroll"},
+			KeyHint{"Enter", "Expand"},
+			KeyHint{"f", "Follow"},
+			KeyHint{"/", "Filter"},
+			KeyHint{"Esc", "Back"},
 		)
 	case ViewFilter:
 		hints = append(hints,
@@ -54,9 +53,8 @@ func menuHints(m model) []KeyHint {
 		)
 	case ViewCommand:
 		hints = append(hints,
-			KeyHint{"Enter", "Execute"},
+			KeyHint{"Enter", "Exec"},
 			KeyHint{"Esc", "Cancel"},
-			KeyHint{"Tab", "Complete"},
 		)
 	}
 

@@ -7,9 +7,10 @@ type mockLogEntry struct {
 	message   string
 }
 
-// mockLogsFor retorna logs mockados para um serviço.
-func mockLogsFor(service string) []mockLogEntry {
-	switch service {
+// mockLogsFor retorna logs mockados para qualquer item (service, node, agent, task).
+func mockLogsFor(name string) []mockLogEntry {
+	switch name {
+	// Services
 	case "api":
 		return apiLogs
 	case "ml-inference":
@@ -26,6 +27,21 @@ func mockLogsFor(service string) []mockLogEntry {
 		return frontendLogs
 	case "batch-processor":
 		return batchLogs
+	// Nodes
+	case "node-1":
+		return node1Logs
+	case "node-2":
+		return node2Logs
+	case "node-3":
+		return node3Logs
+	case "node-4":
+		return node4Logs
+	case "node-5":
+		return node5Logs
+	// Agents (usam mesmos IDs que nodes)
+	case "agent-1":
+		return agentLogs
+	// Default
 	default:
 		return defaultLogs
 	}
@@ -165,4 +181,58 @@ var defaultLogs = []mockLogEntry{
 	{"2026-01-15T14:30:00Z", "INFO", "Service started"},
 	{"2026-01-15T14:30:05Z", "INFO", "Health check passed"},
 	{"2026-01-15T14:30:10Z", "DEBUG", "Ready"},
+}
+
+var node1Logs = []mockLogEntry{
+	{"2026-01-15T14:20:00Z", "INFO", "node-1: Swarm manager initialized (leader)"},
+	{"2026-01-15T14:20:05Z", "INFO", "node-1: Overlay network resma-net ready"},
+	{"2026-01-15T14:25:00Z", "INFO", "node-1: 8 containers running (api, ml, frontend, worker)"},
+	{"2026-01-15T14:30:00Z", "DEBUG", "node-1: CPU 45%, MEM 52%, Disk 38%"},
+	{"2026-01-15T14:32:00Z", "INFO", "node-1: Agent heartbeat received (v7.8.1)"},
+	{"2026-01-15T14:32:30Z", "DEBUG", "node-1: 240 metrics points ingested"},
+}
+
+var node2Logs = []mockLogEntry{
+	{"2026-01-15T14:20:00Z", "INFO", "node-2: Swarm worker joined cluster"},
+	{"2026-01-15T14:25:00Z", "INFO", "node-2: 4 containers running (worker, postgres)"},
+	{"2026-01-15T14:30:00Z", "WARN", "node-2: CPU 72% sustained for 5min"},
+	{"2026-01-15T14:32:00Z", "ERROR", "node-2: Task task-7 OOMKilled (batch-processor)"},
+	{"2026-01-15T14:32:50Z", "INFO", "node-2: Agent heartbeat received (v7.8.1)"},
+}
+
+var node3Logs = []mockLogEntry{
+	{"2026-01-15T14:20:00Z", "INFO", "node-3: Swarm worker joined cluster"},
+	{"2026-01-15T14:25:00Z", "INFO", "node-3: 3 containers running (redis, nginx)"},
+	{"2026-01-15T14:30:00Z", "DEBUG", "node-3: CPU 38%, MEM 41%, Disk 45%"},
+	{"2026-01-15T14:32:00Z", "ERROR", "node-3: Task task-8 OOMKilled (batch-processor)"},
+	{"2026-01-15T14:32:50Z", "INFO", "node-3: Agent heartbeat received (v7.8.1)"},
+}
+
+var node4Logs = []mockLogEntry{
+	{"2026-01-15T14:20:00Z", "INFO", "node-4: Swarm worker joined cluster"},
+	{"2026-01-15T14:25:00Z", "INFO", "node-4: 2 containers running (ml-inference replica)"},
+	{"2026-01-15T14:30:00Z", "WARN", "node-4: Disk 71% (threshold: 70%)"},
+	{"2026-01-15T14:31:00Z", "WARN", "node-4: Agent version mismatch: 7.8.0 vs 7.8.1"},
+	{"2026-01-15T14:32:50Z", "INFO", "node-4: Agent heartbeat received (v7.8.0)"},
+}
+
+var node5Logs = []mockLogEntry{
+	{"2026-01-15T14:20:00Z", "INFO", "node-5: Swarm worker joined cluster"},
+	{"2026-01-15T14:25:00Z", "WARN", "node-5: Agent heartbeat missed (last seen: 5m ago)"},
+	{"2026-01-15T14:30:00Z", "ERROR", "node-5: Agent unreachable (connection refused)"},
+	{"2026-01-15T14:32:00Z", "ERROR", "node-5: Node marked as down (last seen: 15m ago)"},
+	{"2026-01-15T14:33:00Z", "ERROR", "node-5: 2 tasks orphaned, rescheduling..."},
+}
+
+var agentLogs = []mockLogEntry{
+	{"2026-01-15T14:30:00Z", "INFO", "RESMA Agent v7.8.1 started"},
+	{"2026-01-15T14:30:01Z", "INFO", "Connected to Docker socket at /var/run/docker.sock"},
+	{"2026-01-15T14:30:02Z", "INFO", "Pushing metrics to http://api:8080/api/agent/ingest/metrics"},
+	{"2026-01-15T14:30:05Z", "DEBUG", "Collecting stats for 4 local containers"},
+	{"2026-01-15T14:30:10Z", "DEBUG", "Heartbeat sent to http://api:8080/api/agent/heartbeat"},
+	{"2026-01-15T14:30:15Z", "INFO", "Metrics buffer: 16 points flushed (4 containers × 4 metrics)"},
+	{"2026-01-15T14:30:30Z", "DEBUG", "OOM event detected: batch-processor (exit code 137)"},
+	{"2026-01-15T14:30:31Z", "INFO", "OOM event pushed to API"},
+	{"2026-01-15T14:31:00Z", "DEBUG", "Collecting stats for 4 local containers"},
+	{"2026-01-15T14:31:05Z", "DEBUG", "Heartbeat sent (uptime: 5m, metrics: 32 total)"},
 }
