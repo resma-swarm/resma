@@ -842,24 +842,56 @@ func renderTabBar(m DashboardModel) string {
 }
 ```
 
-### 6.4 ServiceTable (bubbles/table)
+### 6.4 ServiceTable (AutoTable — bubbles/table com auto-sizing)
+
+> **Estudo completo:** [table-sizing-study.md](./table-sizing-study.md) — análise das
+> alternativas (bubbles/table, lipgloss/table, tview), algoritmo de auto-sizing com
+> percentil 90 + flex, implementação de referência da `AutoTable`, edge cases.
+>
+> **Problema que resolve:** `bubbles/table` tem widths de coluna **fixos** definidos na
+> construção. `SetWidth()` só muda o viewport, não as colunas — aparece espaço vazio à
+> direita ou borda direita ausente. A `AutoTable` recalcula os widths automaticamente
+> baseado em: (1) largura disponível do container, (2) conteúdo dos dados (percentil 90),
+> (3) spec de cada coluna (min/max/flex).
 
 ```go
-func newServiceTable(theme *Theme) table.Model {
-	columns := []table.Column{
-		{Title: "NAME", Width: 20},
-		{Title: "REPLICAS", Width: 10},
-		{Title: "CPU%", Width: 8},
-		{Title: "MEM%", Width: 8},
-		{Title: "STATUS", Width: 12},
-		{Title: "TREND", Width: 20},
-	}
+// ColumnSpec define o comportamento de sizing de uma coluna.
+type ColumnSpec struct {
+	Title    string
+	MinWidth int       // width mínimo (para colunas numéricas: CPU%, MEM%)
+	MaxWidth int       // width máximo (para colunas de nome: 40 chars)
+	Flex     float64   // peso para redistribuição de espaço extra (0 = fixa, 1 = flexível)
+	Align    Alignment // left (default) | right | center
+}
 
-	t := table.New(
-		table.WithColumns(columns),
-		table.WithFocused(true),
-		table.WithHeight(10),
-	)
+// AutoTable é um wrapper sobre bubbles/table que recalcula
+// os widths das colunas automaticamente a cada resize e a cada
+// mudança de dados. Algoritmo de 3 fases:
+//   1. Calcular content width de cada coluna (percentil 90 dos valores)
+//   2. Expandir (se sobra espaço) ou encolher (se falta) colunas flexíveis
+//   3. Aplicar novos widths via SetColumns()
+//
+// Ver table-sizing-study.md para detalhes do algoritmo e implementação completa.
+type AutoTable struct {
+	table.Model
+	specs       []ColumnSpec
+	rows        []table.Row
+	availableW  int
+	borderWidth int
+}
+
+// Specs por tab — cada tab define suas colunas com min/max/flex.
+var serviceColumnSpecs = []ColumnSpec{
+	{Title: "NAME",     MinWidth: 10, MaxWidth: 40, Flex: 1.0, Align: AlignLeft},
+	{Title: "REPLICAS", MinWidth: 8,  MaxWidth: 8,  Flex: 0.0, Align: AlignRight},
+	{Title: "CPU%",     MinWidth: 6,  MaxWidth: 6,  Flex: 0.0, Align: AlignRight},
+	{Title: "MEM%",     MinWidth: 6,  MaxWidth: 6,  Flex: 0.0, Align: AlignRight},
+	{Title: "STATUS",   MinWidth: 8,  MaxWidth: 12, Flex: 0.5, Align: AlignLeft},
+	{Title: "TREND",    MinWidth: 15, MaxWidth: 25, Flex: 0.5, Align: AlignLeft},
+}
+
+func newServiceTable(theme *Theme) *AutoTable {
+	t := NewAutoTable(serviceColumnSpecs)
 
 	// KeyMap estilo vim
 	t.KeyMap = table.KeyMap{
@@ -888,6 +920,17 @@ func newServiceTable(theme *Theme) table.Model {
 	return t
 }
 ```
+
+**Como funciona na prática:**
+- `SetRows(rows)` → recalcula colunas baseado no conteúdo (p90) + largura disponível
+- `SetWidth(w)` → recalcula colunas quando o terminal é redimensionado
+- Colunas com `Flex: 0.0` (numéricas) ficam fixas em `MinWidth == MaxWidth`
+- Colunas com `Flex > 0` absorvem espaço extra ou são encolhidas proporcionalmente
+- Conteúdo que excede o width é truncado com `…` pelo próprio `bubbles/table`
+
+**Para output CLI estático** (não-TUI, ex: `resma services list`): usar `lipgloss/table`
+que tem auto-sizing nativo via `.Width(w)` com algoritmo de mediana. Ver
+table-sizing-study.md seção 7.2.
 
 ### 6.5 SideList (bubbles/list)
 
@@ -1815,11 +1858,16 @@ app/cli/internal/tui/
 │   ├── alerts_tab.go         # Tab [5] Alerts — feed + detail
 │   └── recommendations_tab.go# Tab [6] Recommendations — cards + detail
 └── components/
+    ├── autotable.go          # AutoTable wrapper + ColumnSpec + algoritmo de auto-sizing (ver table-sizing-study.md)
     ├── header.go             # Header (título + relógio + status)
     ├── tabbar.go             # Tab bar com 6 tabs
     ├── breadcrumb.go         # Breadcrumb de navegação
     ├── footer.go             # Footer contextual
-    ├── servicetable.go       # bubbles/table configurada para services
+    ├── servicetable.go       # AutoTable com serviceColumnSpecs
+    ├── nodestable.go         # AutoTable com nodeColumnSpecs
+    ├── taskstable.go         # AutoTable com taskColumnSpecs
+    ├── alertstable.go        # AutoTable com alertColumnSpecs
+    ├── recommendationstable.go # AutoTable com recColumnSpecs
     ├── sidelist.go           # bubbles/list para side panel
     ├── detailview.go         # bubbles/viewport para detail
     ├── sparkline.go          # asciigraph sparkline
