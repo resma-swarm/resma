@@ -96,11 +96,11 @@ func tick() tea.Cmd {
 	})
 }
 
-// selColExpireMsg é enviado após 300ms sem Shift+←/→ para limpar a seleção.
+// selColExpireMsg é enviado após 1s sem Shift+←/→ para limpar a seleção.
 type selColExpireMsg time.Time
 
 func selColExpire() tea.Cmd {
-	return tea.Tick(300*time.Millisecond, func(t time.Time) tea.Msg {
+	return tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
 		return selColExpireMsg(t)
 	})
 }
@@ -125,9 +125,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tick()
 
 	case selColExpireMsg:
-		// Se a seleção de coluna ainda está ativa e passou >300ms,
+		// Se a seleção de coluna ainda está ativa e passou >1s,
 		// limpar a seleção (usuário soltou o Shift sem pressionar outra tecla)
-		if m.selCol >= 0 && time.Since(m.selColAt) > 300*time.Millisecond {
+		if m.selCol >= 0 && time.Since(m.selColAt) > 1*time.Second {
 			m.selCol = -1
 		}
 		// Se selCol ainda >= 0, continuar o timer para checar novamente
