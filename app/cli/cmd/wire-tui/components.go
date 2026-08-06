@@ -155,13 +155,12 @@ func (t TableModel) View() string {
 	// Linha de cabeçalho de colunas
 	var headerCells []string
 	for _, c := range t.cols {
-		headerCells = append(headerCells, lipgloss.NewStyle().
-			Width(c.Width).
-			AlignHorizontal(c.Align).
-			Render(sTableHeader.Render(c.Title)))
+		h := sTableHeader.Render(c.Title)
+		headerCells = append(headerCells, padToWidth(h, c.Width, c.Align))
 	}
 	headerLine := strings.Join(headerCells, " ")
-	sb.WriteString(lipgloss.NewStyle().Width(t.width).Render(headerLine))
+	headerLine = padToWidth(headerLine, t.width, lipgloss.Left)
+	sb.WriteString(headerLine)
 	sb.WriteString("\n")
 
 	// Linhas de dados
@@ -219,23 +218,22 @@ func (t TableModel) View() string {
 			cellContent = strings.ReplaceAll(cellContent, "\n", " ")
 			cellContent = strings.ReplaceAll(cellContent, "\r", "")
 			cellContent = strings.ReplaceAll(cellContent, "\t", " ")
-			// Truncar com "…" se exceder a largura da coluna (ANSI-aware)
+			// Truncar com "…" se exceder a largura da coluna
 			cellContent = truncateAnsi(cellContent, c.Width)
-			cells = append(cells, lipgloss.NewStyle().
-				Width(c.Width).
-				AlignHorizontal(c.Align).
-				Render(cellContent))
+			// Padear para largura exata da coluna (manual, sem lipgloss.Width que wrapa)
+			cellContent = padToWidth(cellContent, c.Width, c.Align)
+			cells = append(cells, cellContent)
 		}
 		line := strings.Join(cells, " ")
 
 		// Safety net: truncar a linha inteira se ainda exceder t.width
-		// (pode acontecer por diferenças de medição de largura)
 		line = truncateAnsi(line, t.width)
+		line = padToWidth(line, t.width, lipgloss.Left)
 
 		if isSelected {
-			sb.WriteString(sTableCursor.Width(t.width).Render(line))
+			sb.WriteString(sTableCursor.Render(line))
 		} else {
-			sb.WriteString(lipgloss.NewStyle().Width(t.width).Render(line))
+			sb.WriteString(line)
 		}
 		sb.WriteString("\n")
 	}
@@ -440,4 +438,52 @@ func runeWidth(r rune) int {
 		return 0
 	}
 	return 1
+}
+
+// padToWidth padear uma string (com ou sem ANSI) para exatamente width chars visíveis.
+// NÃO usa lipgloss.Style.Width() que causa wrap — em vez disso, calcula a
+// largura visual manualmente e adiciona/remove espaços conforme necessário.
+// Isso garante que a célula nunca wrapa, independente do conteúdo.
+func padToWidth(s string, width int, align lipgloss.Position) string {
+	visW := visualWidth(s)
+	if visW == width {
+		return s
+	}
+	if visW > width {
+		// Já deveria ter sido truncado, mas por segurança
+		return truncateAnsi(s, width)
+	}
+	// Padear com espaços
+	pad := width - visW
+	switch align {
+	case lipgloss.Right:
+		return strings.Repeat(" ", pad) + s
+	case lipgloss.Center:
+		left := pad / 2
+		right := pad - left
+		return strings.Repeat(" ", left) + s + strings.Repeat(" ", right)
+	default:
+		return s + strings.Repeat(" ", pad)
+	}
+}
+
+// visualWidth calcula a largura visual de uma string (ignorando ANSI escapes).
+// Percorre a string uma vez, contando apenas chars visíveis.
+func visualWidth(s string) int {
+	w := 0
+	inEscape := false
+	for _, r := range s {
+		if inEscape {
+			if r == 'm' || (r >= 'A' && r <= 'Z') {
+				inEscape = false
+			}
+			continue
+		}
+		if r == '\x1b' {
+			inEscape = true
+			continue
+		}
+		w += runeWidth(r)
+	}
+	return w
 }
