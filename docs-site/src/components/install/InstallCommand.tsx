@@ -31,8 +31,6 @@ type InstallTab = {
   language: 'bash';
   /** Comando bruto copiado para o clipboard (sem $ prefix). */
   command: string;
-  /** Marca o método recomendado (badge no tab). */
-  recommended?: boolean;
 };
 
 const tabs: InstallTab[] = [
@@ -40,7 +38,6 @@ const tabs: InstallTab[] = [
     id: 'installer',
     label: 'Installer',
     language: 'bash',
-    recommended: true,
     command: `docker run -it --rm \\
   --name resma-installer \\
   --volume /var/run/docker.sock:/var/run/docker.sock \\
@@ -134,13 +131,6 @@ export default function InstallCommand(): React.JSX.Element {
                         : 'text-muted hover:text-body',
                     )}>
                     {tab.label}
-                    {tab.recommended && (
-                      <span
-                        className="rounded bg-brand-accent/15 px-1 py-px text-[10px] font-semibold uppercase tracking-wide text-brand-accent"
-                        title="Recommended">
-                        rec
-                      </span>
-                    )}
                   </button>
                 );
               })}
