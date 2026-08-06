@@ -24,6 +24,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog"
 import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
+} from "@/components/ui/alert-dialog"
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import {
@@ -91,12 +95,6 @@ const statusConfig: Record<string, StatusCfg> = {
   unconfigured: { label: "Sem config", icon: Settings2, variant: "warning", borderClass: "border-l-warning", priority: 3, description: "Serviço sem limites de CPU/memória configurados" },
   collecting_data: { label: "Coletando", icon: Activity, variant: "secondary", borderClass: "border-l-muted-foreground", priority: 4, description: "Coletando métricas — recomendação disponível em breve" },
   healthy: { label: "Saudável", icon: CheckCircle2, variant: "success", borderClass: "border-l-success", priority: 5, description: "Limites adequados ao uso real — sem ação necessária" },
-}
-
-const confidenceConfig: Record<string, { label: string; variant: "success" | "warning" | "danger" }> = {
-  high: { label: "Alta", variant: "success" },
-  medium: { label: "Média", variant: "warning" },
-  low: { label: "Baixa", variant: "danger" },
 }
 
 // --- helpers ---
@@ -1174,6 +1172,7 @@ function BulkSimulateModal({
   const overProvRecs = recs.filter((r) => r.status === "over_provisioned" && r.suggested_tiers)
   const [selected, setSelected] = useState<Set<string>>(new Set(overProvRecs.map(r => r.service)))
   const [applying, setApplying] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const queryClient = useQueryClient()
 
   // Reset seleção quando abre
@@ -1244,6 +1243,7 @@ function BulkSimulateModal({
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-5xl">
         <DialogHeader>
@@ -1357,7 +1357,7 @@ function BulkSimulateModal({
             variant="default"
             size="sm"
             disabled={selectedRecs.length === 0 || applying}
-            onClick={handleApplyBatch}
+            onClick={() => setConfirmOpen(true)}
             title={`Aplicar ${selectedRecs.length} serviços sequencialmente com rollback ativo (delay 2s entre cada para evitar cascata)`}
           >
             {applying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
@@ -1366,6 +1366,34 @@ function BulkSimulateModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Confirmação double-check antes de aplicar em lote */}
+    <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Confirmar aplicação em lote</AlertDialogTitle>
+          <AlertDialogDescription>
+            Você está prestes a aplicar novos limites de CPU e memória em <strong>{selectedRecs.length} serviços</strong> sequencialmente (delay 2s entre cada).
+            Cada serviço terá um rollback watch ativo que reverterá automaticamente se detectar OOM, throttle ou pressão de memória.
+            <br /><br />
+            Recursos liberados: <strong className="text-success">{formatCores(totals.cpu)} cores · {formatBytes(totals.mem)}</strong>
+            <br />
+            Risco agregado: {riskCounts.green ?? 0} seguro(s), {riskCounts.yellow ?? 0} com atenção
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => { handleApplyBatch(); setConfirmOpen(false) }}
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            <Zap className="mr-2 h-4 w-4" />
+            Confirmar e aplicar
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </>
   )
 }
 
