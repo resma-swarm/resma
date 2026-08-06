@@ -25,6 +25,8 @@ func renderCrumbs(m model) string {
 		crumbs = append(crumbs, "filter")
 	case ViewHelp:
 		crumbs = append(crumbs, "help")
+	case ViewLogs:
+		crumbs = append(crumbs, "logs")
 	}
 
 	if len(crumbs) == 0 {

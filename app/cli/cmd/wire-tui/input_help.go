@@ -33,6 +33,7 @@ func renderHelp(m model) string {
 		{"j/k or up/down", "Move cursor"},
 		{"g/G", "Go to top/bottom"},
 		{"Enter", "Drill-down (detail view)"},
+		{"l", "View logs"},
 		{"Esc", "Back to list view"},
 		{"Tab/Shift+Tab", "Switch panel (side <-> main)"},
 		{"", ""},

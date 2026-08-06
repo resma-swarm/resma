@@ -23,6 +23,11 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.viewMode = ViewList
 			m.selectedItem = ""
 			m.flash = flashText("Back to list", FlashInfo)
+		} else if m.viewMode == ViewLogs {
+			m.viewMode = ViewList
+			m.logScroll = 0
+			m.logFilter = ""
+			m.flash = flashText("Back to list", FlashInfo)
 		} else if m.viewMode == ViewFilter || m.viewMode == ViewCommand || m.viewMode == ViewHelp {
 			m.viewMode = ViewList
 			m.inputBuf = ""
@@ -90,6 +95,11 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Navegação na view de logs
+	if m.viewMode == ViewLogs {
+		return m.handleLogsKey(msg)
+	}
+
 	// Navegação na lista (loop infinito como k9s)
 	if m.viewMode == ViewList {
 		n := m.listLen()
@@ -109,6 +119,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "G":
 			m.cursor = n - 1
 			return m, nil
+		case "l":
+			return m.enterLogs()
 		case "enter":
 			return m.enterDetail()
 		}
@@ -143,15 +155,90 @@ func (m model) enterDetail() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m model) enterLogs() (tea.Model, tea.Cmd) {
+	items := m.currentItems()
+	if m.cursor < 0 || m.cursor >= len(items) {
+		return m, nil
+	}
+	m.selectedItem = items[m.cursor]
+	m.viewMode = ViewLogs
+	m.logScroll = 0
+	m.logFollow = true
+	m.logFilter = ""
+	m.flash = flashText("Logs: "+m.selectedItem, FlashInfo)
+	return m, nil
+}
+
+func (m model) handleLogsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	logs := mockLogsFor(m.selectedItem)
+	n := len(logs)
+	switch msg.String() {
+	case "j", "down":
+		if m.logFollow {
+			m.logFollow = false
+		}
+		if m.logScroll < n-1 {
+			m.logScroll++
+		}
+		return m, nil
+	case "k", "up":
+		m.logFollow = false
+		if m.logScroll > 0 {
+			m.logScroll--
+		}
+		return m, nil
+	case "g":
+		m.logFollow = false
+		m.logScroll = 0
+		return m, nil
+	case "G":
+		m.logFollow = true
+		m.logScroll = n - 1
+		return m, nil
+	case "f":
+		m.logFollow = !m.logFollow
+		if m.logFollow {
+			m.logScroll = n - 1
+		}
+		m.flash = flashText("Follow: "+boolStr(m.logFollow), FlashInfo)
+		return m, nil
+	case "/":
+		m.viewMode = ViewFilter
+		m.inputBuf = m.logFilter
+		return m, nil
+	case " ":
+		m.logFollow = !m.logFollow
+		if m.logFollow {
+			m.logScroll = n - 1
+		}
+		return m, nil
+	}
+	return m, nil
+}
+
+func boolStr(b bool) string {
+	if b {
+		return "ON"
+	}
+	return "OFF"
+}
+
 func (m model) handleInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		if m.viewMode == ViewFilter {
 			m.filter = m.inputBuf
+			// Se vinha da view de logs, volta para logs
+			if m.selectedItem != "" && m.activeTab == TabServices {
+				m.viewMode = ViewLogs
+				m.logFilter = m.inputBuf
+			}
 		} else if m.viewMode == ViewCommand {
 			return m.executeCommand(m.inputBuf)
 		}
-		m.viewMode = ViewList
+		if m.viewMode != ViewLogs {
+			m.viewMode = ViewList
+		}
 		m.inputBuf = ""
 		return m, nil
 	case "backspace":

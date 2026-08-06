@@ -25,6 +25,11 @@ func renderDashboard(m model) string {
 		return renderHelp(m)
 	}
 
+	// Logs view é fullscreen (sem header/tabs)
+	if m.viewMode == ViewLogs {
+		return renderLogsView(m)
+	}
+
 	// 1. Header Superior Rico (8 linhas)
 	header := renderHeaderRich(m)
 

@@ -15,6 +15,7 @@ const (
 	ViewFilter
 	ViewCommand
 	ViewHelp
+	ViewLogs
 )
 
 // PanelID identifica qual painel está focado.
@@ -60,7 +61,10 @@ type model struct {
 	filter       string
 	selectedItem string // nome do item em drill-down
 	flash        flashMessage
-	splash       bool // mostrar splash no startup
+	splash       bool   // mostrar splash no startup
+	logScroll    int    // offset de scroll na view de logs
+	logFollow    bool   // auto-scroll para o fim (tail)
+	logFilter    string // filtro de logs
 }
 
 func initialModel() model {
@@ -70,6 +74,7 @@ func initialModel() model {
 		focusedPanel: PanelMain,
 		clock:        time.Now(),
 		splash:       true,
+		logFollow:    true,
 		flash:        flashText("Welcome to RESMA Monitor — press ? for help", FlashInfo),
 	}
 }

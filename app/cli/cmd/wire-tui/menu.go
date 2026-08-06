@@ -25,6 +25,7 @@ func menuHints(m model) []KeyHint {
 	case ViewList:
 		hints = append(hints,
 			KeyHint{"Enter", "Detail"},
+			KeyHint{"l", "Logs"},
 			KeyHint{"/", "Filter"},
 			KeyHint{":", "Command"},
 		)
@@ -35,13 +36,9 @@ func menuHints(m model) []KeyHint {
 			hints = append(hints,
 				KeyHint{"a", "Apply"},
 				KeyHint{"d", "Delete"},
-				KeyHint{"l", "Logs"},
 			)
 		case TabNodes:
-			hints = append(hints,
-				KeyHint{"d", "Drain"},
-				KeyHint{"l", "Logs"},
-			)
+			hints = append(hints, KeyHint{"d", "Drain"})
 		}
 	case ViewDetail:
 		hints = append(hints,
