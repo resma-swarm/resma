@@ -17,7 +17,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/resma-swarm/resma/app/api/internal/db"
 	"github.com/resma-swarm/resma/app/api/internal/docker"
 )
 
@@ -602,28 +601,24 @@ func (s *Server) buildOOMEvents(ctx context.Context, days int, service string) (
 
 // buildChangeLog constrói o payload de /api/change-log.
 // Usado por: handleChangeLog (GET) + scheduler (SSE topic change-log).
-func (s *Server) buildChangeLog(ctx context.Context, service string, limit int32) ([]db.ChangeLogEntry, error) {
+// Retorna changeLogResponse (sql.Null* desembrulhados) para o frontend.
+func (s *Server) buildChangeLog(ctx context.Context, service string, limit int32) ([]changeLogResponse, error) {
 	entries, err := s.db.GetChangeLog(ctx, service, limit)
 	if err != nil {
 		return nil, err
 	}
-	if entries == nil {
-		entries = []db.ChangeLogEntry{}
-	}
-	return entries, nil
+	return toChangeLogResponses(entries), nil
 }
 
 // buildSchedulesList constrói o payload de /api/schedules.
 // Usado por: handleListSchedules (GET) + scheduler (SSE topic change-log).
-func (s *Server) buildSchedulesList(ctx context.Context, status string) ([]db.Schedule, error) {
+// Retorna scheduleResponse (sql.Null* desembrulhados) para o frontend.
+func (s *Server) buildSchedulesList(ctx context.Context, status string) ([]scheduleResponse, error) {
 	schedules, err := s.db.ListSchedules(ctx, status)
 	if err != nil {
 		return nil, err
 	}
-	if schedules == nil {
-		schedules = []db.Schedule{}
-	}
-	return schedules, nil
+	return toScheduleResponses(schedules), nil
 }
 
 // buildRecommendations constrói o payload de /api/recommendations.
