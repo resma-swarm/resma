@@ -969,11 +969,10 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
   const hasLeak = rec.memory_trend?.has_leak ?? false
   const isTemplate = selectedTier === "template"
 
-  // Capacidade real do cluster Swarm (soma dos nodes ready)
-  // Em modo template, o slider max = capacidade do cluster (recursos disponíveis)
-  // Em modo ML, o slider max = heurística baseada no current config (comportamento original)
-  const cpuMaxFor = (base: number) => isTemplate ? Math.max(base, clusterCpuTotal) : base
-  const memMaxFor = (base: number) => isTemplate ? Math.max(base, clusterMemTotal) : base
+  // Slider max = capacidade real do cluster Swarm (soma dos nodes ready)
+  // Padrão do mercado (Portainer, Lens, OpenShift): max = recursos disponíveis do ambiente
+  const cpuMaxFor = (base: number) => Math.max(base, clusterCpuTotal)
+  const memMaxFor = (base: number) => Math.max(base, clusterMemTotal)
 
   // Helper: renderiza LayerToggle + TemplateSelector (se template)
   const tierSection = (

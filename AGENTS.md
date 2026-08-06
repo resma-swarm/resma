@@ -11,6 +11,11 @@
 > instrução de deploy, documentação ou script deve tratar o sistema como uma **stack
 > Swarm** (serviços replicados/global, multi-node, rede overlay), não como container
 > único ou compose-up standalone.
+>
+> **AMBIENTE LOCAL (dev):** o dev local também roda como **stack Swarm** — não usar
+> `docker compose up`. Para subir/verificar: `docker stack ls`, `docker stack services
+> resma`, `docker stack ps resma`. A stack `resma` tem 3 serviços (api, ml, frontend-dev)
+> e a stack `resma-test` tem 9 serviços (incluindo agents e serviços de teste).
 
 ## AI Engineering Framework
 
