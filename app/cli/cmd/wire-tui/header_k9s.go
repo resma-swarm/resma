@@ -88,18 +88,49 @@ func renderBrandSection(m model) string {
 func renderMenu(m model) string {
 	hints := menuHints(m)
 	const maxRows = 6
-	var rows [maxRows][]string
 
+	// Distribuir hints em colunas de maxRows linhas cada
+	colCount := (len(hints) + maxRows - 1) / maxRows
+	cols := make([][]KeyHint, colCount)
 	for i, h := range hints {
-		row := i % maxRows
-		key := sMenuKey.Render("<" + h.Key + ">")
-		desc := sMenuDesc.Render(h.Desc)
-		rows[row] = append(rows[row], fmt.Sprintf(" %s %s", key, desc))
+		c := i / maxRows
+		cols[c] = append(cols[c], h)
+	}
+
+	// Calcular largura máxima de cada coluna (key+desc+espaços)
+	// Usar largura visual (sem ANSI) para alinhamento
+	colWidths := make([]int, colCount)
+	for c, col := range cols {
+		maxW := 0
+		for _, h := range col {
+			// "[key] desc" = len(key)+4 chars de brackets/espaço + len(desc)
+			w := len(h.Key) + 4 + len(h.Desc)
+			if w > maxW {
+				maxW = w
+			}
+		}
+		colWidths[c] = maxW
 	}
 
 	var sb strings.Builder
-	for i := 0; i < maxRows; i++ {
-		sb.WriteString(strings.Join(rows[i], "  "))
+	for row := 0; row < maxRows; row++ {
+		for c := 0; c < colCount; c++ {
+			if row >= len(cols[c]) {
+				// padding vazio para manter alinhamento
+				sb.WriteString(strings.Repeat(" ", colWidths[c]+3))
+				continue
+			}
+			h := cols[c][row]
+			key := sMenuKey.Render("[" + h.Key + "]")
+			desc := sMenuDesc.Render(h.Desc)
+			// largura visual desta célula
+			visW := len(h.Key) + 4 + len(h.Desc)
+			pad := colWidths[c] - visW
+			if pad < 0 {
+				pad = 0
+			}
+			sb.WriteString(fmt.Sprintf(" %s %s%s   ", key, desc, strings.Repeat(" ", pad)))
+		}
 		sb.WriteString("\n")
 	}
 	return sb.String()
