@@ -355,26 +355,51 @@ func wrapText(text string, width int) []string {
 
 // truncateAnsi trunca uma string (que pode conter ANSI escape codes) para
 // no máximo width chars visíveis, adicionando "…" se truncada.
-// O(1) para strings sem ANSI (caso comum na coluna MESSAGE).
-// Para strings com ANSI, preserva os escapes e trunca o conteúdo visível.
+// Mede a largura do ellipsis com lipgloss.Width para garantir que a string
+// truncada NUNCA excede a largura da coluna (evita wrap).
 func truncateAnsi(s string, width int) string {
 	if width <= 0 {
 		return ""
 	}
-	if width <= 1 {
-		return "…"
+
+	// Largura visual do ellipsis (pode ser 1 ou 2 dependendo do terminal)
+	const ellipsis = "…"
+	ellW := lipgloss.Width(ellipsis)
+
+	if width <= ellW {
+		// Sem espaço para ellipsis, truncar sem ele
+		runes := []rune(s)
+		if len(runes) <= width {
+			return s
+		}
+		return string(runes[:width])
 	}
 
 	// Verificar se tem ANSI escape codes
 	hasAnsi := strings.Contains(s, "\x1b[")
 
 	if !hasAnsi {
-		// Sem ANSI: truncar diretamente por contagem de runes
-		runes := []rune(s)
-		if len(runes) <= width {
+		// Sem ANSI: medir largura visual com lipgloss.Width
+		visW := lipgloss.Width(s)
+		if visW <= width {
 			return s
 		}
-		return string(runes[:width-1]) + "…"
+		// Truncar para width - ellW, depois adicionar ellipsis
+		cutW := width - ellW
+		runes := []rune(s)
+		// Encontrar quantos runes cabem em cutW (may differ if multi-byte)
+		accW := 0
+		cutIdx := 0
+		for i, r := range runes {
+			rw := runeWidth(r)
+			if accW+rw > cutW {
+				cutIdx = i
+				break
+			}
+			accW += rw
+			cutIdx = i + 1
+		}
+		return string(runes[:cutIdx]) + ellipsis
 	}
 
 	// Com ANSI: medir largura visual e truncar preservando escapes
@@ -383,8 +408,7 @@ func truncateAnsi(s string, width int) string {
 		return s
 	}
 
-	// Percorrer a string caractere por caractere, acumulando largura visual
-	// e parando quando atingir width-1 (deixando espaço para "…")
+	cutW := width - ellW
 	var result strings.Builder
 	result.Grow(len(s))
 	currentW := 0
@@ -403,22 +427,21 @@ func truncateAnsi(s string, width int) string {
 			inEscape = true
 			continue
 		}
-		// Caractere visível
 		rw := runeWidth(r)
-		if currentW+rw > width-1 {
+		if currentW+rw > cutW {
 			break
 		}
 		result.WriteRune(r)
 		currentW += rw
 	}
 
-	return result.String() + "…"
+	return result.String() + ellipsis
 }
 
-// runeWidth retorna a largura visual de um rune (1 para a maioria, 0 para controle).
+// runeWidth retorna a largura visual de um rune.
 func runeWidth(r rune) int {
 	if r < 32 || r == 127 {
-		return 0 // caracteres de controle
+		return 0
 	}
 	return 1
 }
