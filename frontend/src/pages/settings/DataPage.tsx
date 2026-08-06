@@ -27,7 +27,7 @@ interface PrunePreview {
   volume_metrics: number
 }
 
-interface PruneCard {
+interface PruneCardConfig {
   key: string
   label: string
   endpoint: string
@@ -36,7 +36,7 @@ interface PruneCard {
   destructive: boolean
 }
 
-const PRUNE_CARDS: PruneCard[] = [
+const PRUNE_CARDS: PruneCardConfig[] = [
   {
     key: "services-stale",
     label: "Services Stale",
@@ -87,10 +87,119 @@ const PRUNE_CARDS: PruneCard[] = [
   },
 ]
 
+// PruneCardItem — cada card tem seu próprio estado `confirmed`, isolando
+// o consentimento por operação destrutiva. Resolve B1: antes o estado era
+// compartilhado e um checkbox marcado em um dialog vazava para o próximo.
+function PruneCardItem({
+  card,
+  count,
+  onPrune,
+  onDryRun,
+}: {
+  card: PruneCardConfig
+  count: number | undefined
+  onPrune: (card: PruneCardConfig) => void
+  onDryRun: (card: PruneCardConfig) => void
+}) {
+  // Estado isolado por card — resetado quando o dialog fecha (onOpenChange).
+  const [confirmed, setConfirmed] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
+
+  const handlePrune = () => {
+    onPrune(card)
+    setConfirmed(false)
+    setDialogOpen(false)
+  }
+
+  return (
+    <Card key={card.key}>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          {card.destructive && <AlertTriangle className="h-4 w-4 text-warning" />}
+          {card.label}
+        </CardTitle>
+        <CardDescription>{card.description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="text-2xl font-bold">
+          {count !== undefined ? count.toLocaleString() : "..."}
+          <span className="text-sm font-normal text-muted-foreground ml-1.5">linha(s)</span>
+        </div>
+
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onDryRun(card)}
+          >
+            Dry-run
+          </Button>
+
+          {card.destructive ? (
+            <AlertDialog
+              open={dialogOpen}
+              onOpenChange={(open) => {
+                setDialogOpen(open)
+                // Resetar consentimento sempre que o dialog fecha —
+                // seja por Cancelar, ESC ou click fora.
+                if (!open) setConfirmed(false)
+              }}
+            >
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" disabled={count === 0}>
+                  <Trash2 className="h-4 w-4" />
+                  Prune
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirmar prune de {card.label}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta operação é IRREVERSÍVEL. {count} linha(s) serão removidas permanentemente.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="flex items-center gap-2 py-2">
+                  <Checkbox
+                    id={`confirm-${card.key}`}
+                    checked={confirmed}
+                    onCheckedChange={(v) => setConfirmed(v === true)}
+                  />
+                  <Label htmlFor={`confirm-${card.key}`} className="text-sm">
+                    Entendo que esta operação é irreversível
+                  </Label>
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handlePrune}
+                    disabled={!confirmed}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Excluir
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={count === 0}
+              onClick={() => onPrune(card)}
+            >
+              <Trash2 className="h-4 w-4" />
+              Prune
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function DataPage() {
   const [preview, setPreview] = useState<PrunePreview | null>(null)
   const [loading, setLoading] = useState(true)
-  const [confirmed, setConfirmed] = useState(false)
 
   const loadPreview = async () => {
     try {
@@ -107,18 +216,17 @@ export function DataPage() {
     loadPreview()
   }, [])
 
-  const handlePrune = async (card: PruneCard) => {
+  const handlePrune = async (card: PruneCardConfig) => {
     try {
       const data = await api.post<{ deleted: number }>(card.endpoint, { dry_run: false })
       toast.success(`${card.label}: ${data.deleted} linha(s) removida(s)`)
-      setConfirmed(false)
       loadPreview()
     } catch (e) {
       toast.error("Erro: " + (e as Error).message)
     }
   }
 
-  const handleDryRun = async (card: PruneCard) => {
+  const handleDryRun = async (card: PruneCardConfig) => {
     try {
       const data = await api.post<{ would_delete: number }>(card.endpoint, { dry_run: true })
       toast.info(`${card.label}: ${data.would_delete} linha(s) seriam removidas`)
@@ -145,80 +253,13 @@ export function DataPage() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {PRUNE_CARDS.map((card) => (
-          <Card key={card.key}>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                {card.destructive && <AlertTriangle className="h-4 w-4 text-warning" />}
-                {card.label}
-              </CardTitle>
-              <CardDescription>{card.description}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="text-2xl font-bold">
-                {preview ? preview[card.countKey].toLocaleString() : "..."}
-                <span className="text-sm font-normal text-muted-foreground ml-1.5">linha(s)</span>
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDryRun(card)}
-                >
-                  Dry-run
-                </Button>
-
-                {card.destructive ? (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="sm" disabled={preview?.[card.countKey] === 0}>
-                        <Trash2 className="h-4 w-4" />
-                        Prune
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Confirmar prune de {card.label}?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Esta operação é IRREVERSÍVEL. {preview?.[card.countKey]} linha(s) serão removidas permanentemente.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <div className="flex items-center gap-2 py-2">
-                        <Checkbox
-                          id={`confirm-${card.key}`}
-                          checked={confirmed}
-                          onCheckedChange={(v) => setConfirmed(v === true)}
-                        />
-                        <Label htmlFor={`confirm-${card.key}`} className="text-sm">
-                          Entendo que esta operação é irreversível
-                        </Label>
-                      </div>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => setConfirmed(false)}>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handlePrune(card)}
-                          disabled={!confirmed}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          Excluir
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                ) : (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={preview?.[card.countKey] === 0}
-                    onClick={() => handlePrune(card)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Prune
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <PruneCardItem
+            key={card.key}
+            card={card}
+            count={preview ? preview[card.countKey] : undefined}
+            onPrune={handlePrune}
+            onDryRun={handleDryRun}
+          />
         ))}
       </div>
     </div>

@@ -30,6 +30,12 @@ import {
 } from "@/components/ui/select"
 import { Plus, Trash2, Copy, AlertTriangle, Check } from "lucide-react"
 import { toast } from "sonner"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 interface APIKey {
   id: number
@@ -39,6 +45,59 @@ interface APIKey {
   created_at: string
   last_used_at: string | null
   revoked_at: string | null
+}
+
+// timeAgo — timestamp relativo ("há 5min"), padrão do Schedules/Alerts/RollbackWatches.
+function timeAgo(ts: string | null): string {
+  if (!ts) return "Nunca"
+  try {
+    const d = new Date(ts)
+    const diffMs = Date.now() - d.getTime()
+    if (diffMs < 0) return formatTimestamp(ts)
+    const diffMin = Math.floor(diffMs / 60000)
+    if (diffMin < 1) return "agora"
+    if (diffMin < 60) return `há ${diffMin}min`
+    const diffH = Math.floor(diffMin / 60)
+    if (diffH < 24) return `há ${diffH}h`
+    const diffD = Math.floor(diffH / 24)
+    return `há ${diffD}d`
+  } catch {
+    return ts
+  }
+}
+
+// formatTimestamp — absoluto pt-BR para tooltip (padrão Schedules/Alerts).
+function formatTimestamp(ts: string): string {
+  if (!ts) return "—"
+  try {
+    return new Date(ts).toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+  } catch {
+    return ts
+  }
+}
+
+// LastUsedCell — "Nunca" em muted, ou relativo + tooltip absoluto.
+function LastUsedCell({ ts }: { ts: string | null }) {
+  if (!ts) return <span className="text-muted-foreground">Nunca</span>
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="cursor-help text-xs text-muted-foreground">{timeAgo(ts)}</span>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{formatTimestamp(ts)}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
 }
 
 export function ApiKeysPage() {
@@ -172,6 +231,7 @@ export function ApiKeysPage() {
               <TableHead>Prefix</TableHead>
               <TableHead>Scopes</TableHead>
               <TableHead>Criada</TableHead>
+              <TableHead>Último uso</TableHead>
               <TableHead className="w-[100px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -183,6 +243,9 @@ export function ApiKeysPage() {
                 <TableCell>{k.scopes}</TableCell>
                 <TableCell className="text-muted-foreground text-xs">
                   {new Date(k.created_at).toLocaleDateString()}
+                </TableCell>
+                <TableCell>
+                  <LastUsedCell ts={k.last_used_at} />
                 </TableCell>
                 <TableCell>
                   {!k.revoked_at && (
