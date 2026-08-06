@@ -71,8 +71,11 @@ async function fetchAPI<T>(
   }
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(error.detail || `HTTP ${res.status}`)
+    // Backend Go retorna {"error": "..."} (ver json.go:writeError).
+    // Fallback para detail (compat) ou statusText/HTTP status.
+    const body = await res.json().catch(() => ({ error: res.statusText }))
+    const msg = body.error || body.detail || `HTTP ${res.status}`
+    throw new Error(msg)
   }
 
   return res.json()
@@ -115,8 +118,9 @@ export const api = {
       res = await fetch(`${API_BASE}${path}`, { headers, credentials: "include" })
     }
     if (!res.ok) {
-      const error = await res.json().catch(() => ({ detail: res.statusText }))
-      throw new Error(error.detail || `HTTP ${res.status}`)
+      const body = await res.json().catch(() => ({ error: res.statusText }))
+      const msg = body.error || body.detail || `HTTP ${res.status}`
+      throw new Error(msg)
     }
     return res.blob()
   },

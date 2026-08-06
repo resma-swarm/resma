@@ -655,7 +655,7 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
               </span>
               {displayFreed.cpu_pct > 0 && (
                 <span className="text-muted-foreground text-[10px]">
-                  (CPU -{displayFreed.cpu_pct}% · Mem -{displayFreed.mem_pct}%)
+                  (CPU -{displayFreed.cpu_pct}%{displayFreed.mem_pct > 0 ? ` · Mem -${displayFreed.mem_pct}%` : ""})
                 </span>
               )}
             </div>

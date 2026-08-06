@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { PageHeader } from "@/components/page-header"
-import { formatBytes, formatCPU } from "@/lib/utils"
+import { formatBytes, formatCPU, formatCores } from "@/lib/utils"
 import { Server, Cpu, Boxes, ChevronRight, Crown, Search, Filter, ChevronDown, X, Bot } from "lucide-react"
 import { useFilterStore } from "@/stores/filter-store"
 import { Input } from "@/components/ui/input"
@@ -177,7 +177,7 @@ export default function Nodes() {
               <div className={`text-3xl font-bold tabular-nums ${stat.valueColor}`}>{stat.value}</div>
               {stat.label === "Nodes" && (
                 <div className="text-xs text-muted-foreground mt-1">
-                  {formatCPU(totalCpu)} CPU · {formatBytes(totalMem)} RAM
+                  {formatCores(totalCpu)} cores CPU · {formatBytes(totalMem)} RAM
                 </div>
               )}
             </CardContent>

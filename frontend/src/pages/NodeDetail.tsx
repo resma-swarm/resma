@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/empty-state"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { PageHeader } from "@/components/page-header"
-import { formatBytes, formatCPU } from "@/lib/utils"
+import { formatBytes, formatCPU, formatCores } from "@/lib/utils"
 import { ArrowLeft, Cpu, MemoryStick, AlertTriangle, Server, Boxes, Crown, Info, Search, X, Database, Bot } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -219,7 +219,7 @@ export default function NodeDetail() {
   const statusCfg = STATUS_CONFIG[node.status] ?? STATUS_CONFIG.unknown
 
   const statCards = [
-    { label: "CPU Total", value: formatCPU(node.cpu_total), icon: Cpu, iconColor: "text-primary" },
+    { label: "CPU Total", value: `${formatCores(node.cpu_total)} cores`, icon: Cpu, iconColor: "text-primary" },
     { label: "Memória Total", value: formatBytes(node.mem_total), icon: MemoryStick, iconColor: "text-chart-2" },
     { label: "Tasks", value: String(node.tasks_running || 0), icon: Boxes, iconColor: "text-chart-5" },
     { label: "Containers", value: String(node.containers || 0), icon: Server, iconColor: "text-chart-3" },

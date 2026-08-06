@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { useNavigate } from "react-router-dom"
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
-import { formatBytes, formatCPU } from "@/lib/utils"
+import { formatBytes, formatCPU, formatCores } from "@/lib/utils"
 import { Server, Cpu, MemoryStick, AlertTriangle, Boxes, ChevronRight, HardDrive, Database, RefreshCw } from "lucide-react"
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer,
@@ -490,7 +490,7 @@ export default function Dashboard() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <div className="text-sm text-muted-foreground">CPU Total</div>
-                  <div className="text-xl font-bold text-primary tabular-nums">{formatCPU(clusterCapacity.cpu_total)}</div>
+                  <div className="text-xl font-bold text-primary tabular-nums">{formatCores(clusterCapacity.cpu_total)} cores</div>
                   <div className="text-xs text-muted-foreground">P95: {formatCPU(clusterCapacity.cpu_p95)}</div>
                 </div>
                 <div className="space-y-1">

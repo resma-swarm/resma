@@ -129,10 +129,17 @@ export interface HeroData {
   pending_count: number
 }
 
+// pendingStatuses são os status que exigem ação do usuário (revisão/apply).
+// Inclui over_provisioned (excesso — pode liberar) e alerted (OOM/drift —
+// precisa de atenção). Antes contava apenas over_provisioned, fazendo o
+// badge mostrar "Tudo otimizado" mesmo com serviços críticos — ver BUG-002
+// do QA Playwright 2026-08-06.
+const pendingStatuses = new Set(["over_provisioned", "alerted"])
+
 /**
  * Calcula o hero metric client-side a partir das recomendações.
- * Soma resources_freed.balanced dos serviços over_provisioned.
- * (spec ml-payload-schema.md §9 — cálculo no frontend)
+ * Soma resources_freed.balanced dos serviços pendentes (over_provisioned
+ * ou alerted). (spec ml-payload-schema.md §9 — cálculo no frontend)
  */
 export function calculateHero(recs: Recommendation[]): HeroData {
   let cpuCores = 0
@@ -140,7 +147,7 @@ export function calculateHero(recs: Recommendation[]): HeroData {
   let pending = 0
 
   for (const rec of recs) {
-    if (rec.status !== "over_provisioned") continue
+    if (!pendingStatuses.has(rec.status)) continue
     pending++
     if (!rec.resources_freed) continue
     cpuCores += rec.resources_freed.balanced.cpu_cores

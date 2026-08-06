@@ -53,6 +53,26 @@ func (s *Server) buildDashboardData(ctx context.Context) (map[string]any, error)
 		services = append(services, sm)
 	}
 
+	// activeContainersQuery conta containers ATIVOS (últimos 5 min) por serviço.
+	// Usado para o card "Containers" do dashboard — antes somava count(DISTINCT
+	// container_id) da janela de 7d (acumulado histórico), mostrando 239 para
+	// ~12 containers reais. Ver BUG-003 do QA Playwright 2026-08-06.
+	activeContainersQuery := `SELECT service, count(DISTINCT container_id) FROM metrics WHERE ts > now()::TIMESTAMP - INTERVAL 5 MINUTE GROUP BY service`
+	activeContainersRows, err := s.db.QueryContext(ctx, activeContainersQuery)
+	if err != nil {
+		return nil, err
+	}
+	activeContainerCount := make(map[string]int32)
+	for activeContainersRows.Next() {
+		var svc string
+		var cnt int32
+		if err := activeContainersRows.Scan(&svc, &cnt); err != nil {
+			continue
+		}
+		activeContainerCount[svc] = cnt
+	}
+	activeContainersRows.Close()
+
 	activeQuery := `SELECT DISTINCT service FROM metrics WHERE ts > now()::TIMESTAMP - INTERVAL 5 MINUTE`
 	activeRows, err := s.db.QueryContext(ctx, activeQuery)
 	if err != nil {
@@ -76,9 +96,11 @@ func (s *Server) buildDashboardData(ctx context.Context) (map[string]any, error)
 	}
 	services = activeServices
 
+	// totalContainers usa a contagem de containers ativos (últimos 5 min),
+	// não o acumulado histórico da janela de análise.
 	totalContainers := int32(0)
-	for _, s := range services {
-		totalContainers += s.Count
+	for s := range activeContainerCount {
+		totalContainers += activeContainerCount[s]
 	}
 
 	topCPU := make([]svcMetric, len(services))
@@ -95,11 +117,16 @@ func (s *Server) buildDashboardData(ctx context.Context) (map[string]any, error)
 		topMem = topMem[:5]
 	}
 
+	// OOM count deve bater com /api/alerts (alert_handlers.go): mesma query
+	// GROUP BY ts, service com LIMIT 50. Antes contava todos os grupos (354),
+	// divergindo da página de Alerts (50) — ver BUG-001 do QA Playwright.
 	oomCountQuery := fmt.Sprintf(`
 		SELECT count(*) FROM (
 			SELECT ts, service FROM oom_events
 			WHERE ts > now()::TIMESTAMP - INTERVAL %d DAYS
 			GROUP BY ts, service
+			ORDER BY ts DESC
+			LIMIT 50
 		)`, days)
 	var oomCount int32
 	oomCountRow := s.db.QueryRowContext(ctx, oomCountQuery)
