@@ -215,6 +215,10 @@ func (t TableModel) View() string {
 			} else if ci < len(row.Cells) {
 				cellContent = row.Cells[ci]
 			}
+			// Sanitizar: remover newlines e tabs que podem causar wrap
+			cellContent = strings.ReplaceAll(cellContent, "\n", " ")
+			cellContent = strings.ReplaceAll(cellContent, "\r", "")
+			cellContent = strings.ReplaceAll(cellContent, "\t", " ")
 			// Truncar com "…" se exceder a largura da coluna (ANSI-aware)
 			cellContent = truncateAnsi(cellContent, c.Width)
 			cells = append(cells, lipgloss.NewStyle().
@@ -223,6 +227,10 @@ func (t TableModel) View() string {
 				Render(cellContent))
 		}
 		line := strings.Join(cells, " ")
+
+		// Safety net: truncar a linha inteira se ainda exceder t.width
+		// (pode acontecer por diferenças de medição de largura)
+		line = truncateAnsi(line, t.width)
 
 		if isSelected {
 			sb.WriteString(sTableCursor.Width(t.width).Render(line))
@@ -353,21 +361,21 @@ func wrapText(text string, width int) []string {
 	return lines
 }
 
-// truncateAnsi trunca uma string (que pode conter ANSI escape codes) para
-// no máximo width chars visíveis, adicionando "…" se truncada.
-// Mede a largura do ellipsis com lipgloss.Width para garantir que a string
-// truncada NUNCA excede a largura da coluna (evita wrap).
+// truncateAnsi trunca uma string para no máximo width chars visíveis.
+// Para strings sem ANSI: usa contagem de runes direta (O(1), sem depender
+// de lipgloss.Width que pode medir incorretamente para strings longas).
+// Para strings com ANSI: percorre preservando escapes.
+// Sempre adiciona "…" se truncada, medindo a largura do ellipsis.
+// Garante que a string resultante NUNCA excede width visuais (evita wrap).
 func truncateAnsi(s string, width int) string {
 	if width <= 0 {
 		return ""
 	}
 
-	// Largura visual do ellipsis (pode ser 1 ou 2 dependendo do terminal)
 	const ellipsis = "…"
 	ellW := lipgloss.Width(ellipsis)
 
 	if width <= ellW {
-		// Sem espaço para ellipsis, truncar sem ele
 		runes := []rune(s)
 		if len(runes) <= width {
 			return s
@@ -375,34 +383,22 @@ func truncateAnsi(s string, width int) string {
 		return string(runes[:width])
 	}
 
-	// Verificar se tem ANSI escape codes
 	hasAnsi := strings.Contains(s, "\x1b[")
 
 	if !hasAnsi {
-		// Sem ANSI: medir largura visual com lipgloss.Width
-		visW := lipgloss.Width(s)
-		if visW <= width {
+		// Sem ANSI: contagem de runes = largura visual (para ASCII/Latin)
+		runes := []rune(s)
+		if len(runes) <= width {
 			return s
 		}
-		// Truncar para width - ellW, depois adicionar ellipsis
-		cutW := width - ellW
-		runes := []rune(s)
-		// Encontrar quantos runes cabem em cutW (may differ if multi-byte)
-		accW := 0
-		cutIdx := 0
-		for i, r := range runes {
-			rw := runeWidth(r)
-			if accW+rw > cutW {
-				cutIdx = i
-				break
-			}
-			accW += rw
-			cutIdx = i + 1
+		cutIdx := width - ellW
+		if cutIdx < 0 {
+			cutIdx = 0
 		}
 		return string(runes[:cutIdx]) + ellipsis
 	}
 
-	// Com ANSI: medir largura visual e truncar preservando escapes
+	// Com ANSI: percorrer preservando escapes, truncar conteúdo visível
 	visW := lipgloss.Width(s)
 	if visW <= width {
 		return s
