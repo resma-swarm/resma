@@ -1038,18 +1038,18 @@ func (s *Store) GetClusterSummary(ctx context.Context, analysisWindowDays int) (
 
 // Schedule representa um agendamento de aplicação de limites.
 type Schedule struct {
-	ID             int32
-	Service        string
-	CPULimit       sql.NullFloat64
-	MemLimit       sql.NullInt64
-	CPUReservation sql.NullFloat64
-	MemReservation sql.NullInt64
-	ScheduledAt    time.Time
-	Status         string
-	AppliedAt      sql.NullTime
-	Error          sql.NullString
-	Attempts       int32
-	CreatedAt      time.Time
+	ID             int32           `json:"id"`
+	Service        string          `json:"service"`
+	CPULimit       sql.NullFloat64 `json:"cpu_limit"`
+	MemLimit       sql.NullInt64   `json:"mem_limit"`
+	CPUReservation sql.NullFloat64 `json:"cpu_reservation"`
+	MemReservation sql.NullInt64   `json:"mem_reservation"`
+	ScheduledAt    time.Time       `json:"scheduled_at"`
+	Status         string          `json:"status"`
+	AppliedAt      sql.NullTime    `json:"applied_at"`
+	Error          sql.NullString  `json:"error"`
+	Attempts       int32           `json:"attempts"`
+	CreatedAt      time.Time       `json:"created_at"`
 }
 
 // CreateSchedule insere um novo schedule e retorna o id.

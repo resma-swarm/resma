@@ -197,6 +197,22 @@ export default function Studio() {
     return set
   }, [rollbackWatches])
 
+  const { data: pendingSchedules } = useQuery<{ id: number; service: string; scheduled_at: string }[]>({
+    queryKey: ["schedules", "pending"],
+    queryFn: () => api.get("/schedules/pending"),
+    refetchInterval: refreshInterval,
+  })
+  const scheduledServices = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const s of pendingSchedules ?? []) {
+      // API retorna PascalCase (Service/ScheduledAt) — aceitar ambos
+      const svc = (s as { Service?: string; service?: string }).Service ?? (s as { service?: string }).service
+      const at = (s as { ScheduledAt?: string; scheduled_at?: string }).ScheduledAt ?? (s as { scheduled_at?: string }).scheduled_at
+      if (svc && at) map.set(svc, at)
+    }
+    return map
+  }, [pendingSchedules])
+
   const { data: changeLog } = useQuery<{ Service: string; Action: string; Status: string }[]>({
     queryKey: ["change-log-recent"],
     queryFn: () => api.get("/change-log"),
@@ -282,6 +298,9 @@ export default function Studio() {
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["recommendations"] })
       queryClient.invalidateQueries({ queryKey: ["services"] })
+      queryClient.invalidateQueries({ queryKey: ["rollback-watches-active"] })
+      queryClient.invalidateQueries({ queryKey: ["schedules", "pending"] })
+      queryClient.invalidateQueries({ queryKey: ["change-log-recent"] })
       setApplying(false)
       setSheetOpen(false)
       toast.success(`Recomendação aplicada para ${vars.service} com sucesso`)
@@ -545,6 +564,7 @@ export default function Studio() {
                       freed={getResourcesFreed(rec)}
                       onConfigure={() => openSheet(rec)}
                       isWatched={watchedServices.has(rec.service)}
+                      scheduledAt={scheduledServices.get(rec.service)}
                       isQuickApplying={quickApplying === rec.service}
                       onQuickApply={async () => {
                         setQuickApplying(rec.service)
@@ -581,6 +601,7 @@ export default function Studio() {
               freed={getResourcesFreed(rec)}
               onConfigure={() => openSheet(rec)}
               isWatched={watchedServices.has(rec.service)}
+              scheduledAt={scheduledServices.get(rec.service)}
               isQuickApplying={quickApplying === rec.service}
               onQuickApply={async () => {
                 setQuickApplying(rec.service)
@@ -762,12 +783,13 @@ function FilterChip({ active, onClick, label, count }: {
 
 // --- Compact Card ---
 
-function CompactCard({ rec, freed, onConfigure, onQuickApply, isWatched, isQuickApplying }: {
+function CompactCard({ rec, freed, onConfigure, onQuickApply, isWatched, scheduledAt, isQuickApplying }: {
   rec: Recommendation
   freed: { cpu_cores: number; mem_bytes: number; cpu_pct: number; mem_pct: number } | null
   onConfigure: () => void
   onQuickApply?: () => void
   isWatched: boolean
+  scheduledAt?: string
   isQuickApplying: boolean
 }) {
   const cfg = statusConfig[rec.status] ?? statusConfig.over_provisioned
@@ -801,6 +823,11 @@ function CompactCard({ rec, freed, onConfigure, onQuickApply, isWatched, isQuick
         {isWatched && (
           <InfoTooltip content={<p>Rollback watch ativo — monitorando estabilidade pós-apply</p>}>
             <Shield className="h-3.5 w-3.5 text-primary shrink-0 cursor-help" aria-label="Rollback watch ativo" />
+          </InfoTooltip>
+        )}
+        {scheduledAt && (
+          <InfoTooltip content={<p>Apply agendado para {format(parseISO(scheduledAt), "dd/MM/yyyy 'às' HH:mm")}</p>}>
+            <CalendarClock className="h-3.5 w-3.5 text-chart-5 shrink-0 cursor-help" aria-label="Apply agendado" />
           </InfoTooltip>
         )}
         {showLowConfidence && (

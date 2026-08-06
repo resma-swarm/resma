@@ -897,17 +897,11 @@ class ResourceRecommender:
 
         # Se houve apply e não há OOMs novos desde o apply, o serviço está em
         # observação — o usuário já tomou uma ação e o serviço está sendo
-        # reavaliado. O status "observing" tem precedência sobre "alerted"
-        # (OOMs antigos antes do apply não devem manter o serviço crítico).
+        # reavaliado. O status "observing" tem precedência sobre "alerted" e
+        # "under_provisioned" porque as métricas atuais ainda incluem dados
+        # pré-apply (janela de 7 dias) e não refletem a nova config.
+        # Precisa de tempo para que métricas pós-apply se acumulem.
         if applied_at and oom_count_since_apply == 0 and not has_leak and not has_drift:
-            # Verifica se ainda está under_provisioned com os novos limites.
-            # Se sim, mantém under_provisioned (o apply não resolveu o problema).
-            cpu_limit = current.get("cpu_limit", 0)
-            mem_limit = current.get("mem_limit", 0)
-            if cpu_limit > 0 and cpu_p95 > 0 and cpu_p95 / (cpu_limit * 100) > 0.80:
-                return "under_provisioned"
-            if mem_limit > 0 and mem_p99 > 0 and mem_p99 / mem_limit > 0.80:
-                return "under_provisioned"
             return "observing"
 
         # Se houve apply mas há OOMs novos pós-apply, o problema persiste —

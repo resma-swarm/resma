@@ -480,6 +480,10 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
   const sc = getStatusConfig(rec.status)
   const StatusIcon = sc.icon
 
+  // Normalizar pendingSchedule: API retorna PascalCase (ScheduledAt), frontend usa camelCase
+  const schedAt = pendingSchedule ? ((pendingSchedule as { ScheduledAt?: string }).ScheduledAt ?? pendingSchedule.scheduled_at) : null
+  const schedId = pendingSchedule?.id
+
   // Right-Sizing Studio: tier selecionado determina os valores exibidos
   const tiers = rec.suggested_tiers
   const activeTier = tiers ? (tiers as unknown as Record<string, typeof tiers.balanced>)[selectedTier] : null
@@ -536,6 +540,11 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
               >
                 {rec.service}
               </button>
+              {pendingSchedule && schedAt && (
+                <span title={`Agendado para ${format(parseISO(schedAt), "dd/MM/yyyy 'às' HH:mm")}`}>
+                  <CalendarClock className="h-3.5 w-3.5 text-chart-5 shrink-0" aria-label="Apply agendado" />
+                </span>
+              )}
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -550,7 +559,7 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
                 </DropdownMenuItem>
                 {pendingSchedule ? (
                   <DropdownMenuItem
-                    onClick={() => onCancelSchedule(pendingSchedule.id)}
+                    onClick={() => onCancelSchedule(schedId!)}
                     className="gap-2 text-destructive"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -598,12 +607,12 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
                 </span>
               </>
             )}
-            {pendingSchedule && (
+            {pendingSchedule && schedAt && (
               <>
                 <span className="text-muted-foreground/50">·</span>
                 <span className="text-warning flex items-center gap-0.5">
                   <CalendarClock className="h-3 w-3" />
-                  Agendado: {format(parseISO(pendingSchedule.scheduled_at), "dd/MM HH:mm")}
+                  Agendado: {format(parseISO(schedAt), "dd/MM HH:mm")}
                 </span>
               </>
             )}
@@ -912,7 +921,9 @@ export default function Recommendations() {
   const pendingScheduleMap = useMemo(() => {
     const map: Record<string, Schedule> = {}
     for (const s of pendingSchedules ?? []) {
-      map[s.service] = s
+      // API retorna PascalCase (Service) — aceitar ambos
+      const svc = (s as { Service?: string }).Service ?? s.service
+      if (svc) map[svc] = s
     }
     return map
   }, [pendingSchedules])
@@ -1051,11 +1062,14 @@ export default function Recommendations() {
             <span className="font-medium">Agendamentos pendentes ({pendingSchedules.length})</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {pendingSchedules.map((s) => (
+            {pendingSchedules.map((s) => {
+              const svc = (s as { Service?: string }).Service ?? s.service
+              const at = (s as { ScheduledAt?: string }).ScheduledAt ?? s.scheduled_at
+              return (
               <div key={s.id} className="flex items-center gap-2 rounded-md border border-warning/20 bg-warning/5 px-3 py-1.5 text-xs">
                 <CalendarClock className="h-3 w-3 text-warning" />
-                <span className="font-medium text-foreground">{s.service}</span>
-                <span className="text-muted-foreground">{format(parseISO(s.scheduled_at), "dd/MM 'às' HH:mm")}</span>
+                <span className="font-medium text-foreground">{svc}</span>
+                <span className="text-muted-foreground">{at ? format(parseISO(at), "dd/MM 'às' HH:mm") : "—"}</span>
                 <button
                   className="text-muted-foreground hover:text-destructive transition-colors"
                   onClick={() => handleCancelSchedule(s.id)}
@@ -1063,7 +1077,8 @@ export default function Recommendations() {
                   <X className="h-3 w-3" />
                 </button>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

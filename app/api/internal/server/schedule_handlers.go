@@ -38,9 +38,10 @@ func (s *Server) handleListSchedules(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, schedules)
 }
 
-// handleListPendingSchedules lista agendamentos pendentes.
+// handleListPendingSchedules lista agendamentos pendentes (incluindo futuros).
+// Usado pelo frontend para mostrar ícone de schedule nos cards.
 func (s *Server) handleListPendingSchedules(w http.ResponseWriter, r *http.Request) {
-	schedules, err := s.db.GetPendingSchedules(r.Context())
+	schedules, err := s.db.ListSchedules(r.Context(), "pending")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
