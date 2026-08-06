@@ -86,6 +86,27 @@ class ResourceRecommender:
         r.raise_for_status()
         return r.json().get("count", 0)
 
+    def _get_last_apply(self, service: str) -> dict | None:
+        """GET /api/internal/services/{service}/last-apply
+
+        Retorna o timestamp do último apply bem-sucedido, ou None se não houver.
+        Usado para distinguir OOMs antes vs depois do apply e classificar
+        o status 'observing' (em observação pós-apply).
+        """
+        try:
+            r = self.client.get(
+                f"{API_URL}/api/internal/services/{service}/last-apply",
+                timeout=10.0,
+            )
+            r.raise_for_status()
+            data = r.json()
+            if not data.get("applied_at"):
+                return None
+            return data
+        except Exception as e:
+            logger.debug("last-apply indisponível para %s: %s", service, e)
+            return None
+
     def _get_services_with_metrics(self, days: int = ANALYSIS_WINDOW_DAYS) -> list[str]:
         """GET /api/internal/services/with-metrics"""
         r = self.client.get(
@@ -204,6 +225,17 @@ class ResourceRecommender:
 
         oom_count = self._get_oom_count(service_name)
 
+        # Buscar último apply bem-sucedido para distinguir OOMs antes vs depois.
+        # Se houve apply, o status passa a "observing" (em observação) enquanto
+        # não houver OOMs novos pós-apply — o usuário já tomou uma ação e o
+        # serviço está sendo reavaliado.
+        last_apply = self._get_last_apply(service_name)
+        oom_count_since_apply = 0
+        applied_at = None
+        if last_apply and last_apply.get("applied_at"):
+            applied_at = last_apply["applied_at"]
+            oom_count_since_apply = self._get_oom_count_since(service_name, applied_at)
+
         drift = self._detect_drift(cpu, mem)
         mem_margin, cpu_margin = self._data_driven_margin(
             cpu_p50, cpu_p95, mem_p50, mem_p99, pattern, oom_count, leak["has_leak"]
@@ -224,11 +256,15 @@ class ResourceRecommender:
             "mem_reservation": balanced["mem_reservation"],
         }
 
-        status = self._classify_status(current, suggested, cpu_p95, mem_p99, oom_count, leak["has_leak"], drift)
+        status = self._classify_status(
+            current, suggested, cpu_p95, mem_p99, oom_count, leak["has_leak"], drift,
+            oom_count_since_apply=oom_count_since_apply, applied_at=applied_at,
+        )
         suggested_apply_time = self._suggest_apply_time(pattern)
 
         risk = self._calculate_risk(
             cpu_p95, mem_p99, suggested, oom_count, leak["has_leak"], drift, forecast, status,
+            oom_count_since_apply=oom_count_since_apply,
         )
         explainability = self._build_explainability(
             service_name, cpu_p95, mem_p99, cpu_p50, mem_p50, pattern,
@@ -247,6 +283,8 @@ class ResourceRecommender:
             "cpu": {"p50": round(cpu_p50, 2), "p95": round(cpu_p95, 2), "p99": round(cpu_p99, 2)},
             "mem": {"p50": int(mem_p50), "p95": int(mem_p95), "p99": int(mem_p99)},
             "oom_events": oom_count,
+            "oom_events_since_apply": oom_count_since_apply,
+            "applied_at": applied_at,
             "has_drift": drift,
             "pattern": pattern,
             "memory_trend": leak,
@@ -691,8 +729,19 @@ class ResourceRecommender:
     def _calculate_risk(
         self, cpu_p95: float, mem_p99: float, suggested: dict,
         oom_count: int, has_leak: bool, has_drift: bool, forecast: dict, status: str,
+        oom_count_since_apply: int = 0,
     ) -> dict:
-        """Score de risco estruturado (5 níveis: very_low/low/attention/high/critical)."""
+        """Score de risco estruturado (5 níveis: very_low/low/attention/high/critical).
+
+        Se houve apply e não há OOMs novos pós-apply, o risk score é reduzido
+        — o serviço está em observação e os OOMs antigos não devem mantê-lo
+        como "high"/"critical".
+        """
+        # OOMs relevantes para risk: se houve apply, usa apenas OOMs pós-apply.
+        # Se não houve apply, usa o total.
+        oom_for_risk = oom_count_since_apply if oom_count_since_apply > 0 or status == "observing" else oom_count
+        observing = status == "observing"
+
         margin_cpu = (suggested["cpu_limit"] * 100 / cpu_p95) if cpu_p95 > 0 else 99
         margin_mem = (suggested["mem_limit"] / mem_p99) if mem_p99 > 0 else 99
         forecast_pct = (
@@ -703,18 +752,25 @@ class ResourceRecommender:
         reasons = []
         if oom_count == 0:
             reasons.append("0 OOMs em 30d")
+        elif observing and oom_count_since_apply == 0:
+            reasons.append(f"{oom_count} OOMs antes do apply, 0 após")
         else:
-            reasons.append(f"{oom_count} OOMs em 30d")
+            reasons.append(f"{oom_count} OOMs em 30d ({oom_count_since_apply} após apply)")
         reasons.append("sem leak detectado" if not has_leak else "leak detectado")
         if margin_cpu >= 1.3:
             reasons.append(f"margem CPU {margin_cpu:.1f}x")
         if forecast_pct < 90:
             reasons.append(f"forecast {forecast_pct:.0f}% do limite")
+        if observing:
+            reasons.append("em observação pós-apply")
 
         if status == "under_provisioned":
             level, score, color = "critical", 5, "red"
-        elif oom_count > 0 or has_leak:
+        elif oom_for_risk > 0 or has_leak:
             level, score, color = "high", 4, "orange"
+        elif observing:
+            # Em observação: risk baixo (ação já tomada, sem novos problemas)
+            level, score, color = "low", 2, "blue"
         elif margin_cpu < 1.2 or margin_mem < 1.2 or forecast_pct > 90:
             level, score, color = "attention", 3, "yellow"
         elif margin_cpu >= 1.3 and oom_count == 0 and not has_leak:
@@ -828,13 +884,34 @@ class ResourceRecommender:
             return "medium"
         return "low"
 
-    def _classify_status(self, current, suggested, cpu_p95, mem_p99, oom_count, has_leak, has_drift) -> str:
+    def _classify_status(
+        self, current, suggested, cpu_p95, mem_p99, oom_count, has_leak, has_drift,
+        oom_count_since_apply: int = 0, applied_at: str | None = None,
+    ) -> str:
         has_config = (
             current.get("cpu_limit", 0) > 0 or current.get("mem_limit", 0) > 0
             or current.get("cpu_reservation", 0) > 0 or current.get("mem_reservation", 0) > 0
         )
         if not has_config:
             return "unconfigured"
+
+        # Se houve apply e não há OOMs novos desde o apply, o serviço está em
+        # observação — o usuário já tomou uma ação e o serviço está sendo
+        # reavaliado. O status "observing" tem precedência sobre "alerted"
+        # (OOMs antigos antes do apply não devem manter o serviço crítico).
+        if applied_at and oom_count_since_apply == 0 and not has_leak and not has_drift:
+            # Verifica se ainda está under_provisioned com os novos limites.
+            # Se sim, mantém under_provisioned (o apply não resolveu o problema).
+            cpu_limit = current.get("cpu_limit", 0)
+            mem_limit = current.get("mem_limit", 0)
+            if cpu_limit > 0 and cpu_p95 > 0 and cpu_p95 / (cpu_limit * 100) > 0.80:
+                return "under_provisioned"
+            if mem_limit > 0 and mem_p99 > 0 and mem_p99 / mem_limit > 0.80:
+                return "under_provisioned"
+            return "observing"
+
+        # Se houve apply mas há OOMs novos pós-apply, o problema persiste —
+        # mantém "alerted" para indicar que a ação não resolveu.
         if oom_count > 0 or has_leak or has_drift:
             return "alerted"
         cpu_limit = current.get("cpu_limit", 0)

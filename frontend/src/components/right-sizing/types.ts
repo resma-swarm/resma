@@ -32,7 +32,7 @@ export interface SuggestedTiers {
 }
 
 export type RiskLevel = "very_low" | "low" | "attention" | "high" | "critical"
-export type RiskColor = "green" | "yellow" | "orange" | "red"
+export type RiskColor = "green" | "yellow" | "orange" | "red" | "blue"
 
 export interface Risk {
   level: RiskLevel
@@ -102,6 +102,8 @@ export interface Recommendation {
   cpu?: { p50: number; p95: number; p99?: number }
   mem?: { p50: number; p99: number; p95?: number }
   oom_events?: number
+  oom_events_since_apply?: number
+  applied_at?: string | null
   has_drift?: boolean
   pattern?: string
   memory_trend?: MemoryTrend
@@ -161,6 +163,7 @@ export const riskColorClasses: Record<RiskColor, string> = {
   yellow: "bg-yellow-500/10 text-yellow-700 border-yellow-500/30",
   orange: "bg-orange-500/10 text-orange-700 border-orange-500/30",
   red: "bg-red-500/10 text-red-700 border-red-500/30",
+  blue: "bg-blue-500/10 text-blue-700 border-blue-500/30",
 }
 
 export const riskLevelLabel: Record<RiskLevel, string> = {

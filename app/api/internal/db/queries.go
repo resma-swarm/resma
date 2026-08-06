@@ -1249,6 +1249,35 @@ func (s *Store) AddChangeLog(ctx context.Context, e ChangeLogEntry) (int32, erro
 	return id, err
 }
 
+// LastApplyInfo contém dados do último apply bem-sucedido de um serviço.
+// Usado pelo ML sidecar para distinguir OOMs antes vs depois do apply e
+// classificar o status "observing" (em observação pós-apply).
+type LastApplyInfo struct {
+	AppliedAt           time.Time
+	CPULimitAfter       sql.NullFloat64
+	MemLimitAfter       sql.NullInt64
+	CPUReservationAfter sql.NullFloat64
+	MemReservationAfter sql.NullInt64
+}
+
+// GetLastApply retorna o último apply bem-sucedido (status='completed') de um serviço.
+// Retorna nil se não houver apply registrado.
+func (s *Store) GetLastApply(ctx context.Context, service string) (*LastApplyInfo, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT created_at, cpu_limit_after, mem_limit_after,
+		        cpu_reservation_after, mem_reservation_after
+		 FROM change_log
+		 WHERE service = ? AND action = 'apply' AND status = 'completed'
+		 ORDER BY created_at DESC LIMIT 1`, service)
+	var info LastApplyInfo
+	err := row.Scan(&info.AppliedAt, &info.CPULimitAfter, &info.MemLimitAfter,
+		&info.CPUReservationAfter, &info.MemReservationAfter)
+	if err != nil {
+		return nil, err // sql.ErrNoRows se não houver
+	}
+	return &info, nil
+}
+
 // GetChangeLog retorna entradas do change_log, opcionalmente por serviço.
 func (s *Store) GetChangeLog(ctx context.Context, service string, limit int32) ([]ChangeLogEntry, error) {
 	cols := `id, service, action, source, schedule_id,

@@ -20,6 +20,7 @@ func (s *Server) registerInternalMLRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/internal/services/{service}/metrics", s.handleInternalServiceMetrics)
 	mux.HandleFunc("GET /api/internal/services/{service}/oom-count", s.handleInternalOOMCount)
 	mux.HandleFunc("GET /api/internal/services/{service}/config", s.handleInternalServiceConfig)
+	mux.HandleFunc("GET /api/internal/services/{service}/last-apply", s.handleInternalLastApply)
 	mux.HandleFunc("GET /api/internal/storage/volumes/metrics", s.handleInternalVolumeMetrics)
 }
 
@@ -136,6 +137,39 @@ func (s *Server) handleInternalServiceConfig(w http.ResponseWriter, r *http.Requ
 	// Mantém template do DB se existir (para overrides manuais)
 	if cfg, _ := s.db.GetServiceConfigRow(r.Context(), service); cfg != nil && cfg.Template.Valid {
 		resp["template"] = cfg.Template.String
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleInternalLastApply retorna o timestamp do último apply bem-sucedido de um serviço.
+// Usado pelo ML sidecar para distinguir OOMs antes vs depois do apply e classificar
+// o status "observing" (em observação pós-apply).
+func (s *Server) handleInternalLastApply(w http.ResponseWriter, r *http.Request) {
+	service := r.PathValue("service")
+	if service == "" {
+		writeError(w, http.StatusBadRequest, "missing service")
+		return
+	}
+	info, err := s.db.GetLastApply(r.Context(), service)
+	if err != nil || info == nil {
+		// Sem apply registrado — retorna null
+		writeJSON(w, http.StatusOK, map[string]any{"applied_at": nil})
+		return
+	}
+	resp := map[string]any{
+		"applied_at": info.AppliedAt.Format(time.RFC3339Nano),
+	}
+	if info.CPULimitAfter.Valid {
+		resp["cpu_limit_after"] = info.CPULimitAfter.Float64
+	}
+	if info.MemLimitAfter.Valid {
+		resp["mem_limit_after"] = info.MemLimitAfter.Int64
+	}
+	if info.CPUReservationAfter.Valid {
+		resp["cpu_reservation_after"] = info.CPUReservationAfter.Float64
+	}
+	if info.MemReservationAfter.Valid {
+		resp["mem_reservation_after"] = info.MemReservationAfter.Int64
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

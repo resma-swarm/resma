@@ -58,7 +58,7 @@ import {
   RotateCcw, Layers, Activity, Settings2, AlertTriangle,
   CheckCircle2, TrendingDown, X, ShieldCheck, CalendarClock,
   Database, HardDrive, TrendingUp, ChevronDown, AlertCircle,
-  Calendar as CalendarIcon, Shield, Zap, Loader2, Package,
+  Calendar as CalendarIcon, Shield, Zap, Loader2, Package, Eye,
 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -93,6 +93,7 @@ interface StatusCfg {
 const statusConfig: Record<string, StatusCfg> = {
   alerted: { label: "Crítico", icon: AlertTriangle, variant: "danger", borderClass: "border-l-destructive", priority: 0, description: "Serviço com OOMs recentes ou sob pressão crítica — ação urgente" },
   under_provisioned: { label: "Insuficiente", icon: AlertTriangle, variant: "danger", borderClass: "border-l-warning", priority: 1, description: "Limites atuais abaixo do necessário — risco de OOM ou throttle" },
+  observing: { label: "Em observação", icon: Eye, variant: "secondary", borderClass: "border-l-blue-500", priority: 1.5, description: "Apply realizado — serviço em observação para reavaliação de status" },
   over_provisioned: { label: "Excesso", icon: TrendingDown, variant: "warning", borderClass: "border-l-primary", priority: 2, description: "Limites acima do necessário — recursos podem ser liberados" },
   unconfigured: { label: "Sem config", icon: Settings2, variant: "warning", borderClass: "border-l-warning", priority: 3, description: "Serviço sem limites de CPU/memória configurados" },
   collecting_data: { label: "Coletando", icon: Activity, variant: "secondary", borderClass: "border-l-muted-foreground", priority: 4, description: "Coletando métricas — recomendação disponível em breve" },
@@ -145,10 +146,11 @@ function timeAgo(dateStr: string | null | undefined): string | null {
 
 // --- mode determination ---
 
-function getSheetMode(rec: Recommendation): "over" | "healthy" | "leak" | "unconfigured" | "collecting" | "under" {
+function getSheetMode(rec: Recommendation): "over" | "healthy" | "leak" | "unconfigured" | "collecting" | "under" | "observing" {
   if (rec.status === "collecting_data") return "collecting"
   if (rec.status === "unconfigured") return "unconfigured"
   if (rec.status === "alerted" && (rec.memory_trend?.has_leak)) return "leak"
+  if (rec.status === "observing") return "observing"
   if (rec.status === "under_provisioned" || rec.status === "alerted") return "under"
   if (rec.status === "over_provisioned") return "over"
   return "healthy"
@@ -1172,6 +1174,63 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
             selectedTier={selectedTier}
           />
         )}
+      </>
+    )
+  }
+
+  // --- Mode: observing (em observação pós-apply) ---
+  if (mode === "observing") {
+    const appliedDate = rec.applied_at ? format(parseISO(rec.applied_at), "dd/MM/yyyy HH:mm") : null
+    return (
+      <>
+        <InfoBanner variant="info">
+          Apply realizado{appliedDate ? ` em ${appliedDate}` : ""} — serviço em observação.
+          O status será reavaliado conforme novas métricas são coletadas.
+          {rec.oom_events_since_apply === 0
+            ? " Nenhum OOM novo desde o apply."
+            : ` ${rec.oom_events_since_apply} OOM(s) novo(s) desde o apply — ação pode ser necessária.`}
+        </InfoBanner>
+
+        {tierSection}
+
+        {yamlAccordion}
+
+        <SectionLabel>
+          Recursos atuais
+          <HelpIcon text="Valores aplicados recentemente. Em observação para confirmar estabilidade." title="Em observação" />
+        </SectionLabel>
+
+        <ResourceSlider
+          cpuCores={whatIfCpu}
+          memBytes={whatIfMem}
+          cpuMin={(rec.cpu?.p95 ?? 0.1) * 0.5}
+          cpuMax={cpuMaxFor((rec.current?.cpu_limit ?? 4) * 2)}
+          memMin={(rec.mem?.p99 ?? 16e6) * 0.5}
+          memMax={memMaxFor((rec.current?.mem_limit ?? 8e9) * 2)}
+          cpuCurrent={rec.current?.cpu_limit ?? 0}
+          memCurrent={rec.current?.mem_limit ?? 0}
+          cpuSuggested={tierData?.cpu_limit ?? 0}
+          memSuggested={tierData?.mem_limit ?? 0}
+          onCpuChange={onCpuChange}
+          onMemChange={onMemChange}
+        />
+
+        <SectionLabel>
+          Painel de Simulação
+          <HelpIcon text="Ajuste manual ainda é possível durante o período de observação." title="Simulação" />
+        </SectionLabel>
+        <WhatIfPanel
+          service={rec.service}
+          whatIfCpu={whatIfCpu}
+          whatIfMem={whatIfMem}
+          currentCpu={rec.current?.cpu_limit ?? 0}
+          currentMem={rec.current?.mem_limit ?? 0}
+          p95Cpu={rec.cpu?.p95 ?? 0}
+          p99Mem={rec.mem?.p99 ?? 0}
+          forecastP99={rec.forecast?.projected_mem_p99 ?? 0}
+          oomEvents={rec.oom_events ?? 0}
+          hasLeak={hasLeak}
+        />
       </>
     )
   }

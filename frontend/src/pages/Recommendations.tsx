@@ -17,7 +17,7 @@ import {
   CheckCircle, AlertCircle, Clock, Zap, Cpu, MemoryStick, RotateCcw,
   TrendingUp, TrendingDown, AlertTriangle, Pencil, BrainCircuit,
   Search, Filter, ChevronDown, X, MoreVertical, Settings, ChevronRight,
-  CalendarClock, Calendar as CalendarIcon, Trash2, Database, HardDrive,
+  CalendarClock, Calendar as CalendarIcon, Trash2, Database, HardDrive, Eye,
 } from "lucide-react"
 import { toast } from "sonner"
 import { useState, useMemo, useRef } from "react"
@@ -70,6 +70,7 @@ const statusConfig: Record<string, { icon: typeof AlertTriangle; border: string;
   unconfigured: { icon: Settings, border: "border-l-warning", label: "Sem configuração", labelClass: "text-warning" },
   alerted: { icon: AlertTriangle, border: "border-l-destructive", label: "Crítico", labelClass: "text-destructive" },
   under_provisioned: { icon: TrendingUp, border: "border-l-warning", label: "Atenção", labelClass: "text-warning" },
+  observing: { icon: Eye, border: "border-l-blue-500", label: "Em observação", labelClass: "text-blue-600" },
   over_provisioned: { icon: TrendingDown, border: "border-l-primary", label: "Otimizar", labelClass: "text-primary" },
   healthy: { icon: CheckCircle, border: "border-l-success", label: "Saudável", labelClass: "text-success" },
   collecting_data: { icon: Clock, border: "border-l-muted", label: "Coletando", labelClass: "text-muted-foreground" },
@@ -845,6 +846,7 @@ export default function Recommendations() {
   const queryClient = useQueryClient()
   const [applying, setApplying] = useState<string | null>(null)
   const [showHealthy, setShowHealthy] = useState(false)
+  const [showObserving, setShowObserving] = useState(false)
   const [showStorage, setShowStorage] = useState(true)
 
   const { data: recs, isLoading } = useQuery<Recommendation[]>({
@@ -929,9 +931,10 @@ export default function Recommendations() {
   const setEventFilters = (s: Set<string>) => setRecEventsList(Array.from(s))
 
   const statusPriority = (r: Recommendation) => {
-    if (r.status === "alerted") return 4
-    if (r.status === "unconfigured") return 3
-    if (r.status === "under_provisioned") return 2
+    if (r.status === "alerted") return 5
+    if (r.status === "unconfigured") return 4
+    if (r.status === "under_provisioned") return 3
+    if (r.status === "observing") return 2
     if (r.status === "over_provisioned") return 1
     if (r.status === "healthy") return 0
     return 0
@@ -947,6 +950,7 @@ export default function Recommendations() {
   const unconfiguredCount = statusCounts["unconfigured"] ?? 0
   const alertedCount = statusCounts["alerted"] ?? 0
   const underProvCount = statusCounts["under_provisioned"] ?? 0
+  const observingCount = statusCounts["observing"] ?? 0
   const overProvCount = statusCounts["over_provisioned"] ?? 0
   const healthyCount = statusCounts["healthy"] ?? 0
   const leakCount = (recs ?? []).filter((r) => r.memory_trend?.has_leak).length
@@ -983,6 +987,7 @@ export default function Recommendations() {
     unconfigured: "Sem config",
     alerted: "Crítico",
     under_provisioned: "Atenção",
+    observing: "Em observação",
     over_provisioned: "Otimizar",
     healthy: "Saudável",
     collecting_data: "Coletando",
@@ -1013,7 +1018,8 @@ export default function Recommendations() {
     )
   }
 
-  const actionRecs = sortedRecs.filter(r => r.status !== "healthy" && r.status !== "collecting_data")
+  const actionRecs = sortedRecs.filter(r => r.status !== "healthy" && r.status !== "collecting_data" && r.status !== "observing")
+  const observingRecs = sortedRecs.filter(r => r.status === "observing")
   const healthyRecs = sortedRecs.filter(r => r.status === "healthy")
   const collectingRecs = sortedRecs.filter(r => r.status === "collecting_data")
 
@@ -1024,6 +1030,8 @@ export default function Recommendations() {
           {unconfiguredCount > 0 && <Badge variant="warning">{unconfiguredCount} sem config</Badge>}
           {alertedCount > 0 && <Badge variant="danger">{alertedCount} críticos</Badge>}
           {underProvCount > 0 && <Badge variant="warning">{underProvCount} atenção</Badge>}
+          {observingCount > 0 && <Badge variant="outline" className="text-blue-600 border-blue-500/30">{observingCount} observação</Badge>
+          }
           {overProvCount > 0 && <Badge variant="secondary">{overProvCount} otimizar</Badge>
           }
           {healthyCount > 0 && <Badge variant="success">{healthyCount} saudáveis</Badge>}
@@ -1096,6 +1104,9 @@ export default function Recommendations() {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setStatusFilter("under_provisioned")}>
               {statusFilter === "under_provisioned" && "✓ "}Atenção ({underProvCount})
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setStatusFilter("observing")}>
+              {statusFilter === "observing" && "✓ "}Em observação ({observingCount})
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setStatusFilter("over_provisioned")}>
               {statusFilter === "over_provisioned" && "✓ "}Otimizar ({overProvCount})
@@ -1227,6 +1238,40 @@ export default function Recommendations() {
               />
             ))}
           </div>
+        </div>
+      )}
+
+      {observingRecs.length > 0 && (
+        <div className="space-y-3">
+          <button
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setShowObserving(!showObserving)}
+          >
+            <ChevronDown className={cn("h-4 w-4 transition-transform", !showObserving && "-rotate-90")} />
+            <Eye className="h-4 w-4 text-blue-600" />
+            <span className="font-medium">{observingCount} em observação</span>
+            <span className="text-xs text-muted-foreground/70">
+              {showObserving ? "ocultar" : "ver recomendações"}
+            </span>
+          </button>
+          {showObserving && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {observingRecs.map((rec) => (
+                <RecommendationCard
+                  key={rec.service}
+                  rec={rec}
+                  onApply={handleApply}
+                  applying={applying}
+                  error={applyMutation.isError ? rec.service : null}
+                  onRecalculate={(service) => recalculateMutation.mutate(service)}
+                  recalculating={recalculateMutation.isPending ? recalculateMutation.variables ?? null : null}
+                  pendingSchedule={pendingScheduleMap[rec.service] ?? null}
+                  onSchedule={handleScheduled}
+                  onCancelSchedule={handleCancelSchedule}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
