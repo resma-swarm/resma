@@ -125,3 +125,9 @@ html[data-theme='dark'] {
   outline: 2px solid var(--resma-brand);
   outline-offset: 2px;
 }
+
+/* Navbar: links externos (GitHub etc.) não devem quebrar linha — o ícone de
+ * "abrir externo" deve ficar sempre na mesma linha do label. */
+.navbar__item {
+  white-space: nowrap;
+}

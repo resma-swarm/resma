@@ -97,6 +97,11 @@ const config: Config = {
       },
       items: [
         {
+          to: '/',
+          position: 'left',
+          label: 'Home',
+        },
+        {
           type: 'docSidebar',
           sidebarId: 'docs',
           position: 'left',
