@@ -14,12 +14,22 @@ func menuHints(m model) []KeyHint {
 	// Ações por view mode
 	switch m.viewMode {
 	case ViewList:
-		hints = append(hints,
-			KeyHint{"Enter", "Detail"},
-			KeyHint{"l", "Logs"},
-			KeyHint{"/", "Filter"},
-			KeyHint{":", "Cmd"},
-		)
+		if m.sortMode {
+			hints = append(hints,
+				KeyHint{"↑/↓", "SortDir"},
+				KeyHint{"Enter", "Confirm"},
+				KeyHint{"Esc", "Cancel"},
+			)
+		} else {
+			hints = append(hints,
+				KeyHint{"Enter", "Detail"},
+				KeyHint{"l", "Logs"},
+				KeyHint{"S+←/→", "SelCol"},
+				KeyHint{"s", "Sort"},
+				KeyHint{"/", "Filter"},
+				KeyHint{":", "Cmd"},
+			)
+		}
 		switch m.activeTab {
 		case TabRecommendations:
 			hints = append(hints, KeyHint{"a", "Apply"})

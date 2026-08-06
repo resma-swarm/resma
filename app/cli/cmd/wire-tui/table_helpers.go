@@ -55,3 +55,15 @@ func colWidths(total int, fixedCols []int, spacing int) int {
 func pctStr(v float64) string {
 	return fmt.Sprintf("%.1f%%", v)
 }
+
+// applySortState aplica o estado de ordenação do model na TableModel.
+// Deve ser chamado após SetRows e antes de View().
+func applySortState(t *TableModel, m model) {
+	t.selCol = m.selCol
+	t.sortCol = m.sortCol
+	t.sortDir = m.sortDir
+	t.sortMode = m.sortMode
+	if m.sortCol >= 0 && m.sortDir != SortNone {
+		t.applySort()
+	}
+}

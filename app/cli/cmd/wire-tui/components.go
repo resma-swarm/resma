@@ -7,8 +7,28 @@ import (
 )
 
 // ===========================================================================
-// Table Component — tabela reutilizável com header, cursor e colunas flex.
+// Table Component — tabela reutilizável com header, cursor, colunas flex e sort.
 // ===========================================================================
+
+// SortDir define a direção da ordenação.
+type SortDir int
+
+const (
+	SortNone SortDir = iota
+	SortAsc
+	SortDesc
+)
+
+func (d SortDir) String() string {
+	switch d {
+	case SortAsc:
+		return "▲"
+	case SortDesc:
+		return "▼"
+	default:
+		return ""
+	}
+}
 
 // TableColumn define uma coluna da tabela.
 type TableColumn struct {
@@ -27,17 +47,21 @@ type TableRow struct {
 
 // TableModel é um componente de tabela reutilizável.
 type TableModel struct {
-	cols   []TableColumn
-	rows   []TableRow
-	cursor int
-	width  int
-	height int
-	header string // título opcional acima das colunas
+	cols     []TableColumn
+	rows     []TableRow
+	cursor   int
+	width    int
+	height   int
+	header   string  // título opcional acima das colunas
+	sortCol  int     // coluna selecionada para ordenação (-1 = nenhuma)
+	sortDir  SortDir // direção da ordenação
+	sortMode bool    // modo de seleção de ordenação ativo
+	selCol   int     // coluna atualmente selecionada pelo Shift+←/→
 }
 
 // NewTable cria uma nova tabela com as colunas especificadas.
 func NewTable(cols []TableColumn) TableModel {
-	return TableModel{cols: cols, cursor: 0}
+	return TableModel{cols: cols, cursor: 0, sortCol: -1, selCol: -1}
 }
 
 // SetWidth define a largura total e recalcula colunas flex.
@@ -102,6 +126,135 @@ func (t *TableModel) MoveBottom() {
 	}
 }
 
+// SelColLeft move a seleção de coluna para a esquerda (loop infinito).
+func (t *TableModel) SelColLeft() {
+	n := len(t.cols)
+	if n == 0 {
+		return
+	}
+	if t.selCol < 0 {
+		t.selCol = 0
+	} else {
+		t.selCol = (t.selCol - 1 + n) % n
+	}
+}
+
+// SelColRight move a seleção de coluna para a direita (loop infinito).
+func (t *TableModel) SelColRight() {
+	n := len(t.cols)
+	if n == 0 {
+		return
+	}
+	if t.selCol < 0 {
+		t.selCol = 0
+	} else {
+		t.selCol = (t.selCol + 1) % n
+	}
+}
+
+// EnterSortMode entra no modo de seleção de ordenação.
+func (t *TableModel) EnterSortMode() {
+	if t.selCol < 0 {
+		return
+	}
+	t.sortMode = true
+	// Se a coluna selecionada já é a coluna de sort, manter a direção atual
+	// Senão, começar com a direção atual da coluna selecionada (ou None)
+	if t.sortCol != t.selCol {
+		t.sortCol = t.selCol
+		// Começar com None para o usuário escolher
+	}
+}
+
+// ConfirmSort confirma a ordenação e sai do modo sort.
+func (t *TableModel) ConfirmSort() {
+	t.sortMode = false
+	if t.sortDir == SortNone {
+		t.sortCol = -1
+	}
+	t.applySort()
+}
+
+// CancelSort cancela a ordenação e limpa o sort.
+func (t *TableModel) CancelSort() {
+	t.sortMode = false
+	t.sortCol = -1
+	t.sortDir = SortNone
+}
+
+// CycleSortDir alterna a direção: None → Asc → Desc → None (loop infinito).
+func (t *TableModel) CycleSortDir() {
+	t.sortDir = (t.sortDir + 1) % 3
+}
+
+// applySort ordena as linhas pela coluna sortCol e direção sortDir.
+func (t *TableModel) applySort() {
+	if t.sortCol < 0 || t.sortDir == SortNone {
+		return
+	}
+	if t.sortCol >= len(t.cols) {
+		return
+	}
+
+	// Copiar rows para não modificar o original fora da ordem
+	sorted := make([]TableRow, len(t.rows))
+	copy(sorted, t.rows)
+
+	colIdx := t.sortCol
+	asc := t.sortDir == SortAsc
+
+	// Insertion sort estável (preserva ordem original de itens iguais)
+	for i := 1; i < len(sorted); i++ {
+		for j := i; j > 0; j-- {
+			a := sorted[j-1].Plain
+			b := sorted[j].Plain
+			if colIdx >= len(a) || colIdx >= len(b) {
+				break
+			}
+			va := a[colIdx]
+			vb := b[colIdx]
+			var shouldSwap bool
+			if asc {
+				shouldSwap = va > vb
+			} else {
+				shouldSwap = va < vb
+			}
+			if shouldSwap {
+				sorted[j-1], sorted[j] = sorted[j], sorted[j-1]
+			} else {
+				break
+			}
+		}
+	}
+
+	t.rows = sorted
+	if t.cursor >= len(t.rows) {
+		t.cursor = len(t.rows) - 1
+	}
+	if t.cursor < 0 {
+		t.cursor = 0
+	}
+}
+
+// SortCol retorna o índice da coluna de ordenação (-1 = nenhuma).
+func (t *TableModel) SortCol() int { return t.sortCol }
+
+// SortDir retorna a direção de ordenação atual.
+func (t *TableModel) SortDir() SortDir { return t.sortDir }
+
+// SortMode retorna se o modo de seleção de ordenação está ativo.
+func (t *TableModel) SortMode() bool { return t.sortMode }
+
+// SelCol retorna o índice da coluna selecionada (-1 = nenhuma).
+func (t *TableModel) SelCol() int { return t.selCol }
+
+// SetSort define coluna e direção de ordenação diretamente.
+func (t *TableModel) SetSort(col int, dir SortDir) {
+	t.sortCol = col
+	t.sortDir = dir
+	t.applySort()
+}
+
 // recalcCols recalcula larguras de colunas flex para preencher o width total.
 func (t *TableModel) recalcCols() {
 	if t.width <= 0 {
@@ -154,9 +307,24 @@ func (t TableModel) View() string {
 
 	// Linha de cabeçalho de colunas
 	var headerCells []string
-	for _, c := range t.cols {
-		h := sTableHeader.Render(c.Title)
-		headerCells = append(headerCells, padToWidth(h, c.Width, c.Align))
+	for ci, c := range t.cols {
+		title := c.Title
+		// Adicionar indicador de sort se esta é a coluna de sort
+		if ci == t.sortCol && t.sortDir != SortNone {
+			title = title + " " + t.sortDir.String()
+		}
+		// Coluna selecionada (Shift+←/→) fica em bold mais destacado
+		if ci == t.selCol {
+			h := lipgloss.NewStyle().Bold(true).Foreground(cResmaAqua).Render(title)
+			headerCells = append(headerCells, padToWidth(h, c.Width, c.Align))
+		} else if t.sortMode && ci == t.sortCol {
+			// Modo sort ativo — destacar coluna sendo ordenada
+			h := lipgloss.NewStyle().Bold(true).Foreground(cResmaWarning).Render(title)
+			headerCells = append(headerCells, padToWidth(h, c.Width, c.Align))
+		} else {
+			h := sTableHeader.Render(title)
+			headerCells = append(headerCells, padToWidth(h, c.Width, c.Align))
+		}
 	}
 	headerLine := strings.Join(headerCells, " ")
 	headerLine = padToWidth(headerLine, t.width, lipgloss.Left)

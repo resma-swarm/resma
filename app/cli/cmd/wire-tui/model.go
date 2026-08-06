@@ -67,6 +67,11 @@ type model struct {
 	logFollow      bool   // auto-scroll para o fim (tail)
 	logFilter      string // filtro de logs
 	filterFromLogs bool   // filter foi aberto da view de logs
+	// Sort state para a tabela da view ativa
+	sortCol  int     // coluna de ordenação (-1 = nenhuma)
+	sortDir  SortDir // direção da ordenação
+	sortMode bool    // modo de seleção de ordenação ativo
+	selCol   int     // coluna selecionada pelo Shift+←/→
 }
 
 func initialModel() model {
@@ -77,6 +82,8 @@ func initialModel() model {
 		clock:        time.Now(),
 		splash:       true,
 		logFollow:    true,
+		sortCol:      -1,
+		selCol:       -1,
 		flash:        flashText("Welcome to RESMA Monitor — press ? for help", FlashInfo),
 	}
 }
@@ -116,4 +123,49 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	return renderDashboard(m)
+}
+
+// selColLeft move a seleção de coluna para a esquerda (loop infinito).
+func (m *model) selColLeft() {
+	n := numColsForTab(m.activeTab)
+	if n == 0 {
+		return
+	}
+	if m.selCol < 0 {
+		m.selCol = 0
+	} else {
+		m.selCol = (m.selCol - 1 + n) % n
+	}
+}
+
+// selColRight move a seleção de coluna para a direita (loop infinito).
+func (m *model) selColRight() {
+	n := numColsForTab(m.activeTab)
+	if n == 0 {
+		return
+	}
+	if m.selCol < 0 {
+		m.selCol = 0
+	} else {
+		m.selCol = (m.selCol + 1) % n
+	}
+}
+
+// numColsForTab retorna o número de colunas da tab ativa.
+func numColsForTab(tab TabID) int {
+	switch tab {
+	case TabServices:
+		return 6
+	case TabNodes:
+		return 7
+	case TabAgents:
+		return 5
+	case TabTasks:
+		return 6
+	case TabAlerts:
+		return 4
+	case TabRecommendations:
+		return 6
+	}
+	return 0
 }

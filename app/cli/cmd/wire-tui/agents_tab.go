@@ -36,5 +36,6 @@ func renderAgentsTab(m model) string {
 	table.SetWidth(m.width)
 	table.SetRows(rows)
 	table.cursor = m.cursor
+	applySortState(&table, m)
 	return table.View()
 }
