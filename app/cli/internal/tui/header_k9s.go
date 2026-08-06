@@ -48,23 +48,75 @@ func renderClusterInfo(m model) string {
 	var sb strings.Builder
 	sb.WriteString(sClusterTitle.Render(" Context: default "))
 	sb.WriteString("\n")
-	sb.WriteString(sInfoKey.Render(" Stack: ") + sInfoVal.Render("resma-swarm"))
+
+	// Stack e Role — usar dados reais se disponíveis, fallback mock
+	stackName := "resma-swarm"
+	role := "manager"
+	nodesReady := "1/1"
+	if m.cluster != nil {
+		if m.cluster.Cluster.ID != "" {
+			role = m.cluster.NodesDistribution[0].Role
+		}
+		nodesReady = fmt.Sprintf("%d/%d", m.cluster.Cluster.NodesReady, m.cluster.Cluster.NodesTotal)
+	}
+
+	sb.WriteString(sInfoKey.Render(" Stack: ") + sInfoVal.Render(stackName))
 	sb.WriteString("\n")
-	sb.WriteString(sInfoKey.Render(" Role:  ") + sInfoVal.Render("manager"))
+	sb.WriteString(sInfoKey.Render(" Role:  ") + sInfoVal.Render(role))
 	sb.WriteString("\n")
-	sb.WriteString(sInfoKey.Render(" CLI:   ") + sInfoVal.Render("v0.1.0"))
+	sb.WriteString(sInfoKey.Render(" Nodes: ") + sInfoVal.Render(nodesReady))
 	sb.WriteString("\n")
-	sb.WriteString(sInfoKey.Render(" CPU:   ") + renderMetricBar(65, cResmaGreen))
+
+	// CPU e MEM — dados reais do cluster via SSE
+	cpuPct, memPct, memUsed, memTotal := clusterMetrics(m)
+	cpuColor := metricColor(cpuPct)
+	memColor := metricColor(memPct)
+	sb.WriteString(sInfoKey.Render(" CPU:   ") + renderMetricBar(cpuPct, cpuColor))
 	sb.WriteString("\n")
-	sb.WriteString(sInfoKey.Render(" MEM:   ") + renderMetricBar(42, cResmaGreen))
+	sb.WriteString(sInfoKey.Render(" MEM:   ") + renderMetricBar(memPct, memColor) + fmt.Sprintf(" %.1fG/%.1fG", memUsed, memTotal))
 	return sb.String()
 }
 
-func renderMetricBar(pct int, color lipgloss.Color) string {
+// clusterMetrics extrai CPU% e MEM% do payload SSE, com fallback mock.
+// Retorna: cpuPct (0-100), memPct (0-100), memUsedGB, memTotalGB.
+func clusterMetrics(m model) (cpuPct, memPct, memUsedGB, memTotalGB float64) {
+	if m.cluster == nil {
+		// Fallback mock quando não há dados SSE ainda
+		return 65, 42, 3.4, 8.0
+	}
+	cap := &m.cluster.ClusterCapacity
+	cpuPct = cap.CPUPercent()
+	memPct = cap.MemPercent()
+	memUsedGB = cap.MemUsageGB()
+	memTotalGB = cap.MemTotalGB()
+	return
+}
+
+// metricColor retorna a cor adequada para uma porcentagem de uso.
+//   - < 70%: verde
+//   - 70-89%: amarelo (warning)
+//   - >= 90%: vermelho (danger)
+func metricColor(pct float64) lipgloss.Color {
+	if pct >= 90 {
+		return cResmaRed
+	}
+	if pct >= 70 {
+		return cResmaWarning
+	}
+	return cResmaGreen
+}
+
+func renderMetricBar(pct float64, color lipgloss.Color) string {
 	width := 10
-	filled := (pct * width) / 100
+	filled := int((pct * float64(width)) / 100)
+	if filled > width {
+		filled = width
+	}
+	if filled < 0 {
+		filled = 0
+	}
 	bar := strings.Repeat("■", filled) + strings.Repeat("□", width-filled)
-	return lipgloss.NewStyle().Foreground(color).Render(bar) + fmt.Sprintf(" %d%%", pct)
+	return lipgloss.NewStyle().Foreground(color).Render(bar) + fmt.Sprintf(" %3.0f%%", pct)
 }
 
 // renderBrandSection renderiza o logo ASCII + status bar.

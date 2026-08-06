@@ -4,6 +4,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/resma-swarm/resma/app/cli/internal/client"
 )
 
 // ViewMode representa o modo de visualização atual.
@@ -72,6 +73,10 @@ type model struct {
 	sortDir  SortDir   // direção da ordenação
 	selCol   int       // coluna selecionada pelo Shift+←/→
 	selColAt time.Time // timestamp do último Shift+←/→ (para expirar seleção)
+
+	// Dados reais do cluster (via SSE topic "dashboard")
+	cluster *client.DashboardPayload // nil = sem dados ainda (usa fallback mock)
+	sseErr  error                    // erro de conexão SSE (para display)
 }
 
 func initialModel() model {
@@ -105,6 +110,17 @@ func selColExpire() tea.Cmd {
 	})
 }
 
+// clusterHealthMsg carrega dados reais do cluster recebidos via SSE.
+// Enviado pela goroutine do SSE client para o model.Update.
+type clusterHealthMsg struct {
+	payload client.DashboardPayload
+}
+
+// sseErrorMsg indica erro de conexão SSE (para display no header).
+type sseErrorMsg struct {
+	err error
+}
+
 func (m model) Init() tea.Cmd {
 	return tick()
 }
@@ -134,6 +150,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.selCol >= 0 {
 			return m, selColExpire()
 		}
+		return m, nil
+
+	case clusterHealthMsg:
+		// Dados reais do cluster recebidos via SSE
+		m.cluster = &msg.payload
+		m.sseErr = nil
+		return m, nil
+
+	case sseErrorMsg:
+		// Erro de conexão SSE — manter dados antigos se houver
+		m.sseErr = msg.err
 		return m, nil
 
 	case tea.KeyMsg:
