@@ -1,0 +1,39 @@
+# ------------------------------
+# Binary output
+# ------------------------------
+/resma
+/resma-cli
+*.exe
+
+# ------------------------------
+# Build artifacts
+# ------------------------------
+dist/
+bin/
+
+# ------------------------------
+# Go
+# ------------------------------
+# vendor/ is optional; uncomment to ignore vendored deps
+# vendor/
+*.test
+*.out
+
+# ------------------------------
+# IDE
+# ------------------------------
+.idea/
+.vscode/
+*.swp
+
+# ------------------------------
+# OS
+# ------------------------------
+.DS_Store
+Thumbs.db
+
+# ------------------------------
+# Config
+# ------------------------------
+# Note: ~/.resma/ is the user's local config directory and lives outside the
+# repository, so it is not tracked by git. Documented here for reference.
