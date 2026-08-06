@@ -77,6 +77,25 @@ type model struct {
 	// Dados reais do cluster (via SSE topic "dashboard")
 	cluster *client.DashboardPayload // nil = sem dados ainda (usa fallback mock)
 	sseErr  error                    // erro de conexão SSE (para display)
+
+	// Flash de valores atualizados via SSE — timestamp da última mudança.
+	// Quando time.Since(flashAt) < flashDuration, o valor é renderizado com
+	// destaque (bold white) para indicar que acabou de mudar.
+	cpuFlashAt time.Time
+	memFlashAt time.Time
+}
+
+// flashDuration é quanto o efeito de "valor atualizado" dura (1.5s).
+const flashDuration = 1500 * time.Millisecond
+
+// cpuFlashing retorna true se o valor de CPU está no efeito flash.
+func (m model) cpuFlashing() bool {
+	return !m.cpuFlashAt.IsZero() && time.Since(m.cpuFlashAt) < flashDuration
+}
+
+// memFlashing retorna true se o valor de MEM está no efeito flash.
+func (m model) memFlashing() bool {
+	return !m.memFlashAt.IsZero() && time.Since(m.memFlashAt) < flashDuration
 }
 
 func initialModel() model {
@@ -96,7 +115,9 @@ func initialModel() model {
 type tickMsg time.Time
 
 func tick() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+	// Tick a cada 500ms — suave o suficiente para o efeito de flash (1.5s)
+	// e para atualizar o relógio do header sem flicker.
+	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
@@ -154,6 +175,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case clusterHealthMsg:
 		// Dados reais do cluster recebidos via SSE
+		// Comparar valores antigos vs novos para acionar o flash visual
+		now := time.Now()
+		if m.cluster != nil {
+			oldCPU := m.cluster.ClusterCapacity.CPUP95
+			oldMem := m.cluster.ClusterCapacity.MemUsage
+			newCPU := msg.payload.ClusterCapacity.CPUP95
+			newMem := msg.payload.ClusterCapacity.MemUsage
+			if oldCPU != newCPU {
+				m.cpuFlashAt = now
+			}
+			if oldMem != newMem {
+				m.memFlashAt = now
+			}
+		} else {
+			// Primeiro evento — flash ambos
+			m.cpuFlashAt = now
+			m.memFlashAt = now
+		}
 		m.cluster = &msg.payload
 		m.sseErr = nil
 		return m, nil

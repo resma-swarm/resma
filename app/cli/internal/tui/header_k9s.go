@@ -71,9 +71,22 @@ func renderClusterInfo(m model) string {
 	cpuPct, memPct, memUsed, memTotal := clusterMetrics(m)
 	cpuColor := metricColor(cpuPct)
 	memColor := metricColor(memPct)
-	sb.WriteString(sInfoKey.Render(" CPU:   ") + renderMetricBar(cpuPct, cpuColor))
+
+	// Efeito flash: se o valor acabou de mudar via SSE, renderizar em bold white
+	cpuBar := renderMetricBar(cpuPct, cpuColor)
+	if m.cpuFlashing() {
+		cpuBar = renderMetricBarFlash(cpuPct)
+	}
+	memBar := renderMetricBar(memPct, memColor)
+	memSuffix := fmt.Sprintf(" %.1fG/%.1fG", memUsed, memTotal)
+	if m.memFlashing() {
+		memBar = renderMetricBarFlash(memPct)
+		memSuffix = sFlash.Render(memSuffix)
+	}
+
+	sb.WriteString(sInfoKey.Render(" CPU:   ") + cpuBar)
 	sb.WriteString("\n")
-	sb.WriteString(sInfoKey.Render(" MEM:   ") + renderMetricBar(memPct, memColor) + fmt.Sprintf(" %.1fG/%.1fG", memUsed, memTotal))
+	sb.WriteString(sInfoKey.Render(" MEM:   ") + memBar + memSuffix)
 	return sb.String()
 }
 
@@ -90,6 +103,21 @@ func clusterMetrics(m model) (cpuPct, memPct, memUsedGB, memTotalGB float64) {
 	memUsedGB = cap.MemUsageGB()
 	memTotalGB = cap.MemTotalGB()
 	return
+}
+
+// renderMetricBarFlash renderiza a barra em bold branco (efeito "valor atualizado").
+// Usado quando o valor acabou de mudar via SSE — destaca por ~1.5s e volta ao normal.
+func renderMetricBarFlash(pct float64) string {
+	width := 10
+	filled := int((pct * float64(width)) / 100)
+	if filled > width {
+		filled = width
+	}
+	if filled < 0 {
+		filled = 0
+	}
+	bar := strings.Repeat("■", filled) + strings.Repeat("□", width-filled)
+	return sFlash.Render(bar) + sFlash.Render(fmt.Sprintf(" %3.0f%%", pct))
 }
 
 // metricColor retorna a cor adequada para uma porcentagem de uso.
