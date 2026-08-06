@@ -30,7 +30,18 @@ func renderHeaderRich(m model) string {
 	menuStyled := lipgloss.NewStyle().Width(menuW).Render(menuGrid)
 	logoStyled := lipgloss.NewStyle().Width(logoW).Render(logoSection)
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, infoStyled, menuStyled, logoStyled)
+	header := lipgloss.JoinHorizontal(lipgloss.Top, infoStyled, menuStyled, logoStyled)
+
+	// Garantir que cada linha do header tem exatamente m.width chars visuais.
+	// Se o menu for mais largo que menuW (Width não trunca, apenas wrap/pad),
+	// truncar cada linha para evitar que o terminal quebre linhas largas.
+	headerLines := strings.Split(header, "\n")
+	for i, line := range headerLines {
+		if visualWidth(line) > m.width {
+			headerLines[i] = truncateAnsi(line, m.width)
+		}
+	}
+	return strings.Join(headerLines, "\n")
 }
 
 func renderClusterInfo(m model) string {

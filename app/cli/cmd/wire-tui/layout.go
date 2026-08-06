@@ -27,37 +27,44 @@ func renderDashboard(m model) string {
 		return renderHelp(m)
 	}
 
-	// 1. Header Superior Rico (altura variável — medir dinamicamente)
+	// 1. Header Superior Rico
 	header := renderHeaderRich(m)
 	headerLines := strings.Count(header, "\n") + 1
 
 	// 2. Barra Visual de Abas (1 linha)
 	tabs := renderTabBar(m)
+	tabLines := strings.Count(tabs, "\n") + 1
 
-	// 3. Calcular altura disponível para o content area
-	// Layout: header + tabs(1) + content + crumbs(1) + flash(1) + prompt(0-1)
-	// O content area tem borda top+bottom (2 linhas)
-	belowContent := 2 // crumbs + flash (sempre presentes)
-	if m.viewMode == ViewCommand || m.viewMode == ViewFilter {
-		belowContent = 3 // crumbs + flash + prompt
+	// 3. Crumbs, Flash, Prompt — medir linhas reais de cada um
+	crumbs := renderCrumbs(m)
+	flash := renderFlash(m)
+	prompt := renderPrompt(m)
+
+	crumbsLines := 0
+	if crumbs != "" {
+		crumbsLines = strings.Count(crumbs, "\n") + 1
 	}
-	// contentHeight é a altura INTERNA do content area (sem bordas)
-	contentHeight := m.height - headerLines - 1 - belowContent - 2 // -2 bordas
+	flashLines := 0
+	if flash != "" {
+		flashLines = strings.Count(flash, "\n") + 1
+	}
+	promptLines := 0
+	if prompt != "" {
+		promptLines = strings.Count(prompt, "\n") + 1
+	}
+
+	// 4. Content area: altura = terminal - header - tabs - crumbs - flash - prompt
+	// O content area tem borda top+bottom (2 linhas) que lipgloss adiciona
+	// AFTER Height(), então precisamos passar contentHeight - 2 para Height()
+	// para que o total (com bordas) seja contentHeight.
+	contentHeight := m.height - headerLines - tabLines - crumbsLines - flashLines - promptLines
 	if contentHeight < 5 {
 		contentHeight = 5
 	}
 
 	content := renderContentArea(m, contentHeight)
 
-	// 4. Crumbs de Navegação
-	crumbs := renderCrumbs(m)
-
-	// 5. Mensagens Flash
-	flash := renderFlash(m)
-
-	// 6. Prompt de Entrada
-	prompt := renderPrompt(m)
-
+	// 5. Montar dashboard
 	parts := []string{header, tabs, content}
 	if crumbs != "" {
 		parts = append(parts, crumbs)
@@ -71,7 +78,29 @@ func renderDashboard(m model) string {
 
 	dashboard := lipgloss.JoinVertical(lipgloss.Left, parts...)
 
-	return dashboard
+	// 6. SAFETY NET: garantir que o dashboard tem EXATAMENTE m.height linhas
+	// e cada linha tem no máximo m.width chars visuais.
+	// O lipgloss.Width() em algumas versões não trunca, apenas wrapa/padeia,
+	// o que causa overflow visual no terminal.
+	lines := strings.Split(dashboard, "\n")
+
+	// Truncar cada linha para m.width chars visuais
+	for i, line := range lines {
+		if visualWidth(line) > m.width {
+			lines[i] = truncateAnsi(line, m.width)
+		}
+	}
+
+	// Garantir exatamente m.height linhas
+	if len(lines) > m.height {
+		lines = lines[:m.height]
+	} else if len(lines) < m.height {
+		for i := len(lines); i < m.height; i++ {
+			lines = append(lines, "")
+		}
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func renderContentArea(m model, height int) string {
@@ -87,9 +116,17 @@ func renderContentArea(m model, height int) string {
 		body = renderMainPanel(m)
 	}
 
+	// lipgloss aplica Height() ANTES da borda, então a borda adiciona
+	// 2 linhas extras (top + bottom). Passar height-2 para Height()
+	// faz com que o total (conteúdo + bordas) seja exatamente height.
+	innerH := height - 2
+	if innerH < 3 {
+		innerH = 3
+	}
+
 	return lipgloss.NewStyle().
 		Width(m.width).
-		Height(height).
+		Height(innerH).
 		Border(lipgloss.NormalBorder(), true, false, true, false).
 		BorderForeground(cResmaBorder).
 		Render(body)
