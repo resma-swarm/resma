@@ -21,6 +21,7 @@ const tierConfig: { name: TierName; label: string; description: string }[] = [
   { name: "conservative", label: "Conservadora", description: "2x P95 / 1.8x P99 — produção crítica sem monitoramento pós-apply" },
   { name: "balanced", label: "Equilibrada", description: "Margem data-driven — recomendado para a maioria dos casos" },
   { name: "aggressive", label: "Agressiva", description: "1.1x P95 / 1.1x P99 — dev/staging com rollback ativo" },
+  { name: "template", label: "Template", description: "Perfil YAML pré-definido — aplicação manual sem ML" },
 ]
 
 function formatCpu(cores: number): string {
@@ -40,7 +41,7 @@ export function LayerToggle({ value, onChange, suggestedTiers }: LayerToggleProp
         className="gap-0 rounded-lg border bg-muted/30 p-0.5"
       >
         {tierConfig.map((tier) => {
-          const t = suggestedTiers[tier.name]
+          const t = tier.name === "template" ? null : suggestedTiers[tier.name]
           return (
             <ToggleGroupItem
               key={tier.name}
@@ -51,9 +52,13 @@ export function LayerToggle({ value, onChange, suggestedTiers }: LayerToggleProp
             >
               <span className="text-xs font-medium">{tier.label}</span>
               <span className="text-[10px] text-muted-foreground tabular-nums">
-                {t && t.cpu_limit > 0 ? formatCpu(t.cpu_limit) : "—"}
-                {" · "}
-                {t && t.mem_limit > 0 ? formatBytes(t.mem_limit) : "—"}
+                {tier.name === "template" ? "YAML" : (
+                  <>
+                    {t && t.cpu_limit > 0 ? formatCpu(t.cpu_limit) : "—"}
+                    {" · "}
+                    {t && t.mem_limit > 0 ? formatBytes(t.mem_limit) : "—"}
+                  </>
+                )}
               </span>
             </ToggleGroupItem>
           )
@@ -61,7 +66,7 @@ export function LayerToggle({ value, onChange, suggestedTiers }: LayerToggleProp
       </ToggleGroup>
       <HelpIcon
         title="Camadas de recomendação"
-        text="Conservadora: margem maior, mais seguro. Equilibrada: data-driven, recomendada. Agressiva: margem mínima, requer rollback ativo."
+        text="Conservadora: margem maior, mais seguro. Equilibrada: data-driven, recomendada. Agressiva: margem mínima, requer rollback ativo. Template: perfil YAML pré-definido manual."
         side="top"
         className="h-4 w-4 text-muted-foreground"
       />

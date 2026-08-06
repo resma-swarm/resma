@@ -34,6 +34,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Combobox } from "@/components/combobox"
 import { PageHeader } from "@/components/page-header"
 import { HelpIcon } from "@/components/help-icon"
 import { HeroMetric } from "@/components/right-sizing/HeroMetric"
@@ -49,14 +50,14 @@ import { format, parseISO } from "date-fns"
 import {
   calculateHero,
   patternLabel, riskColorClasses, riskLevelLabel,
-  type Recommendation, type ResourceValues, type TierName,
+  type Recommendation, type ResourceValues, type TierName, type SuggestedTiers,
 } from "@/components/right-sizing/types"
 import type { RiskColor } from "@/components/right-sizing/types"
 import {
   RotateCcw, Layers, Activity, Settings2, AlertTriangle,
   CheckCircle2, TrendingDown, X, ShieldCheck, CalendarClock,
   Database, HardDrive, TrendingUp, ChevronDown, AlertCircle,
-  Calendar as CalendarIcon, Shield, Zap, Loader2,
+  Calendar as CalendarIcon, Shield, Zap, Loader2, Package,
 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -140,6 +141,7 @@ export default function Studio() {
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [showStorage, setShowStorage] = useState(true)
   const [selectedTier, setSelectedTier] = useState<TierName>("balanced")
+  const [selectedTemplateName, setSelectedTemplateName] = useState<string>("")
   const [whatIfCpu, setWhatIfCpu] = useState(0)
   const [whatIfMem, setWhatIfMem] = useState(0)
   const [applying, setApplying] = useState(false)
@@ -183,6 +185,11 @@ export default function Studio() {
   const { data: storageRecs } = useQuery<StorageAnalysis>({
     queryKey: ["storage-recommendations"],
     queryFn: () => api.get<StorageAnalysis>("/recommendations/storage"),
+  })
+
+  const { data: templates } = useQuery<{ id: number; name: string; description: string; yaml_content: string; stacks: string[] }[]>({
+    queryKey: ["templates"],
+    queryFn: () => api.get("/templates"),
   })
 
   // --- counts ---
@@ -249,6 +256,7 @@ export default function Studio() {
 
   // --- helpers ---
   const getTierData = (rec: Recommendation): ResourceValues | null => {
+    if (selectedTier === "template") return null // template não tem tierData ML
     if (!rec.suggested_tiers) return rec.suggested ?? null
     const tier = rec.suggested_tiers[selectedTier]
     if (!tier) return rec.suggested ?? null
@@ -263,6 +271,7 @@ export default function Studio() {
   // Quando o tier muda, atualiza os sliders para os valores do tier selecionado
   useEffect(() => {
     if (!sheetRec) return
+    if (selectedTier === "template") return // template usa combobox, não sliders
     const tier = getTierData(sheetRec)
     if (tier && tier.cpu_limit != null && tier.mem_limit != null) {
       setWhatIfCpu(tier.cpu_limit)
@@ -271,6 +280,7 @@ export default function Studio() {
   }, [selectedTier]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const getResourcesFreed = (rec: Recommendation) => {
+    if (selectedTier === "template") return null
     if (!rec.suggested_tiers) return rec.resources_freed?.balanced ?? null
     const tier = rec.suggested_tiers[selectedTier]
     return tier?.resources_freed ?? null
@@ -292,6 +302,29 @@ export default function Studio() {
 
   const handleApply = () => {
     if (!sheetRec) return
+    if (selectedTier === "template") {
+      if (!selectedTemplateName) {
+        toast.error("Selecione um template")
+        return
+      }
+      setApplying(true)
+      api.post<{ success: boolean; message: string }>(`/templates/${selectedTemplateName}/apply/${sheetRec.service}`)
+        .then((data) => {
+          if (data.success) {
+            toast.success(data.message || `Template ${selectedTemplateName} aplicado em ${sheetRec.service}`)
+          } else {
+            toast.error(data.message || "Erro ao aplicar template")
+          }
+          queryClient.invalidateQueries({ queryKey: ["services"] })
+          queryClient.invalidateQueries({ queryKey: ["recommendations"] })
+          setSheetOpen(false)
+        })
+        .catch((err) => {
+          toast.error(err instanceof Error ? err.message : "Erro ao aplicar template")
+        })
+        .finally(() => setApplying(false))
+      return
+    }
     const values: ResourceValues = {
       cpu_limit: whatIfCpu,
       mem_limit: Math.round(whatIfMem),
@@ -609,6 +642,9 @@ export default function Studio() {
                   onCpuChange={setWhatIfCpu}
                   onMemChange={setWhatIfMem}
                   tierData={getTierData(sheetRec)}
+                  templates={templates ?? []}
+                  selectedTemplateName={selectedTemplateName}
+                  onTemplateChange={setSelectedTemplateName}
                 />
               </div>
 
@@ -619,9 +655,9 @@ export default function Studio() {
                   <CalendarClock className="mr-2 h-4 w-4" />
                   Agendar
                 </Button>
-                <Button size="sm" onClick={handleApply} disabled={applying}>
+                <Button size="sm" onClick={handleApply} disabled={applying || (selectedTier === "template" && !selectedTemplateName)}>
                   <ShieldCheck className="mr-2 h-4 w-4" />
-                  {applying ? "Aplicando..." : isConfigMode ? "Configurar e monitorar →" : "Aplicar com Rollback →"}
+                  {applying ? "Aplicando..." : selectedTier === "template" ? "Aplicar Template →" : isConfigMode ? "Configurar e monitorar →" : "Aplicar com Rollback →"}
                 </Button>
               </SheetFooter>
             </>
@@ -807,6 +843,57 @@ function CompactCard({ rec, freed, onConfigure, onQuickApply, isWatched, isQuick
   )
 }
 
+// --- Template mode content (quando tier=template) ---
+function TemplateModeContent({ templates, selectedTemplateName, onTemplateChange }: {
+  templates: { id: number; name: string; description: string; yaml_content: string; stacks: string[] }[]
+  selectedTemplateName: string
+  onTemplateChange: (name: string) => void
+}) {
+  const selected = templates.find((t) => t.name === selectedTemplateName)
+  return (
+    <>
+      <InfoBanner variant="info">
+        <strong>Modo Template:</strong> aplica um perfil YAML pré-definido (limites, reservas e margens)
+        em vez das sugestões dinâmicas do ML. Útil para padronização ou quando não há dados suficientes.
+      </InfoBanner>
+
+      <SectionLabel>
+        Selecionar template
+        <HelpIcon title="Template" text="Templates são perfis YAML criados na página Templates. Eles definem limits, reservations e margens fixas." />
+      </SectionLabel>
+
+      <Combobox
+        options={templates.map((t) => ({ value: t.name, label: t.name }))}
+        value={selectedTemplateName}
+        onChange={onTemplateChange}
+        placeholder="Escolher template..."
+        searchPlaceholder="Buscar template..."
+        emptyText="Nenhum template encontrado."
+      />
+
+      {selected && (
+        <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
+          <div className="flex items-center gap-2">
+            <Package className="h-4 w-4 text-chart-5" />
+            <span className="text-sm font-medium">{selected.name}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">{selected.description}</p>
+          {selected.stacks?.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {selected.stacks.map((s) => (
+                <Badge key={s} variant="outline" className="text-[10px] border-chart-5/40 text-chart-5">{s}</Badge>
+              ))}
+            </div>
+          )}
+          <pre className="text-[10px] font-mono text-muted-foreground bg-background rounded p-2 overflow-auto max-h-32 border">
+            {selected.yaml_content}
+          </pre>
+        </div>
+      )}
+    </>
+  )
+}
+
 // --- Sheet Body (mode-specific) ---
 
 interface SheetBodyProps {
@@ -819,10 +906,38 @@ interface SheetBodyProps {
   onCpuChange: (v: number) => void
   onMemChange: (v: number) => void
   tierData: ResourceValues | null
+  templates: { id: number; name: string; description: string; yaml_content: string; stacks: string[] }[]
+  selectedTemplateName: string
+  onTemplateChange: (name: string) => void
 }
 
-function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem, onCpuChange, onMemChange, tierData }: SheetBodyProps) {
+function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem, onCpuChange, onMemChange, tierData, templates, selectedTemplateName, onTemplateChange }: SheetBodyProps) {
   const hasLeak = rec.memory_trend?.has_leak ?? false
+
+  // --- Mode: template (perfil YAML pré-definido, sem ML) ---
+  if (selectedTier === "template") {
+    return (
+      <>
+        {rec.suggested_tiers && (
+          <>
+            <SectionLabel>
+              Camadas de recomendação
+              <HelpIcon title="Camadas" text="Conservadora: 2x P95. Equilibrada: data-driven. Agressiva: 1.1x P95. Template: perfil YAML manual." />
+            </SectionLabel>
+            <LayerToggle value={selectedTier} onChange={onTierChange} suggestedTiers={rec.suggested_tiers} />
+          </>
+        )}
+        {!rec.suggested_tiers && (
+          <LayerToggle value={selectedTier} onChange={onTierChange} suggestedTiers={rec.suggested_tiers ?? ({} as SuggestedTiers)} />
+        )}
+        <TemplateModeContent
+          templates={templates}
+          selectedTemplateName={selectedTemplateName}
+          onTemplateChange={onTemplateChange}
+        />
+      </>
+    )
+  }
 
   // --- Mode: collecting_data (manual, sem ML) ---
   if (mode === "collecting") {

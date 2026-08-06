@@ -85,7 +85,7 @@ export interface Forecast {
   slope_bytes_per_hour: number
 }
 
-export type TierName = "conservative" | "balanced" | "aggressive"
+export type TierName = "conservative" | "balanced" | "aggressive" | "template"
 
 /**
  * Recommendation estendida — backward compatible com a interface anterior.
