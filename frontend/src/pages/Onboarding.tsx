@@ -47,7 +47,7 @@ export default function Onboarding() {
           </div>
           <div>
             <span className="text-lg font-bold tracking-tight">RESMA</span>
-            <p className="text-xs text-muted-foreground">Otus7 Infrastructure</p>
+            <p className="text-xs text-muted-foreground">Optimize Infrastructure</p>
           </div>
         </div>
 
@@ -80,7 +80,7 @@ export default function Onboarding() {
           </div>
         </div>
 
-        <p className="text-xs text-muted-foreground">© 2025 Otus7 — All rights reserved</p>
+        <p className="text-xs text-muted-foreground">© 2026 Allt — All rights reserved</p>
       </div>
 
       <div className="flex flex-1 items-center justify-center bg-background px-4">

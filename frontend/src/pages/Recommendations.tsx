@@ -911,6 +911,7 @@ export default function Recommendations() {
 
   const handleScheduled = () => {
     queryClient.invalidateQueries({ queryKey: ["schedules"] })
+    queryClient.invalidateQueries({ queryKey: ["schedules", "pending"] })
     toast.success("Agendamento criado com sucesso")
   }
 

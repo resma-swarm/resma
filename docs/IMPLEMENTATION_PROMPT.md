@@ -95,7 +95,7 @@ resma/
 1. **TailwindCSS v4** — instalar e configurar na última versão
 2. **shadcn/ui original** — usar o CLI oficial (`npx shadcn@latest`), sem forks ou alternativas
 3. **pnpm** — gerenciador de pacotes em todo o frontend (instalação, scripts, Dockerfile)
-4. UI moderna e responsiva com tema dark (alinhado ao padrão Otus7)
+4. UI moderna e responsiva com tema dark (alinhado ao padrão)
 5. Telas de auth (Login + Onboarding) devem seguir o estilo do Portainer CE (centradas, limpas, card-based)
 6. Dashboard com gráficos de consumo (área/linha), cards de KPI, tabela de serviços
 7. Estados de loading, erro e empty em todas as páginas

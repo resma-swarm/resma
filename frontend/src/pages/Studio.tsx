@@ -755,6 +755,9 @@ export default function Studio() {
           onOpenChange={setScheduleOpen}
           onScheduled={() => {
             queryClient.invalidateQueries({ queryKey: ["schedules"] })
+            queryClient.invalidateQueries({ queryKey: ["schedules", "pending"] })
+            setScheduleOpen(false)
+            setSheetOpen(false)
             toast.success(`Agendamento criado para ${sheetRec.service}`)
           }}
         />
