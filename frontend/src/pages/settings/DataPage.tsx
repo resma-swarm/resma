@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/api/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,7 +29,7 @@ interface PrunePreview {
   volume_metrics: number
 }
 
-interface PruneCard {
+interface PruneCardConfig {
   key: string
   label: string
   endpoint: string
@@ -36,18 +38,19 @@ interface PruneCard {
   destructive: boolean
 }
 
-const PRUNE_CARDS: PruneCard[] = [
+// PRUNE_CARDS — labels em PT-BR (C7: i18n consistente com o restante do app).
+const PRUNE_CARDS: PruneCardConfig[] = [
   {
     key: "services-stale",
-    label: "Services Stale",
+    label: "Serviços Obsoletos",
     endpoint: "/prune/services-stale",
     countKey: "services_stale",
-    description: "Services marcados como stale (sem heartbeat)",
+    description: "Serviços marcados como stale (sem heartbeat)",
     destructive: false,
   },
   {
     key: "nodes-stale",
-    label: "Nodes Stale",
+    label: "Nodes Obsoletos",
     endpoint: "/prune/nodes-stale",
     countKey: "nodes_stale",
     description: "Nodes marcados como stale (sem heartbeat)",
@@ -58,7 +61,7 @@ const PRUNE_CARDS: PruneCard[] = [
     label: "Tasks Órfãs",
     endpoint: "/prune/tasks-orphan",
     countKey: "tasks_orphan",
-    description: "Tasks com status removed/orphaned",
+    description: "Tasks com status removida/órfã",
     destructive: false,
   },
   {
@@ -71,7 +74,7 @@ const PRUNE_CARDS: PruneCard[] = [
   },
   {
     key: "change-log",
-    label: "Change Log",
+    label: "Histórico de Mudanças",
     endpoint: "/prune/change-log",
     countKey: "change_log",
     description: "TODO o histórico de mudanças (irreversível)",
@@ -79,7 +82,7 @@ const PRUNE_CARDS: PruneCard[] = [
   },
   {
     key: "volume-metrics",
-    label: "Volume Metrics",
+    label: "Métricas de Volumes",
     endpoint: "/prune/volume-metrics",
     countKey: "volume_metrics",
     description: "TODAS as métricas de volumes (irreversível)",
@@ -87,47 +90,175 @@ const PRUNE_CARDS: PruneCard[] = [
   },
 ]
 
-export function DataPage() {
-  const [preview, setPreview] = useState<PrunePreview | null>(null)
-  const [loading, setLoading] = useState(true)
+// PruneCardItem — cada card tem seu próprio estado `confirmed`, isolando
+// o consentimento por operação destrutiva. Resolve B1: antes o estado era
+// compartilhado e um checkbox marcado em um dialog vazava para o próximo.
+function PruneCardItem({
+  card,
+  count,
+  onPrune,
+  onDryRun,
+  pruning,
+}: {
+  card: PruneCardConfig
+  count: number | undefined
+  onPrune: (card: PruneCardConfig) => void
+  onDryRun: (card: PruneCardConfig) => void
+  pruning: boolean
+}) {
+  // Estado isolado por card — resetado quando o dialog fecha (onOpenChange).
   const [confirmed, setConfirmed] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
-  const loadPreview = async () => {
-    try {
-      const data = await api.get<PrunePreview>("/prune/preview")
-      setPreview(data)
-    } catch (e) {
-      toast.error("Erro ao carregar preview: " + (e as Error).message)
-    } finally {
-      setLoading(false)
-    }
+  const handlePrune = () => {
+    onPrune(card)
+    setConfirmed(false)
+    setDialogOpen(false)
   }
 
-  useEffect(() => {
-    loadPreview()
-  }, [])
+  return (
+    <Card key={card.key}>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          {card.destructive && <AlertTriangle className="h-4 w-4 text-warning" />}
+          {card.label}
+        </CardTitle>
+        <CardDescription>{card.description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="text-2xl font-bold">
+          {count !== undefined ? count.toLocaleString("pt-BR") : "..."}
+          <span className="text-sm font-normal text-muted-foreground ml-1.5">linha(s)</span>
+        </div>
 
-  const handlePrune = async (card: PruneCard) => {
-    try {
-      const data = await api.post<{ deleted: number }>(card.endpoint, { dry_run: false })
-      toast.success(`${card.label}: ${data.deleted} linha(s) removida(s)`)
-      setConfirmed(false)
-      loadPreview()
-    } catch (e) {
-      toast.error("Erro: " + (e as Error).message)
-    }
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onDryRun(card)}
+            disabled={pruning}
+          >
+            Simular
+          </Button>
+
+          {card.destructive ? (
+            <AlertDialog
+              open={dialogOpen}
+              onOpenChange={(open) => {
+                setDialogOpen(open)
+                // Resetar consentimento sempre que o dialog fecha —
+                // seja por Cancelar, ESC ou click fora.
+                if (!open) setConfirmed(false)
+              }}
+            >
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" disabled={count === 0 || pruning}>
+                  <Trash2 className="h-4 w-4" />
+                  Limpar
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirmar limpeza de {card.label}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta operação é IRREVERSÍVEL. {count?.toLocaleString("pt-BR")} linha(s) serão removidas permanentemente.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="flex items-center gap-2 py-2">
+                  <Checkbox
+                    id={`confirm-${card.key}`}
+                    checked={confirmed}
+                    onCheckedChange={(v) => setConfirmed(v === true)}
+                  />
+                  <Label htmlFor={`confirm-${card.key}`} className="text-sm">
+                    Entendo que esta operação é irreversível
+                  </Label>
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handlePrune}
+                    disabled={!confirmed}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Excluir
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={count === 0 || pruning}
+              onClick={() => onPrune(card)}
+            >
+              <Trash2 className="h-4 w-4" />
+              Limpar
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+export function DataPage() {
+  const queryClient = useQueryClient()
+
+  const { data: preview, isLoading } = useQuery<PrunePreview>({
+    queryKey: ["prune-preview"],
+    queryFn: () => api.get<PrunePreview>("/prune/preview"),
+  })
+
+  const pruneMutation = useMutation({
+    mutationFn: (card: PruneCardConfig) =>
+      api.post<{ deleted: number }>(card.endpoint, { dry_run: false }),
+    onSuccess: (data, card) => {
+      toast.success(`${card.label}: ${data.deleted.toLocaleString("pt-BR")} linha(s) removida(s)`)
+      queryClient.invalidateQueries({ queryKey: ["prune-preview"] })
+    },
+    onError: (e) => toast.error("Erro: " + (e as Error).message),
+  })
+
+  const dryRunMutation = useMutation({
+    mutationFn: (card: PruneCardConfig) =>
+      api.post<{ would_delete: number }>(card.endpoint, { dry_run: true }),
+    onSuccess: (data, card) => {
+      toast.info(`${card.label}: ${data.would_delete.toLocaleString("pt-BR")} linha(s) seriam removidas`)
+    },
+    onError: (e) => toast.error("Erro: " + (e as Error).message),
+  })
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-80" />
+          </CardHeader>
+        </Card>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-4 w-48" />
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Skeleton className="h-8 w-24" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-8 w-20" />
+                  <Skeleton className="h-8 w-20" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    )
   }
-
-  const handleDryRun = async (card: PruneCard) => {
-    try {
-      const data = await api.post<{ would_delete: number }>(card.endpoint, { dry_run: true })
-      toast.info(`${card.label}: ${data.would_delete} linha(s) seriam removidas`)
-    } catch (e) {
-      toast.error("Erro: " + (e as Error).message)
-    }
-  }
-
-  if (loading) return <div className="text-muted-foreground">Carregando...</div>
 
   return (
     <div className="space-y-4">
@@ -145,80 +276,14 @@ export function DataPage() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {PRUNE_CARDS.map((card) => (
-          <Card key={card.key}>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                {card.destructive && <AlertTriangle className="h-4 w-4 text-warning" />}
-                {card.label}
-              </CardTitle>
-              <CardDescription>{card.description}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="text-2xl font-bold">
-                {preview ? preview[card.countKey].toLocaleString() : "..."}
-                <span className="text-sm font-normal text-muted-foreground ml-1.5">linha(s)</span>
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDryRun(card)}
-                >
-                  Dry-run
-                </Button>
-
-                {card.destructive ? (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="sm" disabled={preview?.[card.countKey] === 0}>
-                        <Trash2 className="h-4 w-4" />
-                        Prune
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Confirmar prune de {card.label}?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Esta operação é IRREVERSÍVEL. {preview?.[card.countKey]} linha(s) serão removidas permanentemente.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <div className="flex items-center gap-2 py-2">
-                        <Checkbox
-                          id={`confirm-${card.key}`}
-                          checked={confirmed}
-                          onCheckedChange={(v) => setConfirmed(v === true)}
-                        />
-                        <Label htmlFor={`confirm-${card.key}`} className="text-sm">
-                          Entendo que esta operação é irreversível
-                        </Label>
-                      </div>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => setConfirmed(false)}>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handlePrune(card)}
-                          disabled={!confirmed}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          Excluir
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                ) : (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={preview?.[card.countKey] === 0}
-                    onClick={() => handlePrune(card)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Prune
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <PruneCardItem
+            key={card.key}
+            card={card}
+            count={preview ? preview[card.countKey] : undefined}
+            onPrune={(c) => pruneMutation.mutate(c)}
+            onDryRun={(c) => dryRunMutation.mutate(c)}
+            pruning={pruneMutation.isPending || dryRunMutation.isPending}
+          />
         ))}
       </div>
     </div>
