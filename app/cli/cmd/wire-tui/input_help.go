@@ -25,7 +25,7 @@ func renderFilterInput(m model) string {
 
 func renderHelp(m model) string {
 	var sb strings.Builder
-	sb.WriteString(sK9sClusterTitle.Render("  KEYBINDINGS — " + tabNames[m.activeTab][4:] + " Tab"))
+	sb.WriteString(sClusterTitle.Render("  KEYBINDINGS — " + tabNames[m.activeTab][4:] + " Tab"))
 	sb.WriteString("\n\n")
 
 	sections := [][]string{
@@ -76,7 +76,7 @@ func renderHelp(m model) string {
 	content := sb.String()
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(cK9sPrimary).
+		BorderForeground(cResmaPrimary).
 		Padding(1, 2).
 		Width(min(m.width-4, 60)).
 		Render(content)

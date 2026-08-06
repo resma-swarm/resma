@@ -7,22 +7,24 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// renderHeaderRich renderiza o header 1:1 com k9s.
+// renderHeaderRich renderiza o cabeçalho completo do Dashboard RESMA
 func renderHeaderRich(m model) string {
-	// 1. ClusterInfo (Esquerda)
-	clusterInfo := renderK9sClusterInfo(m)
-	
-	// 2. Menu Grid (Centro)
-	menuGrid := renderK9sMenu(m)
-	
-	// 3. Logo & Status (Direita)
-	logoSection := renderK9sLogo(m)
+	// 1. Info da Stack RESMA / Swarm (Esquerda)
+	clusterInfo := renderClusterInfo(m)
 
-	// Calcular larguras
+	// 2. Grid de Ateliê de Teclas e Atalhos (Centro)
+	menuGrid := renderMenu(m)
+
+	// 3. Brand & Status (Direita)
+	logoSection := renderBrandSection(m)
+
+	// Regras de largura
 	logoW := 26
 	infoW := 35
 	menuW := m.width - logoW - infoW
-	if menuW < 0 { menuW = 0 }
+	if menuW < 0 {
+		menuW = 0
+	}
 
 	infoStyled := lipgloss.NewStyle().Width(infoW).Render(clusterInfo)
 	menuStyled := lipgloss.NewStyle().Width(menuW).Render(menuGrid)
@@ -31,30 +33,30 @@ func renderHeaderRich(m model) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, infoStyled, menuStyled, logoStyled)
 }
 
-func renderK9sClusterInfo(m model) string {
+func renderClusterInfo(m model) string {
 	var sb strings.Builder
-	sb.WriteString(sK9sClusterTitle.Render(" Context: default "))
+	sb.WriteString(sClusterTitle.Render(" Context: default "))
 	sb.WriteString("\n")
-	sb.WriteString(sK9sInfoKey.Render(" Cluster: ") + sK9sInfoVal.Render("resma-swarm"))
+	sb.WriteString(sInfoKey.Render(" Stack:   ") + sInfoVal.Render("resma-swarm"))
 	sb.WriteString("\n")
-	sb.WriteString(sK9sInfoKey.Render(" User:    ") + sK9sInfoVal.Render("admin"))
+	sb.WriteString(sInfoKey.Render(" Role:    ") + sInfoVal.Render("manager"))
 	sb.WriteString("\n")
-	sb.WriteString(sK9sInfoKey.Render(" K9s:     ") + sK9sInfoVal.Render("v0.32.4"))
+	sb.WriteString(sInfoKey.Render(" CLI:     ") + sInfoVal.Render("v0.1.0-wireframe"))
 	sb.WriteString("\n")
-	sb.WriteString(sK9sInfoKey.Render(" CPU:     ") + renderK9sBar(65, cK9sGreen))
+	sb.WriteString(sInfoKey.Render(" CPU:     ") + renderMetricBar(65, cResmaGreen))
 	sb.WriteString("\n")
-	sb.WriteString(sK9sInfoKey.Render(" MEM:     ") + renderK9sBar(42, cK9sGreen))
+	sb.WriteString(sInfoKey.Render(" MEM:     ") + renderMetricBar(42, cResmaGreen))
 	return sb.String()
 }
 
-func renderK9sBar(pct int, color lipgloss.Color) string {
-	width := 15
+func renderMetricBar(pct int, color lipgloss.Color) string {
+	width := 14
 	filled := (pct * width) / 100
 	bar := strings.Repeat("■", filled) + strings.Repeat("□", width-filled)
 	return lipgloss.NewStyle().Foreground(color).Render(bar) + fmt.Sprintf(" %d%%", pct)
 }
 
-func renderK9sLogo(m model) string {
+func renderBrandSection(m model) string {
 	logo := " ____  ____  ____  _  _ \n" +
 		"|  _ \\|  _ \\/ ___|| || |\n" +
 		"| |_) | |_) \\___ \\| || |\n" +
@@ -62,36 +64,36 @@ func renderK9sLogo(m model) string {
 		"|_| \\_\\_|  |____/   |_/ |"
 
 	status := " ONLINE "
-	style := sK9sStatus.Copy().Background(cK9sGreen)
-	
+	style := sStatus.Copy().Background(cResmaGreen)
+
 	switch m.viewMode {
 	case ViewCommand:
 		status = " COMMAND "
-		style = sK9sStatus.Copy().Background(cK9sPrimary)
+		style = sStatus.Copy().Background(cResmaPrimary)
 	case ViewFilter:
 		status = " FILTER "
-		style = sK9sStatus.Copy().Background(cK9sAqua)
+		style = sStatus.Copy().Background(cResmaAqua)
 	case ViewHelp:
 		status = " HELP "
-		style = sK9sStatus.Copy().Background(cK9sWarning)
+		style = sStatus.Copy().Background(cResmaWarning)
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Center,
-		sK9sLogo.Render(logo),
+		sLogo.Render(logo),
 		"\n",
 		style.Render(status),
 	)
 }
 
-func renderK9sMenu(m model) string {
+func renderMenu(m model) string {
 	hints := menuHints(m)
 	const maxRows = 6
 	var rows [maxRows][]string
 
 	for i, h := range hints {
 		row := i % maxRows
-		key := sK9sMenuKey.Render("<" + h.Key + ">")
-		desc := sK9sMenuDesc.Render(h.Desc)
+		key := sMenuKey.Render("<" + h.Key + ">")
+		desc := sMenuDesc.Render(h.Desc)
 		rows[row] = append(rows[row], fmt.Sprintf(" %s %s", key, desc))
 	}
 

@@ -56,13 +56,13 @@ func flashEmoji(l FlashLevel) string {
 func flashColor(l FlashLevel) lipgloss.Color {
 	switch l {
 	case FlashWarn:
-		return cK9sWarning
+		return cResmaWarning
 	case FlashErr:
-		return cK9sRed
+		return cResmaRed
 	case FlashSuccess:
-		return cK9sGreen
+		return cResmaGreen
 	default:
-		return cK9sCyan
+		return cResmaCyan
 	}
 }
 
@@ -71,7 +71,7 @@ func flashText(text string, level FlashLevel) flashMessage {
 	return flashMessage{text: text, level: level}
 }
 
-// renderPrompt renderiza o prompt de command/filter estilo k9s.
+// renderPrompt renderiza o prompt de command/filter.
 func renderPrompt(m model) string {
 	if m.viewMode != ViewCommand && m.viewMode != ViewFilter {
 		return ""
@@ -83,17 +83,16 @@ func renderPrompt(m model) string {
 	if m.viewMode == ViewCommand {
 		prefix = ">"
 		icon = "🐶"
-		borderColor = cK9sPrimary
+		borderColor = cResmaPrimary
 		suggestion = commandSuggestion(m.inputBuf)
 	} else {
 		prefix = "/"
 		icon = "🐩"
-		borderColor = cK9sAqua
+		borderColor = cResmaAqua
 	}
 
 	text := m.inputBuf
 	if suggestion != "" {
-		// mostrar sugestão em cor muted após o texto
 		sugStyled := sMuted.Render(suggestion)
 		text = m.inputBuf + sugStyled
 	}

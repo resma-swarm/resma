@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 func renderAgentsTab(m model) string {
@@ -12,39 +14,48 @@ func renderAgentsTab(m model) string {
 	statW := 15
 	verW := 15
 	seenW := 20
-	svcsW := m.width - idW - statW - verW - seenW - 5
+	svcsW := m.width - idW - statW - verW - seenW - 2
 	if svcsW < 10 {
 		svcsW = 10
 	}
 
 	header := fmt.Sprintf("%s %s %s %s %s",
-		padRight(sK9sTableHeader.Render("NODE ID"), idW),
-		padRight(sK9sTableHeader.Render("STATUS"), statW),
-		padRight(sK9sTableHeader.Render("VERSION"), verW),
-		padRight(sK9sTableHeader.Render("LAST SEEN"), seenW),
-		sK9sTableHeader.Render("SERVICES"),
+		padRight(sTableHeader.Render("NODE ID"), idW),
+		padRight(sTableHeader.Render("STATUS"), statW),
+		padRight(sTableHeader.Render("VERSION"), verW),
+		padRight(sTableHeader.Render("LAST SEEN"), seenW),
+		sTableHeader.Render("SERVICES"),
 	)
 	sb.WriteString(header + "\n")
 
 	for i, a := range mockAgents {
-		style := sK9sInfoVal
+		statusStr := a.status
+
 		if i == m.cursor {
-			style = sK9sTableCursor
-		}
+			rawRow := fmt.Sprintf("%s %s %s %s %s",
+				padRight(a.nodeID, idW),
+				padRight(statusStr, statW),
+				padRight(a.version, verW),
+				padRight(a.lastSeen, seenW),
+				padLeft(fmt.Sprintf("%d", a.services), svcsW),
+			)
+			fullRow := padRight(rawRow, m.width)
+			sb.WriteString(sTableCursor.Render(fullRow) + "\n\n")
+		} else {
+			statusColored := sSuccess.Render("active")
+			if a.status != "active" {
+				statusColored = sError.Render("offline")
+			}
 
-		status := sK9sGreen.Render("active")
-		if a.status != "active" {
-			status = sK9sRed.Render("offline")
+			row := fmt.Sprintf("%s %s %s %s %s",
+				padRight(a.nodeID, idW),
+				padRight(statusColored, statW),
+				padRight(a.version, verW),
+				padRight(a.lastSeen, seenW),
+				padLeft(fmt.Sprintf("%d", a.services), svcsW),
+			)
+			sb.WriteString(lipgloss.NewStyle().Width(m.width).Render(row) + "\n\n")
 		}
-
-		row := fmt.Sprintf("%s %s %s %s %s",
-			padRight(a.nodeID, idW),
-			padRight(status, statW),
-			padRight(a.version, verW),
-			padRight(a.lastSeen, seenW),
-			padLeft(fmt.Sprintf("%d", a.services), svcsW),
-		)
-		sb.WriteString(style.Width(m.width).Render(row) + "\n")
 	}
 
 	return sb.String()

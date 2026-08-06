@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// renderCrumbs renderiza breadcrumbs estilo k9s — chips coloridos.
+// renderCrumbs renderiza breadcrumbs no estilo RESMA — chips coloridos.
 func renderCrumbs(m model) string {
 	var crumbs []string
 
@@ -37,10 +37,10 @@ func renderCrumbs(m model) string {
 		name := strings.ReplaceAll(strings.ToLower(c), " ", "")
 		if i == last {
 			// crumb ativo — cor de destaque
-			sb.WriteString(sK9sCrumbActive.Render(fmt.Sprintf(" <%s> ", name)))
+			sb.WriteString(sCrumbActive.Render(fmt.Sprintf(" <%s> ", name)))
 		} else {
 			// crumb inativo
-			sb.WriteString(sK9sCrumbInactive.Render(fmt.Sprintf(" <%s> ", name)))
+			sb.WriteString(sCrumbInactive.Render(fmt.Sprintf(" <%s> ", name)))
 		}
 		sb.WriteString(" ")
 	}

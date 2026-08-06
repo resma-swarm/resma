@@ -25,11 +25,14 @@ func renderDashboard(m model) string {
 		return renderHelp(m)
 	}
 
-	// 1. Header (Fixo 7-8 linhas)
+	// 1. Header Superior Rico (8 linhas)
 	header := renderHeaderRich(m)
 
-	// 2. Content (Ocupa o resto, menos crumbs/flash/prompt)
-	reservedHeight := 10
+	// 2. Barra Visual de Abas
+	tabs := renderTabBar(m)
+
+	// 3. Conteúdo Principal (Ajuste para dar espaço com respiro)
+	reservedHeight := 11
 	if m.viewMode == ViewCommand || m.viewMode == ViewFilter {
 		reservedHeight += 3
 	}
@@ -38,18 +41,18 @@ func renderDashboard(m model) string {
 		contentHeight = 5
 	}
 
-	content := renderK9sContent(m, contentHeight)
+	content := renderContentArea(m, contentHeight)
 
-	// 3. Crumbs
+	// 4. Crumbs de Navegação
 	crumbs := renderCrumbs(m)
 
-	// 4. Flash
+	// 5. Mensagens Flash
 	flash := renderFlash(m)
 
-	// 5. Prompt
+	// 6. Prompt de Entrada
 	prompt := renderPrompt(m)
 
-	parts := []string{header, content}
+	parts := []string{header, tabs, content}
 	if crumbs != "" {
 		parts = append(parts, crumbs)
 	}
@@ -63,7 +66,7 @@ func renderDashboard(m model) string {
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
-func renderK9sContent(m model, height int) string {
+func renderContentArea(m model, height int) string {
 	var body string
 	if m.viewMode == ViewDetail {
 		body = renderDetailView(m)
@@ -75,7 +78,7 @@ func renderK9sContent(m model, height int) string {
 		Width(m.width).
 		Height(height).
 		Border(lipgloss.NormalBorder(), true, false, true, false).
-		BorderForeground(cK9sBorder).
+		BorderForeground(cResmaBorder).
 		Render(body)
 }
 
@@ -100,8 +103,8 @@ func renderMainPanel(m model) string {
 func renderSplash(m model) string {
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center,
 		lipgloss.JoinVertical(lipgloss.Center,
-			sK9sLogo.Render("RESMA MONITOR"),
-			sK9sInfoVal.Render("Loading..."),
+			sLogo.Render("RESMA MONITOR"),
+			sInfoVal.Render("Iniciando Dashboard..."),
 		))
 }
 
