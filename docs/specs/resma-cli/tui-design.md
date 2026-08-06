@@ -29,7 +29,7 @@ do framework **Bubble Tea**.
 - **HotKeys** customizáveis via config YAML
 - **Mouse support** opcional (click, scroll, drag)
 - **Breadcrumbs** mostrando caminho de navegação
-- **Sparklines** via asciigraph, **gráficos** inline
+- **Sparklines** e **gráficos** inline via componentes custom (braille Unicode, sem asciigraph)
 - **Loading states** com spinner, **toast** de success/error
 - **Confirmation modals** para ações destrutivas
 - **Responsivo** — portrait mode, minimum size check, weights (não pixels)
@@ -42,7 +42,7 @@ do framework **Bubble Tea**.
 | **k9s** | Command mode `:`, drill-down Enter/Esc, skins YAML, hotkeys, breadcrumbs, help `?` | Single-resource-view (RESMA precisa lista+detalhe), 300+ views |
 | **lazydocker** | Two-column layout (side 33% + main 67%), portrait mode, accordion, bordas configuráveis | Tabs no main panel (RESMA usa tabs no topo) |
 | **lazygit** | Layout calculation on resize, scroll past bottom | gocui (usamos Bubble Tea) |
-| **Bubble Tea** | Elm Architecture, bubbles/table, bubbles/viewport, bubbles/list, Focus/Blur, 4 Golden Rules | — |
+| **Bubble Tea** | Elm Architecture, componentes custom (table, viewport, list), Focus/Blur, 4 Golden Rules | — |
 
 ---
 
@@ -89,8 +89,8 @@ do framework **Bubble Tea**.
 |--------|---------|----------|----------------------|
 | **Header** | 100% (1 linha) | Título + relógio + status SSE | lipgloss style |
 | **Tab bar** | 100% (1 linha) | 6 tabs com highlight na ativa | lipgloss style |
-| **Side panel** | 33% | Lista filtrável de itens da tab atual | `bubbles/list` |
-| **Main panel** | 67% | Tabela com cursor + cards + sparklines | `bubbles/table` + `bubbles/viewport` |
+| **Side panel** | 33% | Lista filtrável de itens da tab atual | componente custom (side list) |
+| **Main panel** | 67% | Tabela com cursor + cards + sparklines | componente custom (TableModel + viewport) |
 | **Breadcrumb** | 100% (1 linha) | Caminho de navegação atual | lipgloss style |
 | **Footer** | 100% (1 linha) | Keybindings do contexto atual | lipgloss style |
 
@@ -144,11 +144,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/table"
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/charmbracelet/bubbles/spinner"
 )
 
 // ViewMode representa o modo de visualização atual do dashboard.
@@ -217,11 +212,12 @@ type DashboardModel struct {
 	toastTime time.Time
 	errorMsg  string
 
-	// Componentes
-	sideList    list.Model      // side panel
-	mainTable   table.Model     // main panel (list view)
-	detailView  viewport.Model  // main panel (detail view)
-	spinner     spinner.Model   // loading state
+	// Componentes (custom, sem bubbles)
+	sideList    SideListModel     // side panel (custom)
+	mainTable   TableModel        // main panel (list view) — custom com header, cursor, colunas flex, ordenação
+	detailView  DetailViewModel   // main panel (detail view) — custom
+	spinner     spinner.Model     // loading state
+	flashField  FlashField        // efeito flash para valores atualizados via SSE
 
 	// Dados
 	services       []ServiceMetrics
@@ -588,7 +584,7 @@ func (m *DashboardModel) calculateLayout() {
 
 ### 4.7 HotKeys customizáveis
 
-Definidas em `~/.resma/hotkeys.yaml` (estilo k9s):
+Definidas em `~/.config/resma/hotkeys.yaml` (estilo k9s):
 
 ```yaml
 hotKeys:
@@ -624,7 +620,7 @@ Habilitado via `tea.WithMouseCellMotion()`:
 | Scroll up/down | Scroll lista/tabela/viewport |
 | Click no footer | — (futuro: clicar em keybinding) |
 
-Mouse é **opcional** — habilitado por config (`~/.resma/config.yaml` → `tui.mouse: true`).
+Mouse é **opcional** — habilitado por config (`~/.config/resma/config.yaml` → `tui.mouse: true`).
 Default: `false` (seguindo k9s que tem `enableMouse: false` por padrão).
 
 ---
@@ -795,16 +791,25 @@ Default: `false` (seguindo k9s que tem `enableMouse: false` por padrão).
 
 ## 6. Componentes
 
-### 6.1 Componentes Bubble Tea utilizados
+### 6.1 Componentes utilizados
+
+> **Nota:** A implementação real usa **componentes 100% custom** (em `components.go`,
+> `detail_view.go`, `braille_chart.go`, `flash_field.go`, `logs_view.go`,
+> `flash_prompt.go`, `input_help.go`) em vez de `bubbles/table`, `bubbles/list`,
+> `bubbles/viewport`, `bubbles/textinput` ou `bubbles/spinner`. Nenhum componente
+> da biblioteca `bubbles` é utilizado — tudo é construído sobre o runtime do
+> Bubble Tea (Elm Architecture: Model/Update/View + Cmd/Msg).
 
 | Componente | Uso | Features usadas |
 |------------|-----|-----------------|
-| `bubbles/table` | Main panel (list view) | Focus/Blur, cursor, KeyMap (j/k, PageUp/Down, GotoTop/Bottom), styles (header, selected) |
-| `bubbles/list` | Side panel | Filterable, delegate, selected style |
-| `bubbles/viewport` | Main panel (detail view) | Scroll vertical, SoftWrap, FillHeight, MouseWheelEnabled |
-| `bubbles/textinput` | Command mode (`:`) e filter (`/`) | Prompt customizável, cursor |
-| `bubbles/spinner` | Loading states | Dot spinner, Tick |
-| `bubbles/key` | Keybindings | NewBinding, WithKeys, WithHelp |
+| TableModel custom (`components.go`) | Main panel (list view) | Focus/Blur, cursor, KeyMap (j/k, PageUp/Down, GotoTop/Bottom), styles (header, selected), colunas flex, ordenação |
+| SideListModel custom (`components.go`) | Side panel | Filterable, cursor, selected style |
+| DetailViewModel custom (`detail_view.go`) | Main panel (detail view) | Scroll vertical, SoftWrap, FillHeight, MouseWheelEnabled |
+| FlashField custom (`flash_field.go`) | Destaque de valores atualizados via SSE | Flash de ~800ms quando valor muda |
+| BrailleChart custom (`braille_chart.go`) | Sparklines e live charts | Braille Unicode, multi-series, sem asciigraph |
+| LogsView custom (`logs_view.go`) | View de logs | Filtro, follow mode |
+| FlashPrompt custom (`flash_prompt.go`) | Command mode (`:`) e filter (`/`) | Prompt customizável, cursor, sugestões |
+| InputHelp custom (`input_help.go`) | Help de keybindings | Renderização contextual |
 
 ### 6.2 Header
 
@@ -842,17 +847,18 @@ func renderTabBar(m DashboardModel) string {
 }
 ```
 
-### 6.4 ServiceTable (AutoTable — bubbles/table com auto-sizing)
+### 6.4 ServiceTable (TableModel custom — auto-sizing)
 
 > **Estudo completo:** [table-sizing-study.md](./table-sizing-study.md) — análise das
 > alternativas (bubbles/table, lipgloss/table, tview), algoritmo de auto-sizing com
-> percentil 90 + flex, implementação de referência da `AutoTable`, edge cases.
+> percentil 90 + flex, implementação de referência da `TableModel`, edge cases.
 >
 > **Problema que resolve:** `bubbles/table` tem widths de coluna **fixos** definidos na
 > construção. `SetWidth()` só muda o viewport, não as colunas — aparece espaço vazio à
-> direita ou borda direita ausente. A `AutoTable` recalcula os widths automaticamente
-> baseado em: (1) largura disponível do container, (2) conteúdo dos dados (percentil 90),
-> (3) spec de cada coluna (min/max/flex).
+> direita ou borda direita ausente. A `TableModel` custom (em `components.go`) recalcula
+> os widths automaticamente baseado em: (1) largura disponível do container, (2) conteúdo
+> dos dados (percentil 90), (3) spec de cada coluna (min/max/flex). A implementação real
+> usa este componente custom em vez de `bubbles/table`.
 
 ```go
 // ColumnSpec define o comportamento de sizing de uma coluna.
@@ -864,20 +870,22 @@ type ColumnSpec struct {
 	Align    Alignment // left (default) | right | center
 }
 
-// AutoTable é um wrapper sobre bubbles/table que recalcula
+// TableModel é o componente custom de tabela (em components.go) que recalcula
 // os widths das colunas automaticamente a cada resize e a cada
 // mudança de dados. Algoritmo de 3 fases:
 //   1. Calcular content width de cada coluna (percentil 90 dos valores)
 //   2. Expandir (se sobra espaço) ou encolher (se falta) colunas flexíveis
 //   3. Aplicar novos widths via SetColumns()
 //
+// Implementação custom com header, cursor, colunas flex e ordenação.
 // Ver table-sizing-study.md para detalhes do algoritmo e implementação completa.
-type AutoTable struct {
-	table.Model
+type TableModel struct {
 	specs       []ColumnSpec
-	rows        []table.Row
+	rows        []Row
 	availableW  int
 	borderWidth int
+	cursor      int
+	// ... campos internos para renderização custom
 }
 
 // Specs por tab — cada tab define suas colunas com min/max/flex.
@@ -890,32 +898,30 @@ var serviceColumnSpecs = []ColumnSpec{
 	{Title: "TREND",    MinWidth: 15, MaxWidth: 25, Flex: 0.5, Align: AlignLeft},
 }
 
-func newServiceTable(theme *Theme) *AutoTable {
-	t := NewAutoTable(serviceColumnSpecs)
+func newServiceTable(theme *Theme) *TableModel {
+	t := NewTableModel(serviceColumnSpecs)
 
-	// KeyMap estilo vim
-	t.KeyMap = table.KeyMap{
-		LineUp:       key.NewBinding(key.WithKeys("k", "up")),
-		LineDown:     key.NewBinding(key.WithKeys("j", "down")),
-		PageUp:       key.NewBinding(key.WithKeys("ctrl+u", "pgup")),
-		PageDown:     key.NewBinding(key.WithKeys("ctrl+d", "pgdown")),
-		GotoTop:      key.NewBinding(key.WithKeys("g", "home")),
-		GotoBottom:   key.NewBinding(key.WithKeys("G", "end")),
-	}
+	// KeyMap estilo vim (custom, sem bubbles/table.KeyMap)
+	t.SetKeyMap(KeyMap{
+		LineUp:       []string{"k", "up"},
+		LineDown:     []string{"j", "down"},
+		PageUp:       []string{"ctrl+u", "pgup"},
+		PageDown:     []string{"ctrl+d", "pgdown"},
+		GotoTop:      []string{"g", "home"},
+		GotoBottom:   []string{"G", "end"},
+	})
 
-	// Styles
-	s := table.DefaultStyles()
-	s.Header = s.Header.
+	// Styles (custom, sem bubbles/table.DefaultStyles)
+	t.SetHeaderStyle(lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderForeground(theme.BorderColor).
 		BorderBottom(true).
 		Bold(true).
-		Foreground(theme.AccentColor)
-	s.Selected = s.Selected.
+		Foreground(theme.AccentColor))
+	t.SetSelectedStyle(lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FFFFFF")).
 		Background(theme.PrimaryColor).
-		Bold(true)
-	t.SetStyles(s)
+		Bold(true))
 
 	return t
 }
@@ -926,39 +932,43 @@ func newServiceTable(theme *Theme) *AutoTable {
 - `SetWidth(w)` → recalcula colunas quando o terminal é redimensionado
 - Colunas com `Flex: 0.0` (numéricas) ficam fixas em `MinWidth == MaxWidth`
 - Colunas com `Flex > 0` absorvem espaço extra ou são encolhidas proporcionalmente
-- Conteúdo que excede o width é truncado com `…` pelo próprio `bubbles/table`
+- Conteúdo que excede o width é truncado com `…` pelo próprio TableModel custom
 
 **Para output CLI estático** (não-TUI, ex: `resma services list`): usar `lipgloss/table`
 que tem auto-sizing nativo via `.Width(w)` com algoritmo de mediana. Ver
 table-sizing-study.md seção 7.2.
 
-### 6.5 SideList (bubbles/list)
+### 6.5 SideList (componente custom)
+
+> **Nota:** A implementação real usa um componente custom em `components.go` em vez de
+> `bubbles/list`. O componente custom oferece header, cursor, colunas flex e ordenação
+> com controle total sobre renderização e largura.
 
 ```go
-func newSideList(items []list.Item, theme *Theme) list.Model {
-	delegate := list.NewDefaultDelegate()
-	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(theme.PrimaryColor).
-		Bold(true)
-	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
-		Foreground(lipgloss.Color("#FFFFFF"))
-
-	l := list.New(items, delegate, 0, 0)
+func newSideList(items []SideListItem, theme *Theme) SideListModel {
+	// Componente custom — sem dependência de bubbles/list
+	// Renderiza header, cursor (►), e itens filtráveis
+	l := NewSideListModel(items)
 	l.SetFilteringEnabled(true)
 	l.SetShowHelp(false)
 	l.SetShowTitle(false)
 	l.SetShowStatusBar(false)
+	l.SetTheme(theme)
 
 	return l
 }
 ```
 
-### 6.6 DetailView (bubbles/viewport)
+### 6.6 DetailView (componente custom)
+
+> **Nota:** A implementação real usa views de detalhe custom em `detail_view.go` em vez
+> de `bubbles/viewport`. O componente custom oferece scroll, soft-wrap e fill-height
+> com controle total sobre o layout.
 
 ```go
-func newDetailView() viewport.Model {
-	v := viewport.New(0, 0)
+func newDetailView() DetailViewModel {
+	// Componente custom — sem dependência de bubbles/viewport
+	v := NewDetailViewModel(0, 0)
 	v.MouseWheelEnabled = true
 	v.SoftWrap = true
 	v.FillHeight = true
@@ -966,33 +976,37 @@ func newDetailView() viewport.Model {
 }
 ```
 
-### 6.7 Sparkline (asciigraph)
+### 6.7 Sparkline (componente custom — braille Unicode)
+
+> **Nota:** A implementação real usa gráficos braille Unicode custom em `braille_chart.go`
+> em vez de `asciigraph`. O componente custom mapeia valores para caracteres braille
+> (▁▂▃▄▅▆▇█) sem dependência externa.
 
 ```go
 func renderSparkline(points []float64, width int) string {
 	if len(points) == 0 {
 		return strings.Repeat("▁", width)
 	}
-	return asciigraph.Plot(points,
-		asciigraph.Height(1),
-		asciigraph.Width(width),
-		asciigraph.SeriesColors(asciigraph.Default),
-	)
+	// braille_chart.go — mapeia valores para caracteres braille Unicode
+	return BrailleChart(points, width, 1)
 }
 ```
 
-### 6.8 LiveChart (asciigraph multi-series)
+### 6.8 LiveChart (componente custom — braille multi-series)
+
+> **Nota:** A implementação real usa gráficos braille Unicode custom em `braille_chart.go`
+> em vez de `asciigraph.PlotMany`.
 
 ```go
 func renderLiveChart(buf *RingBuffer, theme *Theme, width, height int) string {
 	cpuPoints := buf.Slice(SeriesCPU, 60)
 	memPoints := buf.Slice(SeriesMem, 60)
-	chart := asciigraph.PlotMany(
+	// braille_chart.go — multi-series com braille Unicode, sem asciigraph
+	chart := BrailleChartMulti(
 		[][]float64{cpuPoints, memPoints},
-		asciigraph.Width(width-4),
-		asciigraph.Height(height-4),
-		asciigraph.SeriesColors(asciigraph.Blue, asciigraph.Magenta),
-		asciigraph.Caption("CPU (azul) / MEM (magenta) — últimos 60s"),
+		width-4,
+		height-4,
+		"CPU (azul) / MEM (magenta) — últimos 60s",
 	)
 	return theme.ChartBorder.Render(chart)
 }
@@ -1017,6 +1031,52 @@ func renderMetricCard(title, value, delta string, points []float64, theme *Theme
 	return theme.CardBorder.Render(lipgloss.JoinVertical(0, header, body))
 }
 ```
+
+### 6.9b FlashField — efeito de valores atualizados
+
+> **Nota:** A implementação real usa um componente `FlashField` reutilizável em
+> `flash_field.go`. Quando um valor muda via SSE, ele pisca em destaque (cor de
+> destaque/inversão) por ~800ms, dando feedback visual imediato ao usuário de que
+> a métrica foi atualizada.
+
+```go
+// FlashField é um componente reutilizável que destaca valores quando mudam.
+// Usado em tabelas, cards e detail views para indicar updates via SSE.
+type FlashField struct {
+	value     string    // valor atual renderizado
+	flashTime time.Time // timestamp da última mudança
+	style     lipgloss.Style
+	flashStyle lipgloss.Style // estilo aplicado durante o flash
+}
+
+// Update define um novo valor e dispara o flash.
+func (f *FlashField) Update(newValue string) {
+	if f.value != newValue {
+		f.value = newValue
+		f.flashTime = time.Now()
+	}
+}
+
+// Render retorna o valor com estilo normal ou flash (se dentro da janela de ~800ms).
+func (f *FlashField) Render() string {
+	if time.Since(f.flashTime) < 800*time.Millisecond {
+		return f.flashStyle.Render(f.value)
+	}
+	return f.style.Render(f.value)
+}
+```
+
+**Onde é usado:**
+- Células de CPU% e MEM% na tabela de serviços (quando métricas chegam via SSE)
+- Cards de métrica no detail view (CPU, MEM, replicas)
+- Qualquer campo que muda em tempo real
+
+**Comportamento:**
+1. SSE entrega nova métrica → `FlashField.Update(newValue)` é chamado
+2. Se o valor mudou, `flashTime` é atualizado para `time.Now()`
+3. Durante ~800ms, `Render()` usa `flashStyle` (cor de destaque, ex: amarelo bold)
+4. Após 800ms, volta ao estilo normal
+5. O tick do relógio (a cada segundo) força re-render, limpando flashes expirados
 
 ### 6.10 Breadcrumb
 
@@ -1259,7 +1319,7 @@ func (m DashboardModel) renderMainPanel() string {
 }
 ```
 
-Cada tab renderiza sua `bubbles/table` específica com colunas apropriadas + cards de métricas + sparklines.
+Cada tab renderiza sua `TableModel` custom específica com colunas apropriadas + cards de métricas + sparklines.
 
 ---
 
@@ -1267,10 +1327,10 @@ Cada tab renderiza sua `bubbles/table` específica com colunas apropriadas + car
 
 ### 8.1 Skin file YAML (estilo k9s)
 
-Skins ficam em `~/.resma/skins/` e são arquivos YAML:
+Skins ficam em `~/.config/resma/skins/` e são arquivos YAML:
 
 ```yaml
-# ~/.resma/skins/dark.yaml
+# ~/.config/resma/skins/dark.yaml
 resma:
   body:
     fgColor: "#e0def4"
@@ -1331,7 +1391,7 @@ resma:
 | Prioridade | Fonte | Exemplo |
 |-----------|-------|---------|
 | 1 (alta) | Env var | `RESMA_SKIN=dark` |
-| 2 | Config file | `tui.skin: dark` em `~/.resma/config.yaml` |
+| 2 | Config file | `tui.skin: dark` em `~/.config/resma/config.yaml` |
 | 3 (baixa) | Auto-detect | termenv detecta dark/light terminal |
 
 ### 8.3 Skins incluídas (built-in)
@@ -1413,7 +1473,7 @@ func LoadTheme() *Theme {
 
 ## 9. Configuração TUI
 
-### 9.1 Config file (`~/.resma/config.yaml`)
+### 9.1 Config file (`~/.config/resma/config.yaml`)
 
 ```yaml
 tui:
@@ -1445,7 +1505,7 @@ tui:
   wrapMainPanel: false    # wrap de texto no main panel
 ```
 
-### 9.2 HotKeys file (`~/.resma/hotkeys.yaml`)
+### 9.2 HotKeys file (`~/.config/resma/hotkeys.yaml`)
 
 ```yaml
 hotKeys:
@@ -1473,7 +1533,39 @@ HotKeys são recarregadas automaticamente quando o arquivo muda (file watch via 
 
 ## 10. SSE Integration
 
+### 10.0 Fetch inicial REST (bootstrap)
+
+> **Nota:** Ao entrar no monitor, o TUI faz imediatamente um `GET /api/dashboard` via
+> REST para obter o snapshot completo de métricas. Isso evita esperar até 60s pelo
+> primeiro evento SSE. O SSE então entrega updates incrementais a partir desse
+> estado inicial.
+
+```go
+func (m *DashboardModel) fetchInitialDashboard() tea.Cmd {
+	return func() tea.Msg {
+		resp, err := http.Get(m.dashboardURL) // GET /api/dashboard
+		if err != nil {
+			return errMsg{err}
+		}
+		defer resp.Body.Close()
+		var dash DashboardSnapshot
+		json.NewDecoder(resp.Body).Decode(&dash)
+		return dash
+	}
+}
+```
+
+O `DashboardSnapshot` retornado pelo REST é processado no `Update()` e popula
+todos os dados (services, nodes, agents, tasks, etc.) imediatamente. O SSE
+então entrega apenas deltas/updates.
+
 ### 10.1 Tópicos SSE por tab
+
+> **Nota sobre o tópico "dashboard":** A implementação real usa um tópico SSE
+> unificado chamado `"dashboard"` que emite dois tipos de evento: `"cluster"` e
+> `"storage"`. O TUI filtra apenas eventos `"cluster"` para não zerar métricas
+> quando eventos `"storage"` chegam (storage tem payload diferente e não deve
+> sobrescrever dados de cluster).
 
 | Tab | Tópicos SSE consumidos |
 |-----|----------------------|
@@ -1483,6 +1575,19 @@ HotKeys são recarregadas automaticamente quando o arquivo muda (file watch via 
 | Tasks | `tasks` |
 | Alerts | `events`, `metrics` |
 | Recommendations | `services` |
+
+**Filtro de evento no tópico "dashboard":**
+
+```go
+// O tópico "dashboard" recebe eventos "cluster" e "storage".
+// O TUI filtra só "cluster" para não zerar métricas.
+func (m *DashboardModel) handleDashboardEvent(event SSEEvent) {
+	if event.EventType != "cluster" {
+		return // ignora "storage" — não é relevante para o dashboard de cluster
+	}
+	// processa payload de cluster...
+}
+```
 
 ### 10.2 Ponte SSE → Bubble Tea
 
@@ -1835,12 +1940,27 @@ func (m *DashboardModel) applyFilter() {
 
 ## 15. Estrutura de Arquivos — TUI
 
+> **Nota sobre wire-tui:** O diretório `cmd/wire-tui/` contém o protótipo inicial
+> do TUI que evoluiu para `internal/tui/`. O wire-tui permanece como referência
+> standalone (binary separado) para experimentação e validação de ideias antes
+> de integrá-las ao `resma monitor` principal.
+
+> **Nota sobre estrutura flat:** A implementação real em `internal/tui/` usa
+> estrutura **flat** — todos os arquivos `.go` estão diretamente no pacote, sem
+> subpastas `tabs/` ou `components/`. A estrutura abaixo reflete a implementação
+> real.
+
 ```
 app/cli/internal/tui/
 ├── dashboard.go              # DashboardModel, Init/Update/View, calculateLayout
+├── components.go             # TableModel custom (header, cursor, colunas flex, ordenação) + SideListModel
+├── braille_chart.go          # Gráficos braille Unicode custom (sparkline + multi-series, sem asciigraph)
+├── flash_field.go            # FlashField — efeito de valores atualizados via SSE (~800ms)
+├── detail_view.go            # Views de detalhe custom (drill-down por recurso)
+├── logs_view.go              # View de logs custom com filtro e follow mode
 ├── styles.go                 # Theme struct, LoadTheme, skin loading
 ├── skins.go                  # YAML skin parser, built-in skins
-├── sse.go                    # SSE bridge, waitForSSE, handleSSE
+├── sse.go                    # SSE bridge, waitForSSE, handleSSE, filtro de evento "cluster"
 ├── ringbuffer.go             # RingBuffer for metrics
 ├── commands.go               # Command mode (executeCommand, autocomplete)
 ├── filter.go                 # Filter mode (applyFilter, regex)
@@ -1849,34 +1969,31 @@ app/cli/internal/tui/
 ├── toast.go                  # Toast notifications
 ├── mouse.go                  # Mouse event handler
 ├── hotkeys.go                # HotKeys loader (YAML)
-├── tabs/
-│   ├── tabs.go               # Tab interface + TabID constants
-│   ├── services_tab.go       # Tab [1] Services — table + detail
-│   ├── nodes_tab.go          # Tab [2] Nodes — table + detail
-│   ├── agents_tab.go         # Tab [3] Agents — list + detail
-│   ├── tasks_tab.go          # Tab [4] Tasks — table + detail
-│   ├── alerts_tab.go         # Tab [5] Alerts — feed + detail
-│   └── recommendations_tab.go# Tab [6] Recommendations — cards + detail
-└── components/
-    ├── autotable.go          # AutoTable wrapper + ColumnSpec + algoritmo de auto-sizing (ver table-sizing-study.md)
-    ├── header.go             # Header (título + relógio + status)
-    ├── tabbar.go             # Tab bar com 6 tabs
-    ├── breadcrumb.go         # Breadcrumb de navegação
-    ├── footer.go             # Footer contextual
-    ├── servicetable.go       # AutoTable com serviceColumnSpecs
-    ├── nodestable.go         # AutoTable com nodeColumnSpecs
-    ├── taskstable.go         # AutoTable com taskColumnSpecs
-    ├── alertstable.go        # AutoTable com alertColumnSpecs
-    ├── recommendationstable.go # AutoTable com recColumnSpecs
-    ├── sidelist.go           # bubbles/list para side panel
-    ├── detailview.go         # bubbles/viewport para detail
-    ├── sparkline.go          # asciigraph sparkline
-    ├── livechart.go          # asciigraph multi-series live chart
-    ├── metriccard.go         # Card de métrica (valor + sparkline + delta)
-    ├── agentlist.go          # Lista de agents (bubbles/list)
-    ├── tasklist.go           # Lista de tasks (bubbles/list)
-    ├── alertfeed.go          # Feed de alertas (bubbles/viewport)
-    └── recommendationcard.go # Card de recomendação (tier + risk + delta)
+├── tabs.go                   # Tab interface + TabID constants
+├── services_tab.go           # Tab [1] Services — table + detail
+├── nodes_tab.go              # Tab [2] Nodes — table + detail
+├── agents_tab.go             # Tab [3] Agents — list + detail
+├── tasks_tab.go              # Tab [4] Tasks — table + detail
+├── alerts_tab.go             # Tab [5] Alerts — feed + detail
+├── recommendations_tab.go   # Tab [6] Recommendations — cards + detail
+├── header.go                 # Header (título + relógio + status)
+├── tabbar.go                 # Tab bar com 6 tabs
+├── breadcrumb.go             # Breadcrumb de navegação
+├── footer.go                 # Footer contextual
+├── servicetable.go           # TableModel com serviceColumnSpecs
+├── nodestable.go             # TableModel com nodeColumnSpecs
+├── taskstable.go             # TableModel com taskColumnSpecs
+├── alertstable.go            # TableModel com alertColumnSpecs
+├── recommendationstable.go  # TableModel com recColumnSpecs
+├── metriccard.go             # Card de métrica (valor + sparkline + delta)
+└── recommendationcard.go    # Card de recomendação (tier + risk + delta)
+```
+
+**Protótipo standalone:**
+
+```
+app/cli/cmd/wire-tui/
+└── main.go                   # Protótipo inicial do TUI (referência standalone)
 ```
 
 ---
@@ -1971,14 +2088,14 @@ func main() {
 
 **Problema:** `fmt.Sprintf("%-20s", name)` usa byte length, não display width. Caracteres Unicode (sparkline `▁▂▃▄▅▆▇█`, emojis) e ANSI codes do `lipgloss.Render()` inflam a contagem.
 
-**Solução:** Usar `bubbles/table` (lida com width internamente) ou `lipgloss.Width()`:
+**Solução:** Usar o TableModel custom (lida com width internamente) ou `lipgloss.Width()`:
 
 ```go
 // ❌ ERRADO
 fmt.Sprintf("%-20s %8s", name, cpu)
 
-// ✅ CORRETO (bubbles/table)
-table.WithColumns([]table.Column{
+// ✅ CORRETO (TableModel custom — components.go)
+tbl.SetColumns([]Column{
 	{Title: "NAME", Width: 20},
 	{Title: "CPU%", Width: 8},
 })
@@ -1991,7 +2108,7 @@ lipgloss.NewStyle().Width(20).Render(name)
 
 **Problema:** ANSI codes não resetados "vazam" para linhas seguintes.
 
-**Solução:** `bubbles/table` gerencia reset automaticamente. Para renderização manual, sempre usar `lipgloss.Style.Render()` que insere reset no final.
+**Solução:** O TableModel custom gerencia reset automaticamente. Para renderização manual, sempre usar `lipgloss.Style.Render()` que insere reset no final.
 
 ---
 

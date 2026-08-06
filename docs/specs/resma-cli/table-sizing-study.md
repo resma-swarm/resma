@@ -1,8 +1,14 @@
 # RESMA CLI — Estudo: Tabelas Responsivas no TUI
 
-> **Status:** Pesquisa técnica concluída
+> **Status:** Pesquisa técnica concluída — **Decisão final: componente custom** (ver seção 7)
 > **Data:** 2026-08-06
 > **Questão:** Como fazer tabelas que ocupam todo o espaço horizontal E adaptam o tamanho das colunas aos dados?
+>
+> **Nota de implementação:** Após avaliar `bubbles/table` e `lipgloss/table`, a
+> implementação real (em `internal/tui/components.go`) usa um **TableModel custom**
+> que não depende de `bubbles`. O estudo abaixo permanece como referência técnica
+> das alternativas avaliadas, mas a decisão final foi construir um componente
+> próprio para ter controle total sobre auto-sizing, cursor, ordenação e colunas flex.
 
 ---
 

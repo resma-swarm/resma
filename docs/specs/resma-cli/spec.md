@@ -1,6 +1,6 @@
 # RESMA CLI — Especificação Técnica
 
-> **Status:** Proposta (não implementada) · **Domínio:** Infrastructure Intelligence + Development
+> **Status:** Implementação em andamento — monitor TUI + auth + SSE funcionais · **Domínio:** Infrastructure Intelligence + Development
 > **Baseado em:** Benchmark validado por Technical Council (Charmbracelet ecosystem + Cobra + Viper + termenv + asciigraph)
 > **Análise completa:** 105 endpoints da API Go + 21 páginas do frontend + agent local mapeados
 > **Stack:** Go 1.26 (alinhado com `app/api/` e `app/agent/`)
@@ -49,16 +49,27 @@ O RESMA hoje oferece uma API Go (REST + SSE) com **105 endpoints** e um frontend
 
 ### 2.1 Dependências (go.mod)
 
-| Dependência | Papel | Versão recomendada | Justificativa |
-|-------------|-------|-------------------|---------------|
-| `github.com/spf13/cobra` | CLI framework (comandos, flags, completions) | v1.9.x | Padrão da indústria (kubectl, gh, hugo); completions bash/zsh/fish/PowerShell |
-| `github.com/spf13/viper` | Config (env, file, flags, defaults) | v1.18.x | Integração nativa com Cobra; 12-factor app |
-| `github.com/charmbracelet/bubbletea` | TUI framework (Elm Architecture) | v1.3.x (estável) | Model-Update-View; Cmd/Msg + channels para streaming; usado por k9s, dry, lazydocker |
-| `github.com/charmbracelet/lipgloss` | Styling/layout declarativo (CSS-like) | v1.x | Color downsampling automático; borders, padding, layout |
-| `github.com/charmbracelet/bubbles` | Componentes TUI (spinner, table, viewport, list, progress) | v0.20.x | Reutilização de componentes padrão |
-| `github.com/charmbracelet/colorprofile` | Detecção de perfil de cor | v0.3.x | Usado por Lipgloss; TrueColor/ANSI256/ANSI/ASCII |
-| `github.com/muesli/termenv` | Detecção de terminal + VT processing Windows | v0.16.x | `EnableVirtualTerminalProcessing` para ConHost Win10+ |
-| `github.com/guptarohit/asciigraph` | Gráficos ASCII / sparklines | v0.10.x | Zero deps; real-time mode; métricas inline |
+| Dependência | Papel | Versão | Justificativa |
+|-------------|-------|--------|---------------|
+| `github.com/spf13/cobra` | CLI framework (comandos, flags, completions) | v1.9.1 | Padrão da indústria (kubectl, gh, hugo); completions bash/zsh/fish/PowerShell |
+| `github.com/spf13/viper` | Config (env, file, flags, defaults) | v1.21.0 | Integração nativa com Cobra; 12-factor app |
+| `github.com/charmbracelet/bubbletea` | TUI framework (Elm Architecture) | v1.3.10 | Model-Update-View; Cmd/Msg + channels para streaming; usado por k9s, dry, lazydocker |
+| `github.com/charmbracelet/lipgloss` | Styling/layout declarativo (CSS-like) | v1.1.0 | Color downsampling automático; borders, padding, layout |
+
+> **Nota sobre dependências transitivas:** `lipgloss` já inclui `colorprofile` e `termenv`
+> como dependências transitivas — não são declaradas separadamente em `go.mod`. A detecção
+> de perfil de cor (TrueColor → ANSI256 → ANSI16 → ASCII) e o VT processing Windows
+> (`EnableVirtualTerminalProcessing` para ConHost Win10+) são fornecidos por essas libs
+> transitivas via lipgloss.
+>
+> **Componentes TUI custom (sem bubbles):** A implementação real NÃO usa `bubbles`.
+> Todos os componentes TUI (table, sparkline, flash field, tabbar, header, breadcrumbs)
+> são construídos custom sobre Bubble Tea + Lipgloss. Isso dá controle total sobre
+> layout, renderização e comportamento, sem o overhead de abstrações genéricas.
+>
+> **Gráficos braille Unicode custom (sem asciigraph):** Gráficos e sparklines usam
+> caracteres braille Unicode (ex: `▁▂▃▄▅▆▇█`, `╭─╮╰─╯`) implementados custom em
+> `braille_chart.go` e `sparkline.go` — sem dependência de `asciigraph`.
 
 ### 2.2 Libs avaliadas e rejeitadas
 
@@ -121,32 +132,39 @@ app/cli/                              # resma-cli (novo módulo Go)
 │   │   ├── health.go                 # health / ready (API infra)
 │   │   ├── version.go                # version
 │   │   └── completion.go             # completion bash|zsh|fish|powershell
-│   ├── tui/                          # Bubble Tea models (modo TUI)
-│   │   ├── dashboard.go              # Model/Update/View principal do `monitor`
-│   │   ├── tabs/                     # Uma model por tab
-│   │   │   ├── services_tab.go       # Tab [1] Services
-│   │   │   ├── nodes_tab.go          # Tab [2] Nodes
-│   │   │   ├── agents_tab.go         # Tab [3] Agents
-│   │   │   ├── tasks_tab.go          # Tab [4] Tasks
-│   │   │   ├── alerts_tab.go         # Tab [5] Alerts
-│   │   │   └── recommendations_tab.go# Tab [6] Recommendations
-│   │   ├── components/
-│   │   │   ├── sparkline.go          # Sparkline custom (asciigraph + Lipgloss)
-│   │   │   ├── metriccard.go         # Card de métrica (valor + sparkline + delta)
-│   │   │   ├── servicetable.go       # Tabela de serviços (Bubbles table)
-│   │   │   ├── agentlist.go          # Lista de agents (Bubbles list)
-│   │   │   ├── tasklist.go           # Lista de tasks (Bubbles list)
-│   │   │   ├── alertfeed.go          # Feed de alertas (Bubbles viewport)
-│   │   │   ├── recommendationcard.go # Card de recomendação (tier + risk + delta)
-│   │   │   ├── header.go             # Header com título + status + relógio
-│   │   │   ├── tabbar.go             # Barra de tabs (Lipgloss)
-│   │   │   └── footer.go             # Footer com keybindings
-│   │   └── styles.go                 # Estilos Lipgloss reutilizáveis (tema light/dark)
-│   ├── api/                          # HTTP client (REST + SSE)
-│   │   ├── client.go                 # Client REST (GET/POST/PUT/PATCH/DELETE com auth)
-│   │   ├── sse.go                    # Parser SSE via stdlib net/http
-│   │   ├── auth.go                   # JWT / API key (header Authorization)
-│   │   └── types.go                  # Tipos Go espelho dos payloads da API
+│   ├── tui/                          # Bubble Tea models (modo TUI) — estrutura flat
+│   │   ├── main.go                   # Entry point: Run() — fetch inicial REST + SSE
+│   │   ├── model.go                  # Estado raiz (tabs, view modes, sort, flash, SSE)
+│   │   ├── layout.go                 # Orquestra layout (header, tabs, content, crumbs)
+│   │   ├── header.go                 # Header rico com cluster info, menu grid, logo
+│   │   ├── styles.go                 # Paleta RESMA + estilos lipgloss
+│   │   ├── keys.go                   # Handler de teclas globais e navegação
+│   │   ├── components.go             # Table reutilizável (header, cursor, sort, colunas flex)
+│   │   ├── flash_field.go            # Componente flash para valores atualizados via SSE
+│   │   ├── flash_prompt.go           # Mensagens flash/toast + prompts command/filter
+│   │   ├── braille_chart.go          # Gráficos braille Unicode (sparklines, charts)
+│   │   ├── sparkline.go              # Helpers de sparkline e padding
+│   │   ├── services_tab.go           # Tab [1] Services
+│   │   ├── nodes_tab.go              # Tab [2] Nodes
+│   │   ├── agents_tab.go             # Tab [3] Agents
+│   │   ├── tasks_tab.go              # Tab [4] Tasks
+│   │   ├── alerts_tab.go             # Tab [5] Alerts
+│   │   ├── recommendations_tab.go   # Tab [6] Recommendations
+│   │   ├── detail_view.go            # Views de detalhe (drill-down)
+│   │   ├── logs_view.go              # View de logs inline com filtro e follow
+│   │   ├── crumbs.go                 # Breadcrumbs com chips coloridos
+│   │   ├── tabbar.go                 # Régua visual de abas
+│   │   ├── menu.go                   # Keyhints dinâmicos por view mode e tab
+│   │   ├── input_help.go             # Inputs de command/filter + help
+│   │   ├── table_helpers.go          # Helpers de renderização e formatação
+│   │   ├── mockdata.go               # Dados mock para wireframe
+│   │   └── mocklogs.go               # Logs mockados para demonstração
+│   ├── client/                       # HTTP client (REST + SSE)
+│   │   ├── client.go                 # APIClient base com auth JWT e auto-refresh
+│   │   ├── sse.go                    # SSE client reutilizável (callbacks, reconexão)
+│   │   ├── auth.go                   # Login, Logout, LoadOrRefresh
+│   │   ├── token_store.go            # Persistência em ~/.config/resma/credentials.json (XDG)
+│   │   └── cluster.go                # Tipos do payload dashboard SSE
 │   ├── config/                       # Viper config
 │   │   ├── config.go                 # Load (file + env + flags), defaults, validation
 │   │   └── defaults.go               # Defaults: RESMA_API_URL, RESMA_TOKEN, etc.
@@ -391,7 +409,7 @@ resma
 | `--api-url` | `RESMA_API_URL` | `api.url` | `http://localhost:8080` | API base URL |
 | `--token` | `RESMA_TOKEN` | `auth.token` | (empty) | JWT token (Bearer) |
 | `--api-key` | `RESMA_API_KEY` | `auth.api_key` | (empty) | API key — switches to `/api/v1/*` |
-| `--config` | `RESMA_CONFIG` | — | `~/.resma/config.yaml` | Config file path |
+| `--config` | `RESMA_CONFIG` | — | `~/.config/resma/config.yaml` | Config file path |
 | `--output` | `RESMA_OUTPUT` | `output.format` | `text` | Format: `text\|json\|yaml\|table` |
 | `--no-color` | `NO_COLOR` | `output.color` | `false` | Disable colors |
 | `--timeout` | `RESMA_TIMEOUT` | `api.timeout` | `30s` | REST request timeout |
@@ -410,7 +428,7 @@ resma
 flag explícita > env var > config file > default
 ```
 
-### 4.5 Config file padrão (`~/.resma/config.yaml`)
+### 4.5 Config file padrão (`~/.config/resma/config.yaml`)
 
 ```yaml
 api:
@@ -435,6 +453,11 @@ debug: false
 
 > **Nota:** API Key só tem acesso a endpoints de leitura (`/api/v1/*`). Comandos WRITE exigem JWT.
 > SSE aceita ambos (cookie ou Authorization header).
+>
+> **SSE no CLI:** O CLI usa `Authorization: Bearer` direto para SSE — NÃO usa os endpoints
+> `/api/sse/session` (POST/DELETE) para troca de cookie. Esses endpoints existem para o
+> frontend (browser), que precisa de cookie HttpOnly. O CLI envia o JWT diretamente no
+> header `Authorization` da requisição SSE, sem sessão intermediária.
 
 ### 4.7 Exemplos de uso
 
@@ -704,11 +727,30 @@ consome um ou mais tópicos SSE e renderiza dados em tempo real.
 
 > Detalhes completos do TUI: [tui-design.md](./tui-design.md)
 
+### 6.5 Efeito Flash — FlashField
+
+Quando um valor de métrica muda via SSE, ele pisca em destaque (bold + cor de destaque) por ~800ms e volta à cor normal. Feedback visual de que o dado é live.
+
+- Componente reutilizável: `FlashField` (flash_field.go)
+- Cada métrica tem seu próprio FlashField (CPU, MEM independentes)
+- `Update(value)` aciona o flash se o valor mudou
+- `Flashing()` retorna true se dentro da janela de flash
+- Tick de 500ms re-renderiza para expirar o flash
+
+### 6.6 Fetch inicial REST
+
+Ao entrar no `resma monitor`, um GET /api/dashboard é feito imediatamente (goroutine paralela ao SSE) para carregar dados sem esperar até 60s pelo próximo evento SSE.
+
 ---
 
 ## 7. Compatibilidade Cross-Terminal
 
 ### 7.1 Detecção de capacidades (termenv + colorprofile)
+
+> **Nota de implementação:** A implementação real NÃO chama `termenv` ou
+> `colorprofile` diretamente. O `lipgloss` já inclui essas deps como transitivas
+> e cuida da detecção de perfil de cor e VT processing automaticamente. O código
+> abaixo é referência técnica de como funciona internamente.
 
 ```go
 // internal/config/config.go
@@ -783,7 +825,12 @@ $ resma services list --output json
 ]
 ```
 
-### 8.3 Sparkline (asciigraph)
+### 8.3 Sparkline (braille Unicode custom)
+
+> **Nota de implementação:** A implementação real usa gráficos **braille Unicode
+> custom** (`internal/tui/braille_chart.go`, `sparkline.go`) em vez de `asciigraph`.
+> O `asciigraph` foi avaliado e rejeitado em favor de um componente próprio que
+> se integra melhor com o Bubble Tea e suporta multi-series com gradiente de cores.
 
 ```
 $ resma services metrics api --range 1h
@@ -881,7 +928,7 @@ resma services list              # usa /api/v1/services
 # JWT via login interativo (futuro)
 resma auth login --url http://swarm-manager:8080
 # → pede username/password
-# → armazena JWT em ~/.resma/credentials (0600)
+# → armazena JWT em ~/.config/resma/credentials.json (0600, XDG-compatible)
 resma services list              # usa /api/services
 
 # Token via flag
