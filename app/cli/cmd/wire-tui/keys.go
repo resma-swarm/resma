@@ -90,22 +90,24 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Navegação na lista
+	// Navegação na lista (loop infinito como k9s)
 	if m.viewMode == ViewList {
+		n := m.listLen()
+		if n == 0 {
+			n = 1
+		}
 		switch msg.String() {
 		case "j", "down":
-			m.cursor++
+			m.cursor = (m.cursor + 1) % n
 			return m, nil
 		case "k", "up":
-			if m.cursor > 0 {
-				m.cursor--
-			}
+			m.cursor = (m.cursor - 1 + n) % n
 			return m, nil
 		case "g":
 			m.cursor = 0
 			return m, nil
 		case "G":
-			m.cursor = m.listLen() - 1
+			m.cursor = n - 1
 			return m, nil
 		case "enter":
 			return m.enterDetail()
