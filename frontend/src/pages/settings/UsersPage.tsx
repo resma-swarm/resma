@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/api/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,6 +13,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import {
   Table,
   TableBody,
@@ -27,7 +39,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Trash2, ShieldCheck } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/empty-state"
+import { Plus, Trash2, ShieldCheck, Users as UsersIcon } from "lucide-react"
 import { toast } from "sonner"
 import { usePermissions } from "@/hooks/use-permissions"
 
@@ -40,60 +54,80 @@ interface User {
 
 export function UsersPage() {
   const perms = usePermissions()
-  const [users, setUsers] = useState<User[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
   const [newUser, setNewUser] = useState({ username: "", password: "", role: "user", name: "" })
 
-  const loadUsers = async () => {
-    try {
-      const data = await api.get<{ users: User[] }>("/users")
-      setUsers(data.users || [])
-    } catch (e) {
-      toast.error("Erro ao carregar usuários: " + (e as Error).message)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const { data, isLoading } = useQuery<{ users: User[] }>({
+    queryKey: ["users"],
+    queryFn: () => api.get<{ users: User[] }>("/users"),
+  })
+  const users = data?.users || []
 
-  useEffect(() => {
-    loadUsers()
-  }, [])
-
-  const handleCreate = async () => {
-    try {
-      await api.post("/users", newUser)
+  const createMutation = useMutation({
+    mutationFn: (payload: typeof newUser) => api.post("/users", payload),
+    onSuccess: () => {
       toast.success("Usuário criado")
       setCreateOpen(false)
       setNewUser({ username: "", password: "", role: "user", name: "" })
-      loadUsers()
-    } catch (e) {
-      toast.error("Erro: " + (e as Error).message)
-    }
-  }
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+    },
+    onError: (e) => toast.error("Erro: " + (e as Error).message),
+  })
 
-  const handleDelete = async (id: number, username: string) => {
-    if (!confirm(`Excluir usuário "${username}"?`)) return
-    try {
-      await api.delete(`/users/${id}`)
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/users/${id}`),
+    onSuccess: () => {
       toast.success("Usuário excluído")
-      loadUsers()
-    } catch (e) {
-      toast.error("Erro: " + (e as Error).message)
-    }
-  }
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+    },
+    onError: (e) => toast.error("Erro: " + (e as Error).message),
+  })
 
-  const handleChangeRole = async (id: number, role: string) => {
-    try {
-      await api.patch(`/users/${id}`, { role })
+  const roleMutation = useMutation({
+    mutationFn: ({ id, role }: { id: number; role: string }) =>
+      api.patch(`/users/${id}`, { role }),
+    onSuccess: () => {
       toast.success("Role atualizado")
-      loadUsers()
-    } catch (e) {
-      toast.error("Erro: " + (e as Error).message)
-    }
-  }
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+    },
+    onError: (e) => toast.error("Erro: " + (e as Error).message),
+  })
 
-  if (loading) return <div className="text-muted-foreground">Carregando...</div>
+  const handleCreate = () => createMutation.mutate(newUser)
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-8 w-28" />
+        </div>
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Username</TableHead>
+                <TableHead>Nome</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead className="w-[100px]">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell><Skeleton className="h-8 w-28" /></TableCell>
+                  <TableCell><Skeleton className="h-8 w-8" /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -156,8 +190,8 @@ export function UsersPage() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
-                <Button onClick={handleCreate} disabled={!newUser.username || !newUser.password}>
-                  Criar
+                <Button onClick={handleCreate} disabled={!newUser.username || !newUser.password || createMutation.isPending}>
+                  {createMutation.isPending ? "Criando..." : "Criar"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -165,59 +199,93 @@ export function UsersPage() {
         )}
       </div>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Username</TableHead>
-              <TableHead>Nome</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead className="w-[100px]">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {users.map((u) => (
-              <TableRow key={u.id}>
-                <TableCell className="font-medium">{u.username}</TableCell>
-                <TableCell className="text-muted-foreground">{u.name || "—"}</TableCell>
-                <TableCell>
-                  {u.role === "owner" ? (
-                    <span className="flex items-center gap-1.5 text-primary font-medium">
-                      <ShieldCheck className="h-4 w-4" />
-                      owner
-                    </span>
-                  ) : (
-                    <Select
-                      value={u.role}
-                      onValueChange={(v) => handleChangeRole(u.id, v)}
-                      disabled={!perms.canManageUsers}
-                    >
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">admin</SelectItem>
-                        <SelectItem value="user">user</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {u.role !== "owner" && perms.canDeleteUsers && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(u.id, u.username)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  )}
-                </TableCell>
+      {users.length === 0 ? (
+        <div className="rounded-md border">
+          <EmptyState
+            icon={UsersIcon}
+            message="Nenhum usuário cadastrado"
+            action={
+              perms.canManageUsers ? (
+                <Button size="sm" onClick={() => setCreateOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  Criar Usuário
+                </Button>
+              ) : undefined
+            }
+          />
+        </div>
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Username</TableHead>
+                <TableHead>Nome</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead className="w-[100px]">Ações</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {users.map((u) => (
+                <TableRow key={u.id}>
+                  <TableCell className="font-medium">{u.username}</TableCell>
+                  <TableCell className="text-muted-foreground">{u.name || "—"}</TableCell>
+                  <TableCell>
+                    {u.role === "owner" ? (
+                      <span className="flex items-center gap-1.5 text-primary font-medium">
+                        <ShieldCheck className="h-4 w-4" />
+                        owner
+                      </span>
+                    ) : (
+                      <Select
+                        value={u.role}
+                        onValueChange={(v) => roleMutation.mutate({ id: u.id, role: v })}
+                        disabled={!perms.canManageUsers}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">admin</SelectItem>
+                          <SelectItem value="user">user</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {u.role !== "owner" && perms.canDeleteUsers && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Excluir usuário "{u.username}"?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Esta ação é irreversível. O usuário perderá acesso imediatamente.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteMutation.mutate(u.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Excluir
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   )
 }

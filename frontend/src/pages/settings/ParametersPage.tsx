@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/api/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import { HelpIcon } from "@/components/help-icon"
 import { Save } from "lucide-react"
 import { toast } from "sonner"
@@ -39,16 +41,29 @@ function isInvalid(value: number, min: number, max: number): boolean {
 }
 
 export function ParametersPage() {
+  const queryClient = useQueryClient()
   const [settings, setSettings] = useState<Settings | null>(null)
   const [original, setOriginal] = useState<Settings | null>(null)
-  const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    api.get<Settings>("/settings").then((data) => {
+  const { isLoading } = useQuery<Settings>({
+    queryKey: ["settings"],
+    queryFn: async () => {
+      const data = await api.get<Settings>("/settings")
       setSettings(data)
       setOriginal(data)
-    }).catch((e) => toast.error("Erro ao carregar: " + (e as Error).message))
-  }, [])
+      return data
+    },
+  })
+
+  const saveMutation = useMutation({
+    mutationFn: (changes: Record<string, number>) => api.put("/settings", changes),
+    onSuccess: () => {
+      toast.success("Parâmetros salvos")
+      if (settings) setOriginal({ ...settings })
+      queryClient.invalidateQueries({ queryKey: ["settings"] })
+    },
+    onError: (e) => toast.error("Erro: " + (e as Error).message),
+  })
 
   const hasChanges = () => {
     if (!settings || !original) return false
@@ -62,7 +77,7 @@ export function ParametersPage() {
     return SETTING_META.some((m) => isInvalid(settings[m.key], m.min, m.max))
   }
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!settings || !original) return
     const changes: Record<string, number> = {}
     for (const m of SETTING_META) {
@@ -71,19 +86,31 @@ export function ParametersPage() {
       }
     }
     if (Object.keys(changes).length === 0) return
-    setSaving(true)
-    try {
-      await api.put("/settings", changes)
-      toast.success("Parâmetros salvos")
-      setOriginal({ ...settings })
-    } catch (e) {
-      toast.error("Erro: " + (e as Error).message)
-    } finally {
-      setSaving(false)
-    }
+    saveMutation.mutate(changes)
   }
 
-  if (!settings) return <div className="text-muted-foreground">Carregando...</div>
+  if (isLoading || !settings) {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-80" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              {Array.from({ length: 9 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-9 w-full" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -137,13 +164,13 @@ export function ParametersPage() {
             <Button
               variant="outline"
               onClick={() => setSettings(original)}
-              disabled={!hasChanges() || saving}
+              disabled={!hasChanges() || saveMutation.isPending}
             >
               Cancelar
             </Button>
-            <Button onClick={handleSave} disabled={!hasChanges() || hasInvalid() || saving}>
+            <Button onClick={handleSave} disabled={!hasChanges() || hasInvalid() || saveMutation.isPending}>
               <Save className="h-4 w-4" />
-              {saving ? "Salvando..." : "Salvar"}
+              {saveMutation.isPending ? "Salvando..." : "Salvar"}
             </Button>
           </div>
         </CardContent>
