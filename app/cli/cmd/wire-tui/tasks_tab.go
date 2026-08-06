@@ -7,39 +7,47 @@ import (
 
 func renderTasksTab(m model) string {
 	var sb strings.Builder
-	sb.WriteString(sTitle.Render("Tasks — 12 total (10 running, 2 failed)"))
-	sb.WriteString("\n\n")
 
-	sb.WriteString(fmt.Sprintf("%s %s %s %s %s %s\n",
-		padRight(sTableHeader.Render("ID"), 12),
-		padRight(sTableHeader.Render("SERVICE"), 20),
-		padRight(sTableHeader.Render("NODE"), 10),
-		padRight(sTableHeader.Render("STATUS"), 10),
-		padRight(sTableHeader.Render("DESIRED"), 10),
-		sTableHeader.Render("UPTIME"),
-	))
-	sb.WriteString(sMuted.Render(strings.Repeat("─", 72)))
-	sb.WriteString("\n")
+	idW := 15
+	svcW := 25
+	nodeW := 15
+	statW := 15
+	desW := 15
+	upW := m.width - idW - svcW - nodeW - statW - desW - 5
+	if upW < 10 {
+		upW = 10
+	}
+
+	header := fmt.Sprintf("%s %s %s %s %s %s",
+		padRight(sK9sTableHeader.Render("NAME"), idW),
+		padRight(sK9sTableHeader.Render("SERVICE"), svcW),
+		padRight(sK9sTableHeader.Render("NODE"), nodeW),
+		padRight(sK9sTableHeader.Render("STATUS"), statW),
+		padRight(sK9sTableHeader.Render("DESIRED"), desW),
+		sK9sTableHeader.Render("UPTIME"),
+	)
+	sb.WriteString(header + "\n")
 
 	for i, t := range mockTasks {
-		status := sSuccess.Render("running")
-		if t.status != "running" {
-			status = sError.Render("failed")
-		}
-
-		id := padRight(t.id, 12)
+		style := sK9sInfoVal
 		if i == m.cursor {
-			id = sSelected.Render(padRight(t.id, 12))
+			style = sK9sTableCursor
 		}
 
-		sb.WriteString(fmt.Sprintf("%s %s %s %s %s %s\n",
-			id,
-			padRight(t.service, 20),
-			padRight(t.node, 10),
-			padRight(status, 10),
-			padRight(t.desired, 10),
-			padLeft(t.uptime, 10),
-		))
+		status := sK9sGreen.Render("running")
+		if t.status != "running" {
+			status = sK9sRed.Render("failed")
+		}
+
+		row := fmt.Sprintf("%s %s %s %s %s %s",
+			padRight(t.id, idW),
+			padRight(t.service, svcW),
+			padRight(t.node, nodeW),
+			padRight(status, statW),
+			padRight(t.desired, desW),
+			padLeft(t.uptime, upW),
+		)
+		sb.WriteString(style.Width(m.width).Render(row) + "\n")
 	}
 
 	return sb.String()

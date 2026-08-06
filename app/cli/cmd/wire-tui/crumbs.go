@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	"strings"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
 // renderCrumbs renderiza breadcrumbs estilo k9s — chips coloridos.
@@ -39,22 +37,12 @@ func renderCrumbs(m model) string {
 		name := strings.ReplaceAll(strings.ToLower(c), " ", "")
 		if i == last {
 			// crumb ativo — cor de destaque
-			sb.WriteString(sCrumbActive.Render(fmt.Sprintf(" <%s> ", name)))
+			sb.WriteString(sK9sCrumbActive.Render(fmt.Sprintf(" <%s> ", name)))
 		} else {
 			// crumb inativo
-			sb.WriteString(sCrumbInactive.Render(fmt.Sprintf(" <%s> ", name)))
+			sb.WriteString(sK9sCrumbInactive.Render(fmt.Sprintf(" <%s> ", name)))
 		}
+		sb.WriteString(" ")
 	}
 	return sb.String()
 }
-
-var (
-	sCrumbActive = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(cWhite).
-			Background(cPrimary)
-
-	sCrumbInactive = lipgloss.NewStyle().
-			Foreground(cMuted).
-			Background(cTabBg)
-)

@@ -7,37 +7,44 @@ import (
 
 func renderAgentsTab(m model) string {
 	var sb strings.Builder
-	sb.WriteString(sTitle.Render("Agents — 5 registered (4 active, 1 offline)"))
-	sb.WriteString("\n\n")
 
-	sb.WriteString(fmt.Sprintf("%s %s %s %s %s\n",
-		padRight(sTableHeader.Render("NODE ID"), 12),
-		padRight(sTableHeader.Render("STATUS"), 10),
-		padRight(sTableHeader.Render("VERSION"), 10),
-		padRight(sTableHeader.Render("LAST SEEN"), 14),
-		sTableHeader.Render("SERVICES"),
-	))
-	sb.WriteString(sMuted.Render(strings.Repeat("─", 60)))
-	sb.WriteString("\n")
+	idW := 20
+	statW := 15
+	verW := 15
+	seenW := 20
+	svcsW := m.width - idW - statW - verW - seenW - 5
+	if svcsW < 10 {
+		svcsW = 10
+	}
+
+	header := fmt.Sprintf("%s %s %s %s %s",
+		padRight(sK9sTableHeader.Render("NODE ID"), idW),
+		padRight(sK9sTableHeader.Render("STATUS"), statW),
+		padRight(sK9sTableHeader.Render("VERSION"), verW),
+		padRight(sK9sTableHeader.Render("LAST SEEN"), seenW),
+		sK9sTableHeader.Render("SERVICES"),
+	)
+	sb.WriteString(header + "\n")
 
 	for i, a := range mockAgents {
-		status := sSuccess.Render("active")
-		if a.status != "active" {
-			status = sError.Render("offline")
-		}
-
-		id := padRight(a.nodeID, 12)
+		style := sK9sInfoVal
 		if i == m.cursor {
-			id = sSelected.Render(padRight(a.nodeID, 12))
+			style = sK9sTableCursor
 		}
 
-		sb.WriteString(fmt.Sprintf("%s %s %s %s %s\n",
-			id,
-			padRight(status, 10),
-			padRight(a.version, 10),
-			padRight(a.lastSeen, 14),
-			padLeft(fmt.Sprintf("%d", a.services), 8),
-		))
+		status := sK9sGreen.Render("active")
+		if a.status != "active" {
+			status = sK9sRed.Render("offline")
+		}
+
+		row := fmt.Sprintf("%s %s %s %s %s",
+			padRight(a.nodeID, idW),
+			padRight(status, statW),
+			padRight(a.version, verW),
+			padRight(a.lastSeen, seenW),
+			padLeft(fmt.Sprintf("%d", a.services), svcsW),
+		)
+		sb.WriteString(style.Width(m.width).Render(row) + "\n")
 	}
 
 	return sb.String()

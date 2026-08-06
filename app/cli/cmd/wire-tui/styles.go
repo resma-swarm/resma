@@ -2,94 +2,83 @@ package main
 
 import "github.com/charmbracelet/lipgloss"
 
-// Cores do tema dark (roxo/cyan)
+// Cores do k9s default skin
 var (
-	cPrimary   = lipgloss.Color("#7D56F3")
-	cAccent    = lipgloss.Color("#00D9FF")
-	cSuccess   = lipgloss.Color("#04E762")
-	cWarning   = lipgloss.Color("#FFB400")
-	cError     = lipgloss.Color("#FF5C5C")
-	cMuted     = lipgloss.Color("#6B7280")
-	cBorder    = lipgloss.Color("#3D3D5C")
-	cBorderAct = lipgloss.Color("#7D56F3")
-	cBg        = lipgloss.Color("#1A1A2E")
-	cTabBg     = lipgloss.Color("#2A2A3E")
-	cWhite     = lipgloss.Color("#FFFFFF")
+	cK9sBlack   = lipgloss.Color("#000000")
+	cK9sGray    = lipgloss.Color("#A9A9A9")
+	cK9sMuted   = lipgloss.Color("#808080")
+	cK9sAqua    = lipgloss.Color("#00FFFF")
+	cK9sCyan    = lipgloss.Color("#00CED1")
+	cK9sGreen   = lipgloss.Color("#00FF00")
+	cK9sRed     = lipgloss.Color("#FF0000")
+	cK9sWarning = lipgloss.Color("#FFA500")
+	cK9sWhite   = lipgloss.Color("#FFFFFF")
+	cK9sCursor  = lipgloss.Color("#4B0082") // Indigo cursor
+	cK9sBorder  = lipgloss.Color("#3D3D5C")
+	cK9sPrimary = lipgloss.Color("#7D56F3")
+	cK9sTabBg   = lipgloss.Color("#2A2A3E")
 )
 
-// Estilos
+// Estilos K9s High Fidelity
 var (
-	sHeader = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(cWhite).
-		Background(cPrimary).
-		Padding(0, 2)
-
-	sSubtitle = lipgloss.NewStyle().
-			Foreground(cMuted)
-
-	sTabActive = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(cWhite).
-			Background(cPrimary).
-			Padding(0, 2).
-			MarginRight(1)
-
-	sTabInactive = lipgloss.NewStyle().
-			Foreground(cMuted).
-			Background(cTabBg).
-			Padding(0, 2).
-			MarginRight(1)
-
-	sFooter = lipgloss.NewStyle().
-		Foreground(cMuted).
-		Padding(0, 1)
-
-	sBreadcrumb = lipgloss.NewStyle().
-			Foreground(cMuted).
+	sK9sHeader = lipgloss.NewStyle().
 			Padding(0, 1)
 
-	sTitle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(cAccent)
+	sK9sClusterTitle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(cK9sAqua)
 
-	sTableHeader = lipgloss.NewStyle().
+	sK9sInfoKey = lipgloss.NewStyle().
+			Foreground(cK9sGray)
+
+	sK9sInfoVal = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(cAccent)
+			Foreground(cK9sWhite)
 
-	sSuccess = lipgloss.NewStyle().Foreground(cSuccess).Bold(true)
-	sWarning = lipgloss.NewStyle().Foreground(cWarning).Bold(true)
-	sError   = lipgloss.NewStyle().Foreground(cError).Bold(true)
-	sMuted   = lipgloss.NewStyle().Foreground(cMuted)
-	sHighlight = lipgloss.NewStyle().Foreground(cPrimary).Bold(true)
-
-	sCard = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(cBorder).
-		Padding(0, 2).
-		MarginBottom(0)
-
-	sCardTitle = lipgloss.NewStyle().
+	sK9sMenuKey = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(cAccent)
+			Foreground(cK9sCyan)
 
-	sBorderActive = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(cBorderAct)
+	sK9sMenuDesc = lipgloss.NewStyle().
+			Foreground(cK9sGray)
 
-	sBorderInactive = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(cBorder)
+	sK9sLogo = lipgloss.NewStyle().
+			Foreground(cK9sPrimary).
+			Bold(true)
 
-	sSelected = lipgloss.NewStyle().
+	sK9sStatus = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(cWhite).
-			Background(cPrimary)
+			Foreground(cK9sBlack).
+			Padding(0, 2).
+			AlignHorizontal(lipgloss.Center)
 
-	sInput = lipgloss.NewStyle().
-		Foreground(cWhite).
-		Background(cTabBg).
-		Padding(0, 1)
+	sK9sTableCursor = lipgloss.NewStyle().
+			Background(cK9sCursor).
+			Foreground(cK9sWhite).
+			Bold(true)
 
-	sSparkline = lipgloss.NewStyle().Foreground(cAccent)
+	sK9sTableHeader = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(cK9sAqua).
+			Underline(true)
+
+	sK9sCrumbActive = lipgloss.NewStyle().
+			Bold(true).
+			Background(cK9sPrimary).
+			Foreground(cK9sWhite)
+
+	sK9sCrumbInactive = lipgloss.NewStyle().
+				Background(cK9sBorder).
+				Foreground(cK9sGray)
+
+	sK9sFlash = lipgloss.NewStyle().
+			Bold(true).
+			AlignHorizontal(lipgloss.Center)
+
+	// Fallbacks para compatibilidade com código existente
+	sSuccess   = lipgloss.NewStyle().Foreground(cK9sGreen).Bold(true)
+	sWarning   = lipgloss.NewStyle().Foreground(cK9sWarning).Bold(true)
+	sError     = lipgloss.NewStyle().Foreground(cK9sRed).Bold(true)
+	sMuted     = lipgloss.NewStyle().Foreground(cK9sMuted)
+	sHighlight = lipgloss.NewStyle().Foreground(cK9sPrimary).Bold(true)
 )

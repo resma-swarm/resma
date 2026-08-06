@@ -9,7 +9,7 @@ import (
 
 func renderCommandInput(m model) string {
 	prompt := sHighlight.Render(":")
-	input := sInput.Render(m.inputBuf + "_")
+	input := m.inputBuf + "_"
 	hint := sMuted.Render("  (services, nodes, agents, tasks, alerts, recs, q, help)")
 	return "\n\n" + prompt + " " + input + hint + "\n\n" +
 		sMuted.Render(strings.Repeat("─", m.width-4))
@@ -17,7 +17,7 @@ func renderCommandInput(m model) string {
 
 func renderFilterInput(m model) string {
 	prompt := sHighlight.Render("/")
-	input := sInput.Render(m.inputBuf + "_")
+	input := m.inputBuf + "_"
 	hint := sMuted.Render("  (regex — Enter to apply, Esc to cancel)")
 	return "\n\n" + prompt + " " + input + hint + "\n\n" +
 		sMuted.Render(strings.Repeat("─", m.width-4))
@@ -25,7 +25,7 @@ func renderFilterInput(m model) string {
 
 func renderHelp(m model) string {
 	var sb strings.Builder
-	sb.WriteString(sTitle.Render("  KEYBINDINGS — " + tabNames[m.activeTab][4:] + " Tab"))
+	sb.WriteString(sK9sClusterTitle.Render("  KEYBINDINGS — " + tabNames[m.activeTab][4:] + " Tab"))
 	sb.WriteString("\n\n")
 
 	sections := [][]string{
@@ -76,7 +76,7 @@ func renderHelp(m model) string {
 	content := sb.String()
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(cPrimary).
+		BorderForeground(cK9sPrimary).
 		Padding(1, 2).
 		Width(min(m.width-4, 60)).
 		Render(content)

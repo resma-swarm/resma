@@ -34,6 +34,7 @@ func renderFlash(m model) string {
 
 	text := fmt.Sprintf("%s %s", emoji, m.flash.text)
 	return lipgloss.NewStyle().
+		Width(m.width).
 		Foreground(color).
 		AlignHorizontal(lipgloss.Center).
 		Render(text)
@@ -55,13 +56,13 @@ func flashEmoji(l FlashLevel) string {
 func flashColor(l FlashLevel) lipgloss.Color {
 	switch l {
 	case FlashWarn:
-		return cWarning
+		return cK9sWarning
 	case FlashErr:
-		return cError
+		return cK9sRed
 	case FlashSuccess:
-		return cSuccess
+		return cK9sGreen
 	default:
-		return cAccent
+		return cK9sCyan
 	}
 }
 
@@ -82,12 +83,12 @@ func renderPrompt(m model) string {
 	if m.viewMode == ViewCommand {
 		prefix = ">"
 		icon = "🐶"
-		borderColor = cPrimary
+		borderColor = cK9sPrimary
 		suggestion = commandSuggestion(m.inputBuf)
 	} else {
 		prefix = "/"
 		icon = "🐩"
-		borderColor = cAccent
+		borderColor = cK9sAqua
 	}
 
 	text := m.inputBuf

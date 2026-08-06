@@ -7,58 +7,58 @@ import (
 
 func renderServicesTab(m model) string {
 	var sb strings.Builder
-	sb.WriteString(sTitle.Render("Services — 8 total (7 running, 1 stopped)"))
-	sb.WriteString("\n\n")
 
-	// Table header
-	sb.WriteString(fmt.Sprintf("%s %s %s %s %s %s\n",
-		padRight(sTableHeader.Render("NAME"), 20),
-		padLeft(sTableHeader.Render("REPLICAS"), 10),
-		padLeft(sTableHeader.Render("CPU%"), 8),
-		padLeft(sTableHeader.Render("MEM%"), 8),
-		padRight(sTableHeader.Render("STATUS"), 12),
-		sTableHeader.Render("TREND"),
-	))
-	sb.WriteString(sMuted.Render(strings.Repeat("─", 78)))
-	sb.WriteString("\n")
+	// Calcula widths dinâmicos
+	nameW := 25
+	replW := 10
+	cpuW := 10
+	memW := 10
+	statusW := 15
+	trendW := m.width - nameW - replW - cpuW - memW - statusW - 5
+	if trendW < 10 {
+		trendW = 10
+	}
+
+	// Header
+	header := fmt.Sprintf("%s %s %s %s %s %s",
+		padRight(sK9sTableHeader.Render("NAME"), nameW),
+		padLeft(sK9sTableHeader.Render("READY"), replW),
+		padLeft(sK9sTableHeader.Render("CPU"), cpuW),
+		padLeft(sK9sTableHeader.Render("MEM"), memW),
+		padRight(sK9sTableHeader.Render("STATUS"), statusW),
+		sK9sTableHeader.Render("TREND"),
+	)
+	sb.WriteString(header + "\n")
 
 	for i, s := range mockServices {
+		style := sK9sInfoVal
+		if i == m.cursor {
+			style = sK9sTableCursor
+		}
+
 		cpu := fmt.Sprintf("%.1f", s.cpu)
 		mem := fmt.Sprintf("%.1f", s.mem)
 
-		cpuStyled := cpu
-		if s.cpu > 70 {
-			cpuStyled = sError.Render(cpu)
-		} else if s.cpu > 50 {
-			cpuStyled = sWarning.Render(cpu)
-		}
-
-		memStyled := mem
-		if s.mem > 80 {
-			memStyled = sError.Render(mem)
-		} else if s.mem > 60 {
-			memStyled = sWarning.Render(mem)
-		}
-
-		status := sSuccess.Render("running")
+		status := sK9sGreen.Render("running")
 		if s.status != "running" {
-			status = sError.Render("stopped")
+			status = sK9sRed.Render("stopped")
 		}
 
-		name := padRight(s.name, 20)
-		if i == m.cursor {
-			name = sSelected.Render(padRight(s.name, 20))
-		}
-
-		sb.WriteString(fmt.Sprintf("%s %s %s %s %s  %s\n",
-			name,
-			padLeft(s.replicas, 10),
-			padLeft(cpuStyled, 8),
-			padLeft(memStyled, 8),
-			padRight(status, 12),
-			sparkline(s.spark, 20),
-		))
+		row := fmt.Sprintf("%s %s %s %s %s %s",
+			padRight(s.name, nameW),
+			padLeft(s.replicas, replW),
+			padLeft(cpu, cpuW),
+			padLeft(mem, memW),
+			padRight(status, statusW),
+			sparkline(s.spark, trendW),
+		)
+		sb.WriteString(style.Width(m.width).Render(row) + "\n")
 	}
 
 	return sb.String()
 }
+
+var (
+	sK9sGreen = sSuccess.Copy().Foreground(cK9sGreen)
+	sK9sRed   = sError.Copy().Foreground(cK9sRed)
+)

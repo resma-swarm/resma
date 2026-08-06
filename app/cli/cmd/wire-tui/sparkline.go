@@ -28,7 +28,7 @@ func sparkline(data []float64, width int) string {
 		}
 		result = append(result, chars[idx])
 	}
-	return sSparkline.Render(string(result))
+	return sHighlight.Render(string(result))
 }
 
 // truncate trunca string para width com ellipsis.

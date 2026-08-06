@@ -5,23 +5,24 @@ import (
 	"strings"
 )
 
-// renderDetailView renderiza o drill-down do item selecionado.
 func renderDetailView(m model) string {
+	var body string
 	switch m.activeTab {
 	case TabServices:
-		return renderServiceDetail(m)
+		body = renderServiceDetail(m)
 	case TabNodes:
-		return renderNodeDetail(m)
+		body = renderNodeDetail(m)
 	case TabAlerts:
-		return renderAlertDetail(m)
+		body = renderAlertDetail(m)
 	case TabRecommendations:
-		return renderRecDetail(m)
+		body = renderRecDetail(m)
 	case TabAgents:
-		return renderAgentDetail(m)
+		body = renderAgentDetail(m)
 	case TabTasks:
-		return renderTaskDetail(m)
+		body = renderTaskDetail(m)
 	}
-	return ""
+
+	return sK9sInfoVal.Width(m.width).Render(body)
 }
 
 func renderServiceDetail(m model) string {
@@ -30,17 +31,15 @@ func renderServiceDetail(m model) string {
 			continue
 		}
 		var sb strings.Builder
-		sb.WriteString(sTitle.Render("Service: " + s.name))
+		sb.WriteString(sK9sClusterTitle.Render(" SERVICE: " + s.name + " "))
 		sb.WriteString("\n\n")
-		sb.WriteString(fmt.Sprintf("Status: %s   Replicas: %s\n\n",
-			sSuccess.Render(s.status), s.replicas))
-		sb.WriteString("Resources:\n")
-		sb.WriteString(fmt.Sprintf("  CPU:  %s%%   Limit: 2 cores\n", fmt.Sprintf("%.1f", s.cpu)))
-		sb.WriteString(fmt.Sprintf("  MEM:  %s%%   Limit: 4Gi\n", fmt.Sprintf("%.1f", s.mem)))
-		sb.WriteString("\nCPU Trend (last 60s):\n")
-		sb.WriteString("  " + sparkline(s.spark, 50))
-		sb.WriteString("\n\n")
-		sb.WriteString(sMuted.Render("Actions: [a] apply  [d] delete  [e] edit  [l] logs  [s] shell  [y] yaml"))
+		sb.WriteString(fmt.Sprintf(" Status:   %s\n", sK9sGreen.Render(s.status)))
+		sb.WriteString(fmt.Sprintf(" Replicas: %s\n", s.replicas))
+		sb.WriteString("\n Resources:\n")
+		sb.WriteString(fmt.Sprintf("   CPU:  %s%% (Limit: 2 cores)\n", fmt.Sprintf("%.1f", s.cpu)))
+		sb.WriteString(fmt.Sprintf("   MEM:  %s%% (Limit: 4Gi)\n", fmt.Sprintf("%.1f", s.mem)))
+		sb.WriteString("\n CPU Trend:\n")
+		sb.WriteString("   " + sparkline(s.spark, 50))
 		return sb.String()
 	}
 	return ""
@@ -52,13 +51,15 @@ func renderNodeDetail(m model) string {
 			continue
 		}
 		var sb strings.Builder
-		sb.WriteString(sTitle.Render("Node: " + n.id))
+		sb.WriteString(sK9sClusterTitle.Render(" NODE: " + n.id + " "))
 		sb.WriteString("\n\n")
-		sb.WriteString(fmt.Sprintf("Hostname: %s   Role: %s   Status: %s\n\n",
-			n.hostname, n.role, sSuccess.Render(n.status)))
-		sb.WriteString("Resources:\n")
-		sb.WriteString(fmt.Sprintf("  CPU:  %.1f%%   Memory: %.1f%%   Disk: %.1f%%\n\n", n.cpu, n.mem, n.disk))
-		sb.WriteString(sMuted.Render("Actions: [d] drain  [l] agent logs  [r] restart agent"))
+		sb.WriteString(fmt.Sprintf(" Hostname: %s\n", n.hostname))
+		sb.WriteString(fmt.Sprintf(" Role:     %s\n", n.role))
+		sb.WriteString(fmt.Sprintf(" Status:   %s\n", sK9sGreen.Render(n.status)))
+		sb.WriteString("\n Resources:\n")
+		sb.WriteString(fmt.Sprintf("   CPU:  %.1f%%\n", n.cpu))
+		sb.WriteString(fmt.Sprintf("   MEM:  %.1f%%\n", n.mem))
+		sb.WriteString(fmt.Sprintf("   DISK: %.1f%%\n", n.disk))
 		return sb.String()
 	}
 	return ""
@@ -70,11 +71,12 @@ func renderAlertDetail(m model) string {
 			continue
 		}
 		var sb strings.Builder
-		sb.WriteString(sTitle.Render("Alert: " + a.level + " — " + a.service))
+		sb.WriteString(sK9sClusterTitle.Render(" ALERT: " + a.service + " "))
 		sb.WriteString("\n\n")
-		sb.WriteString(fmt.Sprintf("Level: %s   Service: %s   Time: %s\n\n",
-			a.level, a.service, a.time))
-		sb.WriteString("Message:\n  " + a.message + "\n")
+		sb.WriteString(fmt.Sprintf(" Level:   %s\n", a.level))
+		sb.WriteString(fmt.Sprintf(" Time:    %s\n", a.time))
+		sb.WriteString("\n Message:\n")
+		sb.WriteString("   " + a.message + "\n")
 		return sb.String()
 	}
 	return ""
@@ -86,12 +88,14 @@ func renderRecDetail(m model) string {
 			continue
 		}
 		var sb strings.Builder
-		sb.WriteString(sTitle.Render("Recommendation: " + r.service))
+		sb.WriteString(sK9sClusterTitle.Render(" RECOMMENDATION: " + r.service + " "))
 		sb.WriteString("\n\n")
-		sb.WriteString(fmt.Sprintf("Risk: %s   Tier: %s\n\n", r.risk, r.tier))
-		sb.WriteString(fmt.Sprintf("CPU: %s   MEM: %s\n\n", r.cpu, r.mem))
-		sb.WriteString("Reason:\n  " + r.reason + "\n\n")
-		sb.WriteString(sMuted.Render("Actions: [a] apply  [d] dismiss"))
+		sb.WriteString(fmt.Sprintf(" Risk: %s\n", r.risk))
+		sb.WriteString(fmt.Sprintf(" Tier: %s\n", r.tier))
+		sb.WriteString(fmt.Sprintf(" CPU:  %s\n", r.cpu))
+		sb.WriteString(fmt.Sprintf(" MEM:  %s\n", r.mem))
+		sb.WriteString("\n Reason:\n")
+		sb.WriteString("   " + r.reason + "\n")
 		return sb.String()
 	}
 	return ""
@@ -103,12 +107,12 @@ func renderAgentDetail(m model) string {
 			continue
 		}
 		var sb strings.Builder
-		sb.WriteString(sTitle.Render("Agent: " + a.nodeID))
+		sb.WriteString(sK9sClusterTitle.Render(" AGENT: " + a.nodeID + " "))
 		sb.WriteString("\n\n")
-		sb.WriteString(fmt.Sprintf("Status: %s   Version: %s   Last seen: %s\n",
-			sSuccess.Render(a.status), a.version, a.lastSeen))
-		sb.WriteString(fmt.Sprintf("Services monitored: %d\n\n", a.services))
-		sb.WriteString(sMuted.Render("Actions: [r] restart  [l] logs  [d] drain node"))
+		sb.WriteString(fmt.Sprintf(" Status:    %s\n", sK9sGreen.Render(a.status)))
+		sb.WriteString(fmt.Sprintf(" Version:   %s\n", a.version))
+		sb.WriteString(fmt.Sprintf(" Last Seen: %s\n", a.lastSeen))
+		sb.WriteString(fmt.Sprintf(" Services:  %d\n", a.services))
 		return sb.String()
 	}
 	return ""
@@ -120,12 +124,13 @@ func renderTaskDetail(m model) string {
 			continue
 		}
 		var sb strings.Builder
-		sb.WriteString(sTitle.Render("Task: " + t.id))
+		sb.WriteString(sK9sClusterTitle.Render(" TASK: " + t.id + " "))
 		sb.WriteString("\n\n")
-		sb.WriteString(fmt.Sprintf("Service: %s   Node: %s\n", t.service, t.node))
-		sb.WriteString(fmt.Sprintf("Status: %s   Desired: %s   Uptime: %s\n\n",
-			sSuccess.Render(t.status), t.desired, t.uptime))
-		sb.WriteString(sMuted.Render("Actions: [l] logs  [r] restart  [d] remove"))
+		sb.WriteString(fmt.Sprintf(" Service: %s\n", t.service))
+		sb.WriteString(fmt.Sprintf(" Node:    %s\n", t.node))
+		sb.WriteString(fmt.Sprintf(" Status:  %s\n", sK9sGreen.Render(t.status)))
+		sb.WriteString(fmt.Sprintf(" Desired: %s\n", t.desired))
+		sb.WriteString(fmt.Sprintf(" Uptime:  %s\n", t.uptime))
 		return sb.String()
 	}
 	return ""

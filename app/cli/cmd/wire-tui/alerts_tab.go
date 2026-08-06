@@ -7,40 +7,46 @@ import (
 
 func renderAlertsTab(m model) string {
 	var sb strings.Builder
-	sb.WriteString(sTitle.Render("Alerts — 6 active (2 critical, 3 warning, 1 info)"))
-	sb.WriteString("\n\n")
 
-	sb.WriteString(fmt.Sprintf("%s %s %s %s\n",
-		padRight(sTableHeader.Render("TIME"), 10),
-		padRight(sTableHeader.Render("LEVEL"), 8),
-		padRight(sTableHeader.Render("SERVICE"), 20),
-		sTableHeader.Render("MESSAGE"),
-	))
-	sb.WriteString(sMuted.Render(strings.Repeat("─", 70)))
-	sb.WriteString("\n")
+	timeW := 15
+	levW := 10
+	svcW := 25
+	msgW := m.width - timeW - levW - svcW - 5
+	if msgW < 10 {
+		msgW = 10
+	}
+
+	header := fmt.Sprintf("%s %s %s %s",
+		padRight(sK9sTableHeader.Render("TIME"), timeW),
+		padRight(sK9sTableHeader.Render("LEVEL"), levW),
+		padRight(sK9sTableHeader.Render("SERVICE"), svcW),
+		sK9sTableHeader.Render("MESSAGE"),
+	)
+	sb.WriteString(header + "\n")
 
 	for i, a := range mockAlerts {
-		var levelStyled string
+		style := sK9sInfoVal
+		if i == m.cursor {
+			style = sK9sTableCursor
+		}
+
+		var level string
 		switch a.level {
 		case "critical":
-			levelStyled = sError.Render("CRIT")
+			level = sK9sRed.Render("CRIT")
 		case "warning":
-			levelStyled = sWarning.Render("WARN")
+			level = sWarning.Render("WARN")
 		default:
-			levelStyled = sMuted.Render("INFO")
+			level = sMuted.Render("INFO")
 		}
 
-		time := padRight(a.time, 10)
-		if i == m.cursor {
-			time = sSelected.Render(padRight(a.time, 10))
-		}
-
-		sb.WriteString(fmt.Sprintf("%s %s %s %s\n",
-			time,
-			padRight(levelStyled, 8),
-			padRight(a.service, 20),
-			truncate(a.message, 40),
-		))
+		row := fmt.Sprintf("%s %s %s %s",
+			padRight(a.time, timeW),
+			padRight(level, levW),
+			padRight(a.service, svcW),
+			truncate(a.message, msgW),
+		)
+		sb.WriteString(style.Width(m.width).Render(row) + "\n")
 	}
 
 	return sb.String()
