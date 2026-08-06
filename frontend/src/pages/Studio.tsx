@@ -901,7 +901,7 @@ function TemplateSelector({ templates, selectedTemplateName, onTemplateChange }:
   )
 }
 
-// --- Template YAML accordion (preview do YAML, vai abaixo dos sliders) ---
+// --- Template YAML accordion (preview do YAML, vai acima dos sliders) ---
 function TemplateYamlAccordion({ templates, selectedTemplateName }: {
   templates: { id: number; name: string; description: string; yaml_content: string; stacks: string[] }[]
   selectedTemplateName: string
@@ -910,21 +910,21 @@ function TemplateYamlAccordion({ templates, selectedTemplateName }: {
   if (!selected) return null
   return (
     <Accordion type="single" collapsible className="w-full">
-      <AccordionItem value="yaml" className="border rounded-lg px-4">
-        <AccordionTrigger className="text-sm font-medium hover:no-underline py-3">
-          <div className="flex items-center gap-2">
-            <Package className="h-4 w-4 text-chart-5" />
+      <AccordionItem value="yaml" className="border-b pb-1">
+        <AccordionTrigger className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:no-underline py-0 [&[data-state=open]>svg]:rotate-0">
+          <div className="flex items-center gap-1.5">
+            <Package className="h-3.5 w-3.5 text-chart-5" />
             <span>Ver YAML — {selected.name}</span>
             {selected.stacks?.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {selected.stacks.map((s) => (
-                  <Badge key={s} variant="outline" className="text-[10px] border-chart-5/40 text-chart-5">{s}</Badge>
+                  <Badge key={s} variant="outline" className="text-[10px] border-chart-5/40 text-chart-5 normal-case tracking-normal">{s}</Badge>
                 ))}
               </div>
             )}
           </div>
         </AccordionTrigger>
-        <AccordionContent className="pt-2 pb-3">
+        <AccordionContent className="pt-2 pb-2">
           <p className="text-xs text-muted-foreground mb-2">{selected.description}</p>
           <pre className="text-[10px] font-mono text-muted-foreground bg-background rounded p-2 overflow-auto max-h-40 border">
             {selected.yaml_content}
@@ -1003,6 +1003,8 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           <HelpIcon text="Sem sugestão ML — você define os valores. Volte depois da coleta mínima para sugestões automáticas." title="Configuração Manual" />
         </SectionLabel>
 
+        {yamlAccordion}
+
         <ResourceSlider
           cpuCores={whatIfCpu}
           memBytes={whatIfMem}
@@ -1017,8 +1019,6 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           onCpuChange={onCpuChange}
           onMemChange={onMemChange}
         />
-
-        {yamlAccordion}
 
         <InfoBanner variant="info">
           <strong>Dica:</strong> comece com valores conservadores e ajuste após a coleta atingir 100 amostras.
@@ -1037,6 +1037,8 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
         </InfoBanner>
 
         {tierSection}
+
+        {yamlAccordion}
 
         <SectionLabel>
           Recursos
@@ -1057,8 +1059,6 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           onCpuChange={onCpuChange}
           onMemChange={onMemChange}
         />
-
-        {yamlAccordion}
 
         <SectionLabel>
           Painel de Simulação
@@ -1102,6 +1102,8 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
 
         {tierSection}
 
+        {yamlAccordion}
+
         <SectionLabel>
           Recursos
           <HelpIcon text="Sugestão é AUMENTAR (em laranja). Marcador cinza = atual, azul = sugerido." title="Aumento de Recursos" />
@@ -1121,8 +1123,6 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           onCpuChange={onCpuChange}
           onMemChange={onMemChange}
         />
-
-        {yamlAccordion}
 
         <SectionLabel>
           Painel de Simulação
@@ -1168,6 +1168,8 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
 
         {tierSection}
 
+        {yamlAccordion}
+
         <SectionLabel>
           Recursos atuais
           <HelpIcon text="Valores bem ajustados. Sem sugestão de mudança do ML." title="Saudável" />
@@ -1187,8 +1189,6 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           onCpuChange={onCpuChange}
           onMemChange={onMemChange}
         />
-
-        {yamlAccordion}
 
         <SectionLabel>
           Painel de Simulação
@@ -1220,6 +1220,8 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
 
       {tierSection}
 
+      {yamlAccordion}
+
       <SectionLabel>
         Recursos
         <HelpIcon text="Arraste os sliders para simular. Azul = sugerido, cinza = atual." title="Sliders" />
@@ -1239,8 +1241,6 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
         onCpuChange={onCpuChange}
         onMemChange={onMemChange}
       />
-
-      {yamlAccordion}
 
       <SectionLabel>
         Painel de Simulação
