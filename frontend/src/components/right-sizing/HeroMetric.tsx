@@ -34,8 +34,6 @@ export function HeroMetric({ data, loading, onPendingClick }: HeroMetricProps) {
     )
   }
 
-  const hasPotential = data.cpu_cores > 0 || data.mem_bytes > 0
-
   return (
     <Card className="mb-4">
       <CardContent className="flex items-center gap-6 p-4 flex-wrap">
@@ -85,7 +83,7 @@ export function HeroMetric({ data, loading, onPendingClick }: HeroMetricProps) {
                 </span>
               )}
             </>
-          ) : hasPotential ? (
+          ) : data.pending_count > 0 ? (
             <button
               onClick={onPendingClick}
               className="hover:opacity-80 transition-opacity cursor-pointer"

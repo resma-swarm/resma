@@ -447,7 +447,7 @@ func generateUUID() string {
 var (
 	ErrOnboardingCompleted  = fmt.Errorf("onboarding already completed")
 	ErrTooManyAttempts      = fmt.Errorf("too many login attempts")
-	ErrInvalidCredentials   = fmt.Errorf("invalid credentials")
+	ErrInvalidCredentials   = fmt.Errorf("usuário ou senha inválidos")
 	ErrInvalidToken         = fmt.Errorf("invalid token")
 	ErrInvalidTokenType     = fmt.Errorf("invalid token type")
 	ErrRefreshTokenNotFound = fmt.Errorf("refresh token not found")
