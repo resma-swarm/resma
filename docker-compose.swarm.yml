@@ -105,7 +105,7 @@ services:
     environment:
       - RESMA_API_URL=http://api:8080
       - RESMA_AGENT_TOKEN=${RESMA_AGENT_TOKEN:-dev-agent-token-change-me}
-      - RESMA_COLLECT_INTERVAL=1
+      - RESMA_COLLECT_INTERVAL=5
       - RESMA_HEARTBEAT_INTERVAL=60
       - RESMA_OOM_EVENTS_FILE=/data/events.pending.jsonl
     deploy:

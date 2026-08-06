@@ -44,7 +44,7 @@ services:
       - RESMA_HTTP_ADDR=:8080
       - RESMA_ML_URL=http://ml-dev:8081
       - RESMA_JWT_SECRET=${RESMA_JWT_SECRET:-dev-secret-change-me}
-      - RESMA_COLLECT_INTERVAL=1
+      - RESMA_COLLECT_INTERVAL=5
       - RESMA_RETENTION_DAYS=30
       - RESMA_OUTLIER_THRESHOLD=3.0
       - RESMA_LEAK_R2_THRESHOLD=0.7
@@ -93,7 +93,7 @@ services:
     environment:
       - RESMA_API_URL=http://api:8080
       - RESMA_AGENT_TOKEN=${RESMA_AGENT_TOKEN:-dev-agent-token-change-me}
-      - RESMA_COLLECT_INTERVAL=1
+      - RESMA_COLLECT_INTERVAL=5
       - RESMA_HEARTBEAT_INTERVAL=60
       - RESMA_NODE_ID=dev-node-1
       - RESMA_NODE_HOSTNAME=dev-agent-host

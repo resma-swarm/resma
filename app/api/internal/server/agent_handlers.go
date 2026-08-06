@@ -169,7 +169,7 @@ func (s *Server) handleAgentIngestMetrics(w http.ResponseWriter, r *http.Request
 	// - 10-20 setQueryData(["dashboard"]) no frontend por segundo
 	// - Picos de CPU/memória no api e no browser
 	//
-	// O collector (collectLoop) já publica SSE a cada CollectInterval (1s)
+	// O collector (collectLoop) já publica SSE a cada CollectInterval (5s)
 	// com o payload completo do dashboard. A ingest de agent só precisa
 	// inserir no DB — o collector cuida da notificação SSE.
 

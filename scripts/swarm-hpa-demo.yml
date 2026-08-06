@@ -137,7 +137,7 @@ services:
       - RESMA_ML_URL=http://resma-ml:8081
       - RESMA_ML_ENABLED=true
       - RESMA_JWT_SECRET_FILE=/run/secrets/resma_jwt_secret
-      - RESMA_COLLECT_INTERVAL=1
+      - RESMA_COLLECT_INTERVAL=5
       - RESMA_RETENTION_DAYS=7
       - RESMA_CLUSTER_INTERVAL=30
       - RESMA_STORAGE_INTERVAL=300
