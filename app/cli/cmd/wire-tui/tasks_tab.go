@@ -1,52 +1,38 @@
 package main
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/lipgloss"
 )
 
 func renderTasksTab(m model) string {
-	var sb strings.Builder
-
-	idW := 15
-	svcW := 25
-	nodeW := 15
-	statW := 15
-	desW := 15
-	spaces := 5
-	upW := colWidths(m.width, []int{idW, svcW, nodeW, statW, desW}, spaces)
-
-	header := joinRow(
-		cellLeft(sTableHeader.Render("NAME"), idW),
-		cellLeft(sTableHeader.Render("SERVICE"), svcW),
-		cellLeft(sTableHeader.Render("NODE"), nodeW),
-		cellLeft(sTableHeader.Render("STATUS"), statW),
-		cellLeft(sTableHeader.Render("DESIRED"), desW),
-		cellRight(sTableHeader.Render("UPTIME"), upW),
-	)
-	sb.WriteString(lipgloss.NewStyle().Width(m.width).Render(header) + "\n")
-
-	for i, t := range mockTasks {
-		var statusCell string
-		if i == m.cursor {
-			statusCell = t.status
-		} else if t.status == "running" {
-			statusCell = sSuccess.Render("running")
-		} else {
-			statusCell = sError.Render("failed")
-		}
-
-		cells := []string{
-			cellLeft(t.id, idW),
-			cellLeft(t.service, svcW),
-			cellLeft(t.node, nodeW),
-			cellLeft(statusCell, statW),
-			cellLeft(t.desired, desW),
-			cellRight(t.uptime, upW),
-		}
-		sb.WriteString(renderTableRow(cells, m.width, i == m.cursor) + "\n")
+	cols := []TableColumn{
+		{Title: "NAME", Width: 15, Align: lipgloss.Left},
+		{Title: "SERVICE", Width: 25, Align: lipgloss.Left},
+		{Title: "NODE", Width: 15, Align: lipgloss.Left},
+		{Title: "STATUS", Width: 15, Align: lipgloss.Left},
+		{Title: "DESIRED", Width: 15, Align: lipgloss.Left},
+		{Title: "UPTIME", Width: 0, Align: lipgloss.Right, Flex: true},
 	}
 
-	return sb.String()
+	rows := make([]TableRow, len(mockTasks))
+	for i, t := range mockTasks {
+		var statusColored, statusPlain string
+		if t.status == "running" {
+			statusColored = sSuccess.Render("running")
+		} else {
+			statusColored = sError.Render("failed")
+		}
+		statusPlain = t.status
+
+		rows[i] = TableRow{
+			Cells: []string{t.id, t.service, t.node, statusColored, t.desired, t.uptime},
+			Plain: []string{t.id, t.service, t.node, statusPlain, t.desired, t.uptime},
+		}
+	}
+
+	table := NewTable(cols)
+	table.SetWidth(m.width)
+	table.SetRows(rows)
+	table.cursor = m.cursor
+	return table.View()
 }

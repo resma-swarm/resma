@@ -1,51 +1,41 @@
 package main
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/lipgloss"
 )
 
 func renderAlertsTab(m model) string {
-	var sb strings.Builder
-
-	timeW := 15
-	levW := 10
-	svcW := 25
-	spaces := 3
-	msgW := colWidths(m.width, []int{timeW, levW, svcW}, spaces)
-
-	header := joinRow(
-		cellLeft(sTableHeader.Render("TIME"), timeW),
-		cellLeft(sTableHeader.Render("LEVEL"), levW),
-		cellLeft(sTableHeader.Render("SERVICE"), svcW),
-		cellLeft(sTableHeader.Render("MESSAGE"), msgW),
-	)
-	sb.WriteString(lipgloss.NewStyle().Width(m.width).Render(header) + "\n")
-
-	for i, a := range mockAlerts {
-		var levelCell string
-		if i == m.cursor {
-			levelCell = a.level
-		} else {
-			switch a.level {
-			case "critical":
-				levelCell = sError.Render("critical")
-			case "warning":
-				levelCell = sWarning.Render("warning")
-			default:
-				levelCell = sMuted.Render("info")
-			}
-		}
-
-		cells := []string{
-			cellLeft(a.time, timeW),
-			cellLeft(levelCell, levW),
-			cellLeft(a.service, svcW),
-			cellLeft(truncate(a.message, msgW), msgW),
-		}
-		sb.WriteString(renderTableRow(cells, m.width, i == m.cursor) + "\n")
+	cols := []TableColumn{
+		{Title: "TIME", Width: 15, Align: lipgloss.Left},
+		{Title: "LEVEL", Width: 10, Align: lipgloss.Left},
+		{Title: "SERVICE", Width: 25, Align: lipgloss.Left},
+		{Title: "MESSAGE", Width: 0, Align: lipgloss.Left, Flex: true},
 	}
 
-	return sb.String()
+	rows := make([]TableRow, len(mockAlerts))
+	for i, a := range mockAlerts {
+		var levelColored, levelPlain string
+		switch a.level {
+		case "critical":
+			levelColored = sError.Render("critical")
+			levelPlain = "critical"
+		case "warning":
+			levelColored = sWarning.Render("warning")
+			levelPlain = "warning"
+		default:
+			levelColored = sMuted.Render("info")
+			levelPlain = "info"
+		}
+
+		rows[i] = TableRow{
+			Cells: []string{a.time, levelColored, a.service, a.message},
+			Plain: []string{a.time, levelPlain, a.service, a.message},
+		}
+	}
+
+	table := NewTable(cols)
+	table.SetWidth(m.width)
+	table.SetRows(rows)
+	table.cursor = m.cursor
+	return table.View()
 }

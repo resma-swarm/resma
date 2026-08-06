@@ -6,12 +6,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// renderLogsView renderiza a tela de logs inline (como ViewDetail).
-// O usuário navega entre linhas de log com j/k, Enter expande a mensagem.
+// renderLogsView renderiza a tela de logs inline usando TableModel.
+// O usuário navega entre linhas com j/k, Enter abre popup com mensagem completa.
 func renderLogsView(m model, height int) string {
 	logs := mockLogsFor(m.selectedItem)
 
-	// Aplicar filtro se houver
+	// Aplicar filtro
 	if m.logFilter != "" {
 		filtered := make([]mockLogEntry, 0)
 		for _, l := range logs {
@@ -28,124 +28,89 @@ func renderLogsView(m model, height int) string {
 		return sMuted.Render(" No logs found for " + m.selectedItem)
 	}
 
-	// Auto-scroll para o fim se follow estiver ON
-	cursor := m.logCursor
-	if m.logFollow {
-		cursor = total - 1
+	// Construir colunas da tabela de logs
+	cols := []TableColumn{
+		{Title: "TIME", Width: 21, Align: lipgloss.Left},
+		{Title: "LEVEL", Width: 7, Align: lipgloss.Left},
+		{Title: "MESSAGE", Width: 0, Align: lipgloss.Left, Flex: true},
 	}
 
-	// Calcular viewport
-	// -2 linhas: título + separador inferior
-	// -1 linha: status bar
-	visible := height - 3
-	if visible < 3 {
-		visible = 3
-	}
+	// Construir linhas
+	rows := make([]TableRow, total)
+	for i, l := range logs {
+		// Level em CAIXA ALTA com cor
+		var levelColored string
+		var levelPlain string
+		switch l.level {
+		case "ERROR":
+			levelColored = sError.Render("ERROR")
+			levelPlain = "ERROR"
+		case "WARN":
+			levelColored = sWarning.Render("WARN")
+			levelPlain = "WARN"
+		case "DEBUG":
+			levelColored = sMuted.Render("DEBUG")
+			levelPlain = "DEBUG"
+		default:
+			levelColored = sSuccess.Render("INFO")
+			levelPlain = "INFO"
+		}
 
-	// Calcular janela visível centrada no cursor
-	startIdx := cursor - visible/2
-	if startIdx < 0 {
-		startIdx = 0
-	}
-	endIdx := startIdx + visible
-	if endIdx > total {
-		endIdx = total
-		startIdx = endIdx - visible
-		if startIdx < 0 {
-			startIdx = 0
+		// Timestamp
+		tsColored := sMuted.Render(l.timestamp)
+		tsPlain := l.timestamp
+
+		// Mensagem truncada (será truncada pelo Width do cell)
+		msgColored := l.message
+		msgPlain := l.message
+
+		rows[i] = TableRow{
+			Cells: []string{tsColored, levelColored, msgColored},
+			Plain: []string{tsPlain, levelPlain, msgPlain},
 		}
 	}
 
-	var sb strings.Builder
-
-	// Título do painel
-	title := sClusterTitle.Render(" LOGS: " + m.selectedItem + " ")
-	filterInfo := ""
+	// Título com info de follow/filter
+	var titleParts []string
+	titleParts = append(titleParts, sClusterTitle.Render(" LOGS: "+m.selectedItem+" "))
 	if m.logFilter != "" {
-		filterInfo = sHighlight.Render(" filter:" + m.logFilter + " ")
+		titleParts = append(titleParts, sHighlight.Render(" filter:"+m.logFilter+" "))
 	}
-	followInfo := ""
 	if m.logFollow {
-		followInfo = sSuccess.Render(" FOLLOW ")
+		titleParts = append(titleParts, sSuccess.Render(" FOLLOW "))
 	} else {
-		followInfo = sMuted.Render(" PAUSED ")
+		titleParts = append(titleParts, sMuted.Render(" PAUSED "))
 	}
-	countInfo := sMuted.Render(" " + itoa(startIdx+1) + "-" + itoa(endIdx) + "/" + itoa(total) + " ")
+	titleParts = append(titleParts, sMuted.Render(" "+itoa(m.logCursor+1)+"/"+itoa(total)+" "))
+	title := strings.Join(titleParts, "")
 
-	titleLine := lipgloss.JoinHorizontal(lipgloss.Left, title, filterInfo, followInfo, countInfo)
-	sb.WriteString(lipgloss.NewStyle().Width(m.width - 2).Render(titleLine))
-	sb.WriteString("\n")
+	// Criar e configurar tabela
+	table := NewTable(cols)
+	table.SetWidth(m.width - 2) // -2 pela borda do content area
+	table.SetHeight(height)
+	table.SetHeader(title)
+	table.SetRows(rows)
 
-	// Renderizar linhas de log
-	for i := startIdx; i < endIdx; i++ {
-		l := logs[i]
-		isSelected := i == cursor
-		sb.WriteString(renderLogLine(l, m.width-2, isSelected))
-		sb.WriteString("\n")
+	// Sincronizar cursor
+	// (TableModel tem seu próprio cursor, mas usamos m.logCursor)
+	// Como não podemos setar cursor diretamente, copiamos o estado
+	if m.logFollow {
+		table.cursor = total - 1
+	} else {
+		table.cursor = m.logCursor
 	}
 
-	// Preencher linhas vazias
-	renderedLines := endIdx - startIdx
-	for i := renderedLines; i < visible; i++ {
-		sb.WriteString("\n")
-	}
-
-	// Status bar
-	statusItems := []string{
-		"[j/k] navigate",
-		"[Enter] expand",
-		"[f] follow",
-		"[/] filter",
-		"[Esc] back",
-	}
-	statusBar := sMuted.Render(strings.Join(statusItems, "  "))
-	sb.WriteString(lipgloss.NewStyle().Width(m.width - 2).Render(statusBar))
-
-	return sb.String()
+	return table.View()
 }
 
-// renderLogLine renderiza uma linha de log com cores por nível.
-// Se selected, aplica background highlight (cursor).
-func renderLogLine(l mockLogEntry, width int, selected bool) string {
-	var levelStyled string
-	switch l.level {
-	case "ERROR":
-		levelStyled = sError.Render("ERROR")
-	case "WARN":
-		levelStyled = sWarning.Render("WARN ")
-	case "DEBUG":
-		levelStyled = sMuted.Render("DEBUG")
-	default:
-		levelStyled = sSuccess.Render("INFO ")
-	}
-
-	tsStyled := sMuted.Render(l.timestamp)
-
-	// Largura do prefixo sem ANSI: timestamp(20) + space + level(5) + "  " = 28
-	prefixW := len(l.timestamp) + 1 + 5 + 2
-	msgW := width - prefixW
-	if msgW < 10 {
-		msgW = 10
-	}
-
-	msg := l.message
-	if len(msg) > msgW {
-		msg = msg[:msgW-1] + "…"
-	}
-
-	line := tsStyled + " " + levelStyled + "  " + msg
-
-	if selected {
-		return sTableCursor.Width(width).Render(line)
-	}
-	return lipgloss.NewStyle().Width(width).Render(line)
-}
-
-// renderLogPopup renderiza um popup centralizado com a mensagem completa do log.
-func renderLogPopup(m model) string {
+// renderLogPopupOverlay renderiza o popup sobre o dashboard completo.
+// O dashboard é renderizado normalmente, e as linhas do popup são
+// sobrepostas manualmente sobre as linhas do dashboard — o fundo
+// permanece visível onde o popup não cobre.
+func renderLogPopupOverlay(m model, dashboard string) string {
 	logs := mockLogsFor(m.selectedItem)
 
-	// Aplicar filtro se houver
+	// Aplicar filtro
 	if m.logFilter != "" {
 		filtered := make([]mockLogEntry, 0)
 		for _, l := range logs {
@@ -157,12 +122,16 @@ func renderLogPopup(m model) string {
 		logs = filtered
 	}
 
-	if m.logCursor < 0 || m.logCursor >= len(logs) {
-		return ""
+	cursor := m.logCursor
+	if m.logFollow {
+		cursor = len(logs) - 1
 	}
-	l := logs[m.logCursor]
+	if cursor < 0 || cursor >= len(logs) {
+		return dashboard
+	}
+	l := logs[cursor]
 
-	// Largura do popup: 80% da tela, max 100
+	// Largura do popup
 	popupW := m.width * 80 / 100
 	if popupW > 100 {
 		popupW = 100
@@ -171,21 +140,8 @@ func renderLogPopup(m model) string {
 		popupW = 40
 	}
 
-	// Quebrar mensagem em linhas de popupW-4 chars
-	msgLines := wrapText(l.message, popupW-4)
-
-	// Altura do popup: header(3) + msgLines + footer(1)
-	popupH := 3 + len(msgLines) + 1
-	if popupH > m.height-4 {
-		popupH = m.height - 4
-	}
-
 	// Construir conteúdo do popup
 	var content strings.Builder
-	content.WriteString(sClusterTitle.Render(" LOG ENTRY DETAIL "))
-	content.WriteString("\n")
-	content.WriteString(sMuted.Render(strings.Repeat("─", popupW-2)))
-	content.WriteString("\n")
 
 	var levelStyled string
 	switch l.level {
@@ -201,50 +157,83 @@ func renderLogPopup(m model) string {
 
 	content.WriteString(sInfoKey.Render("Time:  ") + sInfoVal.Render(l.timestamp) + "  " + levelStyled)
 	content.WriteString("\n")
-	content.WriteString(sMuted.Render(strings.Repeat("─", popupW-2)))
+	content.WriteString(sMuted.Render(strings.Repeat("─", popupW-6)))
 	content.WriteString("\n")
 
+	// Mensagem completa com word-wrap
+	msgLines := wrapText(l.message, popupW-6)
 	for _, ml := range msgLines {
-		content.WriteString(ml)
+		content.WriteString(sInfoVal.Render(ml))
 		content.WriteString("\n")
 	}
 
-	popupContent := content.String()
+	// Altura do popup baseada no conteúdo
+	popupH := 4 + len(msgLines) + 1 // título + separador1 + time + separador2 + msg + padding
+	if popupH > m.height-4 {
+		popupH = m.height - 4
+	}
 
-	// Estilo do popup com borda
-	popup := lipgloss.NewStyle().
+	// Criar popup — SEM background color (overlay)
+	popupStyled := lipgloss.NewStyle().
 		Width(popupW).
 		Height(popupH).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(cResmaPrimary).
-		Background(cResmaTabBg).
 		Padding(0, 1).
-		Render(popupContent)
+		Render(sClusterTitle.Render(" LOG ENTRY DETAIL ") + "\n" +
+			sMuted.Render(strings.Repeat("─", popupW-4)) + "\n" + content.String())
 
-	// Centralizar na tela
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, popup)
+	// Compor overlay: sobrepor linhas do popup sobre linhas do dashboard
+	return overlayText(dashboard, popupStyled, m.width, m.height, popupW, popupH)
 }
 
-// wrapText quebra texto em linhas de no máximo width chars.
-func wrapText(text string, width int) []string {
-	if width < 1 {
-		return []string{text}
+// overlayText sobrepõe popupLines sobre bgLines, centralizado.
+// Onde o popup tem conteúdo, sobrescreve o background.
+// Onde o popup tem espaços (fora da borda), o background permanece visível.
+func overlayText(bg, popup string, screenW, screenH, popupW, popupH int) string {
+	bgLines := strings.Split(bg, "\n")
+	popupLines := strings.Split(popup, "\n")
+
+	// Calcular posição central
+	startY := (screenH - popupH) / 2
+	startX := (screenW - popupW) / 2
+	if startY < 0 {
+		startY = 0
 	}
-	words := strings.Fields(text)
-	if len(words) == 0 {
-		return []string{""}
+	if startX < 0 {
+		startX = 0
 	}
 
-	var lines []string
-	current := words[0]
-	for _, w := range words[1:] {
-		if len(current)+1+len(w) <= width {
-			current += " " + w
-		} else {
-			lines = append(lines, current)
-			current = w
-		}
+	// Garantir que bgLines tem pelo menos screenH linhas
+	for len(bgLines) < screenH {
+		bgLines = append(bgLines, strings.Repeat(" ", screenW))
 	}
-	lines = append(lines, current)
-	return lines
+
+	// Sobrepor cada linha do popup sobre a linha correspondente do bg
+	for py := 0; py < len(popupLines) && py+startY < len(bgLines); py++ {
+		bgLine := bgLines[py+startY]
+		popupLine := popupLines[py]
+
+		// Garantir que bgLine tem pelo menos screenW chars
+		bgRunes := []rune(bgLine)
+		for len(bgRunes) < screenW {
+			bgRunes = append(bgRunes, ' ')
+		}
+
+		// Sobrepor: a partir de startX, copiar chars do popup
+		// Mas precisamos preservar ANSI codes do popupLine inteiro
+		// Solução: pegar o prefixo do bg até startX, depois o popupLine, depois o resto do bg
+		prefix := string(bgRunes[:startX])
+		// Sufixo: chars do bg após startX + len(popupLine)
+		popupVisualLen := lipgloss.Width(popupLine)
+		suffixStart := startX + popupVisualLen
+		var suffix string
+		if suffixStart < len(bgRunes) {
+			suffix = string(bgRunes[suffixStart:])
+		}
+
+		bgLines[py+startY] = prefix + popupLine + suffix
+	}
+
+	return strings.Join(bgLines, "\n")
 }

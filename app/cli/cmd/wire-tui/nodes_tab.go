@@ -1,57 +1,43 @@
 package main
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/lipgloss"
 )
 
 func renderNodesTab(m model) string {
-	var sb strings.Builder
-
-	idW := 15
-	hostW := 25
-	cpuW := 10
-	memW := 10
-	diskW := 10
-	roleW := 10
-	spaces := 6
-	statusW := colWidths(m.width, []int{idW, hostW, cpuW, memW, diskW, roleW}, spaces)
-
-	header := joinRow(
-		cellLeft(sTableHeader.Render("NAME"), idW),
-		cellLeft(sTableHeader.Render("HOSTNAME"), hostW),
-		cellRight(sTableHeader.Render("CPU%"), cpuW),
-		cellRight(sTableHeader.Render("MEM%"), memW),
-		cellRight(sTableHeader.Render("DISK%"), diskW),
-		cellLeft(sTableHeader.Render("ROLE"), roleW),
-		cellLeft(sTableHeader.Render("STATUS"), statusW),
-	)
-	sb.WriteString(lipgloss.NewStyle().Width(m.width).Render(header) + "\n")
-
-	for i, n := range mockNodes {
-		statusStr := n.status
-
-		var statusCell string
-		if i == m.cursor {
-			statusCell = statusStr
-		} else if n.status == "ready" {
-			statusCell = sSuccess.Render("ready")
-		} else {
-			statusCell = sError.Render("down")
-		}
-
-		cells := []string{
-			cellLeft(n.id, idW),
-			cellLeft(n.hostname, hostW),
-			cellRight(pctStr(n.cpu), cpuW),
-			cellRight(pctStr(n.mem), memW),
-			cellRight(pctStr(n.disk), diskW),
-			cellLeft(n.role, roleW),
-			cellLeft(statusCell, statusW),
-		}
-		sb.WriteString(renderTableRow(cells, m.width, i == m.cursor) + "\n")
+	cols := []TableColumn{
+		{Title: "NAME", Width: 15, Align: lipgloss.Left},
+		{Title: "HOSTNAME", Width: 25, Align: lipgloss.Left},
+		{Title: "CPU%", Width: 10, Align: lipgloss.Right},
+		{Title: "MEM%", Width: 10, Align: lipgloss.Right},
+		{Title: "DISK%", Width: 10, Align: lipgloss.Right},
+		{Title: "ROLE", Width: 10, Align: lipgloss.Left},
+		{Title: "STATUS", Width: 0, Align: lipgloss.Left, Flex: true},
 	}
 
-	return sb.String()
+	rows := make([]TableRow, len(mockNodes))
+	for i, n := range mockNodes {
+		var statusColored, statusPlain string
+		if n.status == "ready" {
+			statusColored = sSuccess.Render("ready")
+		} else {
+			statusColored = sError.Render("down")
+		}
+		statusPlain = n.status
+
+		rows[i] = TableRow{
+			Cells: []string{
+				n.id, n.hostname, pctStr(n.cpu), pctStr(n.mem), pctStr(n.disk), n.role, statusColored,
+			},
+			Plain: []string{
+				n.id, n.hostname, pctStr(n.cpu), pctStr(n.mem), pctStr(n.disk), n.role, statusPlain,
+			},
+		}
+	}
+
+	table := NewTable(cols)
+	table.SetWidth(m.width)
+	table.SetRows(rows)
+	table.cursor = m.cursor
+	return table.View()
 }

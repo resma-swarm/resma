@@ -1,33 +1,20 @@
 package main
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/lipgloss"
 )
 
 func renderServicesTab(m model) string {
-	var sb strings.Builder
+	cols := []TableColumn{
+		{Title: "NAME", Width: 25, Align: lipgloss.Left},
+		{Title: "READY", Width: 10, Align: lipgloss.Right},
+		{Title: "CPU", Width: 10, Align: lipgloss.Right},
+		{Title: "MEM", Width: 10, Align: lipgloss.Right},
+		{Title: "STATUS", Width: 15, Align: lipgloss.Left},
+		{Title: "TREND", Width: 0, Align: lipgloss.Left, Flex: true},
+	}
 
-	nameW := 25
-	replW := 10
-	cpuW := 10
-	memW := 10
-	statusW := 15
-	spaces := 5 // 5 espaços entre 6 colunas
-	trendW := colWidths(m.width, []int{nameW, replW, cpuW, memW, statusW}, spaces)
-
-	// Header
-	header := joinRow(
-		cellLeft(sTableHeader.Render("NAME"), nameW),
-		cellRight(sTableHeader.Render("READY"), replW),
-		cellRight(sTableHeader.Render("CPU"), cpuW),
-		cellRight(sTableHeader.Render("MEM"), memW),
-		cellLeft(sTableHeader.Render("STATUS"), statusW),
-		cellLeft(sTableHeader.Render("TREND"), trendW),
-	)
-	sb.WriteString(lipgloss.NewStyle().Width(m.width).Render(header) + "\n")
-
+	rows := make([]TableRow, len(mockServices))
 	for i, s := range mockServices {
 		cpu := pctStr(s.cpu)
 		mem := pctStr(s.mem)
@@ -36,32 +23,32 @@ func renderServicesTab(m model) string {
 			statusStr = "stopped"
 		}
 
-		var spark string
-		var statusCell string
+		var sparkColored, sparkPlainStr string
+		var statusColored, statusPlain string
 
-		if i == m.cursor {
-			// Linha selecionada: texto plain, cursor background cuida das cores
-			spark = brailleSparklinePlain(s.spark, trendW)
-			statusCell = statusStr
+		sparkColored = sparkline(s.spark, 30)
+		sparkPlainStr = brailleSparklinePlain(s.spark, 30)
+
+		if s.status == "running" {
+			statusColored = sSuccess.Render("running")
 		} else {
-			spark = sparkline(s.spark, trendW)
-			if s.status == "running" {
-				statusCell = sSuccess.Render("running")
-			} else {
-				statusCell = sError.Render("stopped")
-			}
+			statusColored = sError.Render("stopped")
 		}
+		statusPlain = statusStr
 
-		cells := []string{
-			cellLeft(s.name, nameW),
-			cellRight(s.replicas, replW),
-			cellRight(cpu, cpuW),
-			cellRight(mem, memW),
-			cellLeft(statusCell, statusW),
-			cellLeft(spark, trendW),
+		rows[i] = TableRow{
+			Cells: []string{
+				s.name, s.replicas, cpu, mem, statusColored, sparkColored,
+			},
+			Plain: []string{
+				s.name, s.replicas, cpu, mem, statusPlain, sparkPlainStr,
+			},
 		}
-		sb.WriteString(renderTableRow(cells, m.width, i == m.cursor) + "\n")
 	}
 
-	return sb.String()
+	table := NewTable(cols)
+	table.SetWidth(m.width)
+	table.SetRows(rows)
+	table.cursor = m.cursor
+	return table.View()
 }

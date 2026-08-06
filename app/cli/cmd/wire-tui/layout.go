@@ -43,11 +43,6 @@ func renderDashboard(m model) string {
 
 	content := renderContentArea(m, contentHeight)
 
-	// 4.5 Popup de log (overlay sobre o conteúdo)
-	if m.viewMode == ViewLogs && m.logPopup {
-		content = renderLogPopup(m)
-	}
-
 	// 4. Crumbs de Navegação
 	crumbs := renderCrumbs(m)
 
@@ -68,7 +63,14 @@ func renderDashboard(m model) string {
 		parts = append(parts, prompt)
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, parts...)
+	dashboard := lipgloss.JoinVertical(lipgloss.Left, parts...)
+
+	// Popup overlay (renderizado por cima do dashboard completo)
+	if m.viewMode == ViewLogs && m.logPopup {
+		return renderLogPopupOverlay(m, dashboard)
+	}
+
+	return dashboard
 }
 
 func renderContentArea(m model, height int) string {

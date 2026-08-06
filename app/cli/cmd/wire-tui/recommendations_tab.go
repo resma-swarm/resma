@@ -1,54 +1,43 @@
 package main
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/lipgloss"
 )
 
 func renderRecommendationsTab(m model) string {
-	var sb strings.Builder
-
-	svcW := 25
-	riskW := 10
-	tierW := 15
-	cpuW := 10
-	memW := 10
-	spaces := 5
-	reasW := colWidths(m.width, []int{svcW, riskW, tierW, cpuW, memW}, spaces)
-
-	header := joinRow(
-		cellLeft(sTableHeader.Render("SERVICE"), svcW),
-		cellLeft(sTableHeader.Render("RISK"), riskW),
-		cellLeft(sTableHeader.Render("TIER"), tierW),
-		cellLeft(sTableHeader.Render("CPU"), cpuW),
-		cellLeft(sTableHeader.Render("MEM"), memW),
-		cellLeft(sTableHeader.Render("REASON"), reasW),
-	)
-	sb.WriteString(lipgloss.NewStyle().Width(m.width).Render(header) + "\n")
-
-	for i, r := range mockRecs {
-		var riskCell string
-		if i == m.cursor {
-			riskCell = r.risk
-		} else if r.risk == "high" {
-			riskCell = sError.Render("high")
-		} else if r.risk == "medium" {
-			riskCell = sWarning.Render("medium")
-		} else {
-			riskCell = sSuccess.Render("low")
-		}
-
-		cells := []string{
-			cellLeft(r.service, svcW),
-			cellLeft(riskCell, riskW),
-			cellLeft(r.tier, tierW),
-			cellLeft(r.cpu, cpuW),
-			cellLeft(r.mem, memW),
-			cellLeft(truncate(r.reason, reasW), reasW),
-		}
-		sb.WriteString(renderTableRow(cells, m.width, i == m.cursor) + "\n")
+	cols := []TableColumn{
+		{Title: "SERVICE", Width: 25, Align: lipgloss.Left},
+		{Title: "RISK", Width: 10, Align: lipgloss.Left},
+		{Title: "TIER", Width: 15, Align: lipgloss.Left},
+		{Title: "CPU", Width: 10, Align: lipgloss.Left},
+		{Title: "MEM", Width: 10, Align: lipgloss.Left},
+		{Title: "REASON", Width: 0, Align: lipgloss.Left, Flex: true},
 	}
 
-	return sb.String()
+	rows := make([]TableRow, len(mockRecs))
+	for i, r := range mockRecs {
+		var riskColored, riskPlain string
+		switch r.risk {
+		case "high":
+			riskColored = sError.Render("high")
+			riskPlain = "high"
+		case "medium":
+			riskColored = sWarning.Render("medium")
+			riskPlain = "medium"
+		default:
+			riskColored = sSuccess.Render("low")
+			riskPlain = "low"
+		}
+
+		rows[i] = TableRow{
+			Cells: []string{r.service, riskColored, r.tier, r.cpu, r.mem, r.reason},
+			Plain: []string{r.service, riskPlain, r.tier, r.cpu, r.mem, r.reason},
+		}
+	}
+
+	table := NewTable(cols)
+	table.SetWidth(m.width)
+	table.SetRows(rows)
+	table.cursor = m.cursor
+	return table.View()
 }
