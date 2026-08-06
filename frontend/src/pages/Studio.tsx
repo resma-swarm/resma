@@ -7,6 +7,7 @@
  * Modal bulk mantém como Dialog.
  */
 import { useState, useMemo, useEffect } from "react"
+import * as yaml from "yaml"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import { api } from "@/api/client"
@@ -50,7 +51,7 @@ import { format, parseISO } from "date-fns"
 import {
   calculateHero,
   patternLabel, riskColorClasses, riskLevelLabel,
-  type Recommendation, type ResourceValues, type TierName, type SuggestedTiers,
+  type Recommendation, type ResourceValues, type TierName,
 } from "@/components/right-sizing/types"
 import type { RiskColor } from "@/components/right-sizing/types"
 import {
@@ -99,6 +100,31 @@ const statusConfig: Record<string, StatusCfg> = {
 }
 
 // --- helpers ---
+
+function parseMemoryToBytes(s: string): number {
+  if (!s) return 0
+  const m = s.match(/^(\d+(?:\.\d+)?)\s*([KMG]?)B?$/i)
+  if (!m) return 0
+  const val = parseFloat(m[1])
+  const unit = m[2].toUpperCase()
+  if (unit === "K") return val * 1024
+  if (unit === "M") return val * 1024 * 1024
+  if (unit === "G") return val * 1024 * 1024 * 1024
+  return val
+}
+
+function parseTemplateYaml(yamlContent: string): { cpu: number; mem: number } | null {
+  try {
+    const parsed = yaml.parse(yamlContent) as { limits?: { cpus?: string; memory?: string } }
+    if (!parsed?.limits) return null
+    return {
+      cpu: parseFloat(parsed.limits.cpus ?? "0") || 0,
+      mem: parseMemoryToBytes(parsed.limits.memory ?? ""),
+    }
+  } catch {
+    return null
+  }
+}
 
 function timeAgo(dateStr: string | null | undefined): string | null {
   if (!dateStr) return null
@@ -271,13 +297,24 @@ export default function Studio() {
   // Quando o tier muda, atualiza os sliders para os valores do tier selecionado
   useEffect(() => {
     if (!sheetRec) return
-    if (selectedTier === "template") return // template usa combobox, não sliders
+    if (selectedTier === "template") {
+      // Template: alimentar sliders com valores do YAML do template selecionado
+      if (!selectedTemplateName) return
+      const tmpl = (templates ?? []).find((t) => t.name === selectedTemplateName)
+      if (!tmpl) return
+      const parsed = parseTemplateYaml(tmpl.yaml_content)
+      if (parsed && parsed.cpu > 0 && parsed.mem > 0) {
+        setWhatIfCpu(parsed.cpu)
+        setWhatIfMem(parsed.mem)
+      }
+      return
+    }
     const tier = getTierData(sheetRec)
     if (tier && tier.cpu_limit != null && tier.mem_limit != null) {
       setWhatIfCpu(tier.cpu_limit)
       setWhatIfMem(tier.mem_limit)
     }
-  }, [selectedTier]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedTier, selectedTemplateName, templates]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const getResourcesFreed = (rec: Recommendation) => {
     if (selectedTier === "template") return null
@@ -843,8 +880,8 @@ function CompactCard({ rec, freed, onConfigure, onQuickApply, isWatched, isQuick
   )
 }
 
-// --- Template mode content (quando tier=template) ---
-function TemplateModeContent({ templates, selectedTemplateName, onTemplateChange }: {
+// --- Template selector (combobox + YAML preview, sem banner) ---
+function TemplateSelector({ templates, selectedTemplateName, onTemplateChange }: {
   templates: { id: number; name: string; description: string; yaml_content: string; stacks: string[] }[]
   selectedTemplateName: string
   onTemplateChange: (name: string) => void
@@ -852,16 +889,6 @@ function TemplateModeContent({ templates, selectedTemplateName, onTemplateChange
   const selected = templates.find((t) => t.name === selectedTemplateName)
   return (
     <>
-      <InfoBanner variant="info">
-        <strong>Modo Template:</strong> aplica um perfil YAML pré-definido (limites, reservas e margens)
-        em vez das sugestões dinâmicas do ML. Útil para padronização ou quando não há dados suficientes.
-      </InfoBanner>
-
-      <SectionLabel>
-        Selecionar template
-        <HelpIcon title="Template" text="Templates são perfis YAML criados na página Templates. Eles definem limits, reservations e margens fixas." />
-      </SectionLabel>
-
       <Combobox
         options={templates.map((t) => ({ value: t.name, label: t.name }))}
         value={selectedTemplateName}
@@ -876,15 +903,15 @@ function TemplateModeContent({ templates, selectedTemplateName, onTemplateChange
           <div className="flex items-center gap-2">
             <Package className="h-4 w-4 text-chart-5" />
             <span className="text-sm font-medium">{selected.name}</span>
+            {selected.stacks?.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {selected.stacks.map((s) => (
+                  <Badge key={s} variant="outline" className="text-[10px] border-chart-5/40 text-chart-5">{s}</Badge>
+                ))}
+              </div>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">{selected.description}</p>
-          {selected.stacks?.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {selected.stacks.map((s) => (
-                <Badge key={s} variant="outline" className="text-[10px] border-chart-5/40 text-chart-5">{s}</Badge>
-              ))}
-            </div>
-          )}
           <pre className="text-[10px] font-mono text-muted-foreground bg-background rounded p-2 overflow-auto max-h-32 border">
             {selected.yaml_content}
           </pre>
@@ -913,31 +940,35 @@ interface SheetBodyProps {
 
 function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem, onCpuChange, onMemChange, tierData, templates, selectedTemplateName, onTemplateChange }: SheetBodyProps) {
   const hasLeak = rec.memory_trend?.has_leak ?? false
+  const isTemplate = selectedTier === "template"
 
-  // --- Mode: template (perfil YAML pré-definido, sem ML) ---
-  if (selectedTier === "template") {
-    return (
-      <>
-        {rec.suggested_tiers && (
-          <>
-            <SectionLabel>
-              Camadas de recomendação
-              <HelpIcon title="Camadas" text="Conservadora: 2x P95. Equilibrada: data-driven. Agressiva: 1.1x P95. Template: perfil YAML manual." />
-            </SectionLabel>
-            <LayerToggle value={selectedTier} onChange={onTierChange} suggestedTiers={rec.suggested_tiers} />
-          </>
-        )}
-        {!rec.suggested_tiers && (
-          <LayerToggle value={selectedTier} onChange={onTierChange} suggestedTiers={rec.suggested_tiers ?? ({} as SuggestedTiers)} />
-        )}
-        <TemplateModeContent
-          templates={templates}
-          selectedTemplateName={selectedTemplateName}
-          onTemplateChange={onTemplateChange}
-        />
-      </>
-    )
-  }
+  // Helper: renderiza LayerToggle + TemplateSelector (se template)
+  const tierSection = (
+    <>
+      {rec.suggested_tiers && (
+        <>
+          <SectionLabel>
+            Camadas de recomendação
+            <HelpIcon title="Camadas" text="Conservadora: 2x P95. Equilibrada: data-driven. Agressiva: 1.1x P95. Template: perfil YAML manual." />
+          </SectionLabel>
+          <LayerToggle value={selectedTier} onChange={onTierChange} suggestedTiers={rec.suggested_tiers} />
+        </>
+      )}
+      {isTemplate && (
+        <>
+          <SectionLabel>
+            Template YAML
+            <HelpIcon title="Template" text="Perfil YAML pré-definido com limits, reservations e margens fixas. Os sliders abaixo refletem os valores do template." />
+          </SectionLabel>
+          <TemplateSelector
+            templates={templates}
+            selectedTemplateName={selectedTemplateName}
+            onTemplateChange={onTemplateChange}
+          />
+        </>
+      )}
+    </>
+  )
 
   // --- Mode: collecting_data (manual, sem ML) ---
   if (mode === "collecting") {
@@ -984,15 +1015,7 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           as sugestões já consideram o uso real (P95/P99 dos últimos 7 dias).
         </InfoBanner>
 
-        {rec.suggested_tiers && (
-          <>
-            <SectionLabel>
-              Camadas de recomendação
-              <HelpIcon title="Camadas" text="Conservadora: margem 2x P95 (mais seguro). Equilibrada: data-driven (recomendada). Agressiva: 1.1x P95 (máxima liberação)." />
-            </SectionLabel>
-            <LayerToggle value={selectedTier} onChange={onTierChange} suggestedTiers={rec.suggested_tiers} />
-          </>
-        )}
+        {tierSection}
 
         <SectionLabel>
           Recursos
@@ -1054,15 +1077,7 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           )}
         </InfoBanner>
 
-        {rec.suggested_tiers && (
-          <>
-            <SectionLabel>
-              Camadas de recomendação
-              <HelpIcon title="Camadas" text="Para under-provisioned, todas as camadas sugerem AUMENTAR recursos. Conservadora = maior aumento." />
-            </SectionLabel>
-            <LayerToggle value={selectedTier} onChange={onTierChange} suggestedTiers={rec.suggested_tiers} />
-          </>
-        )}
+        {tierSection}
 
         <SectionLabel>
           Recursos
@@ -1126,15 +1141,7 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           Você ainda pode ajustar manualmente se necessário.
         </InfoBanner>
 
-        {rec.suggested_tiers && (
-          <>
-            <SectionLabel>
-              Camadas de recomendação
-              <HelpIcon title="Camadas" text="Conservadora: 2x P95. Equilibrada: data-driven. Agressiva: 1.1x P95." />
-            </SectionLabel>
-            <LayerToggle value={selectedTier} onChange={onTierChange} suggestedTiers={rec.suggested_tiers} />
-          </>
-        )}
+        {tierSection}
 
         <SectionLabel>
           Recursos atuais
@@ -1184,15 +1191,7 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
         baseada em P95/P99 reais.
       </InfoBanner>
 
-      {rec.suggested_tiers && (
-        <>
-          <SectionLabel>
-            Camadas de recomendação
-            <HelpIcon title="Camadas" text="Conservadora: 2x P95 (seguro). Equilibrada: data-driven (recomendada). Agressiva: 1.1x P95 (máxima liberação)." />
-          </SectionLabel>
-          <LayerToggle value={selectedTier} onChange={onTierChange} suggestedTiers={rec.suggested_tiers} />
-        </>
-      )}
+      {tierSection}
 
       <SectionLabel>
         Recursos
