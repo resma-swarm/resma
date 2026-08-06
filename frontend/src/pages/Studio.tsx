@@ -29,6 +29,9 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
 } from "@/components/ui/alert-dialog"
 import {
+  Accordion, AccordionContent, AccordionItem, AccordionTrigger,
+} from "@/components/ui/accordion"
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import {
@@ -880,29 +883,38 @@ function CompactCard({ rec, freed, onConfigure, onQuickApply, isWatched, isQuick
   )
 }
 
-// --- Template selector (combobox + YAML preview, sem banner) ---
+// --- Template selector (combobox apenas) ---
 function TemplateSelector({ templates, selectedTemplateName, onTemplateChange }: {
   templates: { id: number; name: string; description: string; yaml_content: string; stacks: string[] }[]
   selectedTemplateName: string
   onTemplateChange: (name: string) => void
 }) {
-  const selected = templates.find((t) => t.name === selectedTemplateName)
   return (
-    <>
-      <Combobox
-        options={templates.map((t) => ({ value: t.name, label: t.name }))}
-        value={selectedTemplateName}
-        onChange={onTemplateChange}
-        placeholder="Escolher template..."
-        searchPlaceholder="Buscar template..."
-        emptyText="Nenhum template encontrado."
-      />
+    <Combobox
+      options={templates.map((t) => ({ value: t.name, label: t.name }))}
+      value={selectedTemplateName}
+      onChange={onTemplateChange}
+      placeholder="Escolher template..."
+      searchPlaceholder="Buscar template..."
+      emptyText="Nenhum template encontrado."
+    />
+  )
+}
 
-      {selected && (
-        <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
+// --- Template YAML accordion (preview do YAML, vai abaixo dos sliders) ---
+function TemplateYamlAccordion({ templates, selectedTemplateName }: {
+  templates: { id: number; name: string; description: string; yaml_content: string; stacks: string[] }[]
+  selectedTemplateName: string
+}) {
+  const selected = templates.find((t) => t.name === selectedTemplateName)
+  if (!selected) return null
+  return (
+    <Accordion type="single" collapsible className="w-full">
+      <AccordionItem value="yaml" className="border rounded-lg px-4">
+        <AccordionTrigger className="text-sm font-medium hover:no-underline py-3">
           <div className="flex items-center gap-2">
             <Package className="h-4 w-4 text-chart-5" />
-            <span className="text-sm font-medium">{selected.name}</span>
+            <span>Ver YAML — {selected.name}</span>
             {selected.stacks?.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {selected.stacks.map((s) => (
@@ -911,13 +923,15 @@ function TemplateSelector({ templates, selectedTemplateName, onTemplateChange }:
               </div>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">{selected.description}</p>
-          <pre className="text-[10px] font-mono text-muted-foreground bg-background rounded p-2 overflow-auto max-h-32 border">
+        </AccordionTrigger>
+        <AccordionContent className="pt-2 pb-3">
+          <p className="text-xs text-muted-foreground mb-2">{selected.description}</p>
+          <pre className="text-[10px] font-mono text-muted-foreground bg-background rounded p-2 overflow-auto max-h-40 border">
             {selected.yaml_content}
           </pre>
-        </div>
-      )}
-    </>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
   )
 }
 
@@ -970,6 +984,11 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
     </>
   )
 
+  // Helper: YAML accordion após sliders (apenas em modo template)
+  const yamlAccordion = isTemplate ? (
+    <TemplateYamlAccordion templates={templates} selectedTemplateName={selectedTemplateName} />
+  ) : null
+
   // --- Mode: collecting_data (manual, sem ML) ---
   if (mode === "collecting") {
     return (
@@ -998,6 +1017,8 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           onCpuChange={onCpuChange}
           onMemChange={onMemChange}
         />
+
+        {yamlAccordion}
 
         <InfoBanner variant="info">
           <strong>Dica:</strong> comece com valores conservadores e ajuste após a coleta atingir 100 amostras.
@@ -1036,6 +1057,8 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           onCpuChange={onCpuChange}
           onMemChange={onMemChange}
         />
+
+        {yamlAccordion}
 
         <SectionLabel>
           Painel de Simulação
@@ -1098,6 +1121,8 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           onCpuChange={onCpuChange}
           onMemChange={onMemChange}
         />
+
+        {yamlAccordion}
 
         <SectionLabel>
           Painel de Simulação
@@ -1163,6 +1188,8 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
           onMemChange={onMemChange}
         />
 
+        {yamlAccordion}
+
         <SectionLabel>
           Painel de Simulação
           <HelpIcon text="Tudo dentro do esperado. Sem ação necessária." title="Simulação" />
@@ -1212,6 +1239,8 @@ function SheetBody({ mode, rec, selectedTier, onTierChange, whatIfCpu, whatIfMem
         onCpuChange={onCpuChange}
         onMemChange={onMemChange}
       />
+
+      {yamlAccordion}
 
       <SectionLabel>
         Painel de Simulação
