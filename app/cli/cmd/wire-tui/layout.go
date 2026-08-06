@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -25,18 +27,22 @@ func renderDashboard(m model) string {
 		return renderHelp(m)
 	}
 
-	// 1. Header Superior Rico (8 linhas)
+	// 1. Header Superior Rico (altura variável — medir dinamicamente)
 	header := renderHeaderRich(m)
+	headerLines := strings.Count(header, "\n") + 1
 
-	// 2. Barra Visual de Abas
+	// 2. Barra Visual de Abas (1 linha)
 	tabs := renderTabBar(m)
 
-	// 3. Conteúdo Principal (Ajuste para dar espaço com respiro)
-	reservedHeight := 11
+	// 3. Calcular altura disponível para o content area
+	// Layout: header + tabs(1) + content + crumbs(1) + flash(1) + prompt(0-1)
+	// O content area tem borda top+bottom (2 linhas)
+	belowContent := 2 // crumbs + flash (sempre presentes)
 	if m.viewMode == ViewCommand || m.viewMode == ViewFilter {
-		reservedHeight += 3
+		belowContent = 3 // crumbs + flash + prompt
 	}
-	contentHeight := m.height - reservedHeight
+	// contentHeight é a altura INTERNA do content area (sem bordas)
+	contentHeight := m.height - headerLines - 1 - belowContent - 2 // -2 bordas
 	if contentHeight < 5 {
 		contentHeight = 5
 	}

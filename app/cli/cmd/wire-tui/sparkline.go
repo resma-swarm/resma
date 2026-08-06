@@ -19,9 +19,12 @@ func truncate(s string, width int) string {
 		return s
 	}
 	if width <= 1 {
-		return "…"
+		return "."
 	}
-	return s[:width-1] + "…"
+	if width <= 3 {
+		return strings.Repeat(".", width)
+	}
+	return s[:width-3] + "..."
 }
 
 // padRight preenche string com espaços à direita até width.

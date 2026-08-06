@@ -370,7 +370,7 @@ func truncateAnsi(s string, width int) string {
 		return ""
 	}
 
-	const ellipsis = "…"
+	const ellipsis = "..."
 	ellW := lipgloss.Width(ellipsis)
 
 	if width <= ellW {
