@@ -114,7 +114,7 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleLogDetailKey(msg)
 	}
 
-	// Navegação na lista (loop infinito como k9s)
+	// Navegação na lista (loop infinito)
 	if m.viewMode == ViewList {
 		n := m.listLen()
 		if n == 0 {

@@ -86,7 +86,7 @@ var (
 
 	sFlash = lipgloss.NewStyle().
 		Bold(true).
-		Foreground(cResmaWhite).
+		Foreground(cResmaAqua).
 		AlignHorizontal(lipgloss.Center)
 
 	// Semantics

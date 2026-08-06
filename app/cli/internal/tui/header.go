@@ -49,12 +49,12 @@ func renderClusterInfo(m model) string {
 	sb.WriteString(sClusterTitle.Render(" Context: default "))
 	sb.WriteString("\n")
 
-	// Stack e Role — usar dados reais se disponíveis, fallback mock
+	// Stack e Role — usar dados reais se disponíveis, fallback vazio
 	stackName := "resma-swarm"
-	role := "manager"
-	nodesReady := "1/1"
+	role := "-"
+	nodesReady := "0/0"
 	if m.cluster != nil {
-		if m.cluster.Cluster.ID != "" {
+		if len(m.cluster.NodesDistribution) > 0 {
 			role = m.cluster.NodesDistribution[0].Role
 		}
 		nodesReady = fmt.Sprintf("%d/%d", m.cluster.Cluster.NodesReady, m.cluster.Cluster.NodesTotal)
@@ -68,18 +68,19 @@ func renderClusterInfo(m model) string {
 	sb.WriteString("\n")
 
 	// CPU e MEM — dados reais do cluster via SSE
+	// Sem dados (cluster == nil): mostra 0% (não mock)
 	cpuPct, memPct, memUsed, memTotal := clusterMetrics(m)
 	cpuColor := metricColor(cpuPct)
 	memColor := metricColor(memPct)
 
-	// Efeito flash: se o valor acabou de mudar via SSE, renderizar em bold white
+	// Efeito flash: se o valor acabou de mudar via SSE, renderizar destacado
 	cpuBar := renderMetricBar(cpuPct, cpuColor)
-	if m.cpuFlashing() {
+	if m.cpuFlash.Flashing() {
 		cpuBar = renderMetricBarFlash(cpuPct)
 	}
 	memBar := renderMetricBar(memPct, memColor)
 	memSuffix := fmt.Sprintf(" %.1fG/%.1fG", memUsed, memTotal)
-	if m.memFlashing() {
+	if m.memFlash.Flashing() {
 		memBar = renderMetricBarFlash(memPct)
 		memSuffix = sFlash.Render(memSuffix)
 	}
@@ -90,12 +91,12 @@ func renderClusterInfo(m model) string {
 	return sb.String()
 }
 
-// clusterMetrics extrai CPU% e MEM% do payload SSE, com fallback mock.
+// clusterMetrics extrai CPU% e MEM% do payload SSE.
+// Sem dados (cluster == nil): retorna 0% (não mock wireframe).
 // Retorna: cpuPct (0-100), memPct (0-100), memUsedGB, memTotalGB.
 func clusterMetrics(m model) (cpuPct, memPct, memUsedGB, memTotalGB float64) {
 	if m.cluster == nil {
-		// Fallback mock quando não há dados SSE ainda
-		return 65, 42, 3.4, 8.0
+		return 0, 0, 0, 0
 	}
 	cap := &m.cluster.ClusterCapacity
 	cpuPct = cap.CPUPercent()

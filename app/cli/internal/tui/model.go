@@ -75,28 +75,18 @@ type model struct {
 	selColAt time.Time // timestamp do último Shift+←/→ (para expirar seleção)
 
 	// Dados reais do cluster (via SSE topic "dashboard")
-	cluster *client.DashboardPayload // nil = sem dados ainda (usa fallback mock)
+	cluster *client.DashboardPayload // nil = sem dados ainda (mostra 0%)
 	sseErr  error                    // erro de conexão SSE (para display)
 
-	// Flash de valores atualizados via SSE — timestamp da última mudança.
-	// Quando time.Since(flashAt) < flashDuration, o valor é renderizado com
-	// destaque (bold white) para indicar que acabou de mudar.
-	cpuFlashAt time.Time
-	memFlashAt time.Time
+	// Flash de valores atualizados via SSE — componente reutilizável.
+	// Cada FlashField rastreia um valor e aciona o flash quando ele muda.
+	cpuFlash FlashField // % de CPU do cluster
+	memFlash FlashField // % de MEM do cluster
 }
 
-// flashDuration é quanto o efeito de "valor atualizado" dura (1.5s).
-const flashDuration = 1500 * time.Millisecond
-
-// cpuFlashing retorna true se o valor de CPU está no efeito flash.
-func (m model) cpuFlashing() bool {
-	return !m.cpuFlashAt.IsZero() && time.Since(m.cpuFlashAt) < flashDuration
-}
-
-// memFlashing retorna true se o valor de MEM está no efeito flash.
-func (m model) memFlashing() bool {
-	return !m.memFlashAt.IsZero() && time.Since(m.memFlashAt) < flashDuration
-}
+// flashDuration é quanto o efeito de "valor atualizado" dura.
+// Curto o suficiente para não incomodar, longo o suficiente para perceber.
+const flashDuration = 800 * time.Millisecond
 
 func initialModel() model {
 	return model{
@@ -109,6 +99,8 @@ func initialModel() model {
 		sortCol:      -1,
 		selCol:       -1,
 		flash:        flashText("Welcome to RESMA Monitor — press ? for help", FlashInfo),
+		cpuFlash:     NewFlashField(flashDuration),
+		memFlash:     NewFlashField(flashDuration),
 	}
 }
 
@@ -175,24 +167,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case clusterHealthMsg:
 		// Dados reais do cluster recebidos via SSE
-		// Comparar valores antigos vs novos para acionar o flash visual
-		now := time.Now()
-		if m.cluster != nil {
-			oldCPU := m.cluster.ClusterCapacity.CPUP95
-			oldMem := m.cluster.ClusterCapacity.MemUsage
-			newCPU := msg.payload.ClusterCapacity.CPUP95
-			newMem := msg.payload.ClusterCapacity.MemUsage
-			if oldCPU != newCPU {
-				m.cpuFlashAt = now
-			}
-			if oldMem != newMem {
-				m.memFlashAt = now
-			}
-		} else {
-			// Primeiro evento — flash ambos
-			m.cpuFlashAt = now
-			m.memFlashAt = now
-		}
+		// FlashField.Update aciona o flash automaticamente se o valor mudou
+		m.cpuFlash.Update(msg.payload.ClusterCapacity.CPUP95)
+		m.memFlash.Update(float64(msg.payload.ClusterCapacity.MemUsage))
 		m.cluster = &msg.payload
 		m.sseErr = nil
 		return m, nil
