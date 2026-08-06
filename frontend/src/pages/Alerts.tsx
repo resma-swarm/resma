@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useNavigate, Link } from "react-router-dom"
 import { api } from "@/api/client"
@@ -39,6 +39,12 @@ interface AlertsResponse {
   }
 }
 
+// Thresholds de classificação de R² (aderência da regressão linear).
+// Padrão consagrado em estatística: R²≥0.8 = forte, ≥0.5 = moderado, <0.5 = fraco.
+// O backend usa os mesmos critérios implícitos ao decidir o que é leak.
+const R2_STRONG = 0.8
+const R2_MODERATE = 0.5
+
 const TYPE_CONFIG: Record<
   string,
   { label: string; icon: typeof AlertTriangle; color: string; bg: string; help: { title: string; text: string } }
@@ -60,7 +66,7 @@ const TYPE_CONFIG: Record<
     bg: "bg-chart-4/15",
     help: {
       title: "Memory Leak (inferência ML)",
-      text: "Regressão linear sobre mem_usage detectou crescimento contínuo. R² indica aderência do ajuste (≥0.8 = forte). Estado derivado — some quando a condição para.",
+      text: `Regressão linear sobre mem_usage detectou crescimento contínuo. R² indica aderência do ajuste (≥${R2_STRONG} = forte). Estado derivado — some quando a condição para.`,
     },
   },
   drift: {
@@ -162,7 +168,7 @@ function renderDetails(alert: AlertItem): React.ReactNode {
           <span>
             <span className="text-muted-foreground">R²: </span>
             <span className="font-medium tabular-nums">{r2.toFixed(3)}</span>
-            <span className="text-muted-foreground ml-1">({r2 >= 0.8 ? "forte" : r2 >= 0.5 ? "moderado" : "fraco"})</span>
+            <span className="text-muted-foreground ml-1">({r2 >= R2_STRONG ? "forte" : r2 >= R2_MODERATE ? "moderado" : "fraco"})</span>
           </span>
         )}
       </div>
@@ -431,9 +437,8 @@ export default function Alerts() {
                 const isExpanded = expandedRows.has(key)
                 const details = renderDetails(alert)
                 return (
-                  <>
+                  <Fragment key={key}>
                     <TableRow
-                      key={key}
                       className="cursor-pointer hover:bg-accent/40 transition-colors duration-150"
                       onClick={() => details && toggleRow(key)}
                     >
@@ -486,7 +491,7 @@ export default function Alerts() {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 )
               })}
             </TableBody>
