@@ -1,10 +1,11 @@
 # RESMA — Schedules Redesign (UX/Produto)
 
-> **Status:** Implementação em andamento
+> **Status:** Implementado e validado (Fase 1 + Fase 2)
+> **Commits:** `4877645` (spec), `2def288` (Fase 1), `ed2b08d` (Fase 2)
 > **Domínio:** Product & Design · Frontend
 > **Fase:** pós-Right-Sizing Studio (ajustes de consistência UI/UX)
 > **Baseado em:** Análise do Conselho de Revisão (AI Engineering Framework)
-> **Alvo:** `frontend/src/pages/Schedules.tsx` + backend `schedule_handlers.go`/`misc_handlers.go`
+> **Alvo:** `frontend/src/pages/Schedules.tsx` + `frontend/src/stores/filter-store.ts`
 
 ---
 
