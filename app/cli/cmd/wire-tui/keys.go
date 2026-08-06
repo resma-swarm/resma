@@ -121,20 +121,26 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		switch msg.String() {
 		case "j", "down":
+			m.selCol = -1
 			m.cursor = (m.cursor + 1) % n
 			return m, nil
 		case "k", "up":
+			m.selCol = -1
 			m.cursor = (m.cursor - 1 + n) % n
 			return m, nil
 		case "g":
+			m.selCol = -1
 			m.cursor = 0
 			return m, nil
 		case "G":
+			m.selCol = -1
 			m.cursor = n - 1
 			return m, nil
 		case "l":
+			m.selCol = -1
 			return m.enterLogs()
 		case "enter":
+			m.selCol = -1
 			return m.enterDetail()
 		case "shift+left":
 			m.selColLeft()
@@ -161,6 +167,10 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.sortCol = -1
 				}
 			}
+			return m, nil
+		default:
+			// Qualquer outra tecla: desmarcar seleção de coluna
+			m.selCol = -1
 			return m, nil
 		}
 	}
