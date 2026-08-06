@@ -255,7 +255,7 @@ export default function Studio() {
     })
     const getFreed = (r: Recommendation) => {
       if (r.suggested_tiers) {
-        const tier = r.suggested_tiers["balanced" as TierName]
+        const tier = r.suggested_tiers["balanced"]
         return tier?.resources_freed ?? null
       }
       return r.resources_freed?.balanced ?? null
@@ -279,6 +279,7 @@ export default function Studio() {
       api.post(`/recommendations/${service}/apply`, values),
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["recommendations"] })
+      queryClient.invalidateQueries({ queryKey: ["services"] })
       setApplying(false)
       setSheetOpen(false)
       toast.success(`Recomendação aplicada para ${vars.service} com sucesso`)
@@ -323,7 +324,7 @@ export default function Studio() {
       setWhatIfCpu(tier.cpu_limit)
       setWhatIfMem(tier.mem_limit)
     }
-  }, [selectedTier, selectedTemplateName, templates]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedTier, selectedTemplateName, templates, sheetRec]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const getResourcesFreed = (rec: Recommendation) => {
     if (selectedTier === "template") return null

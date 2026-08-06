@@ -481,7 +481,7 @@ export function RecommendationCard({ rec, onApply, applying, error, onRecalculat
 
   // Right-Sizing Studio: tier selecionado determina os valores exibidos
   const tiers = rec.suggested_tiers
-  const activeTier = tiers ? tiers[selectedTier] : null
+  const activeTier = tiers ? (tiers as unknown as Record<string, typeof tiers.balanced>)[selectedTier] : null
   const displaySuggested = activeTier ?? suggested
   const displayFreed = activeTier?.resources_freed ?? rec.resources_freed?.balanced
 

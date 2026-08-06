@@ -32,8 +32,6 @@ interface ResourceSliderProps {
 }
 
 function formatMem(bytes: number): string {
-  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)}GB`
-  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(0)}MB`
   return formatBytes(bytes)
 }
 
@@ -47,9 +45,10 @@ export function ResourceSlider({
 }: ResourceSliderProps) {
   const cpuStep = 0.05
   const memStepMb = 16
-  const memMinMb = Math.round((memMin || 0) / 1e6)
-  const memMaxMb = Math.max(memMinMb + 16, Math.round((memMax || 1e9) / 1e6))
-  const memValueMb = Math.round((memBytes || 0) / 1e6)
+  const MiB = 1024 * 1024
+  const memMinMb = Math.round((memMin || 0) / MiB)
+  const memMaxMb = Math.max(memMinMb + 16, Math.round((memMax || 1e9) / MiB))
+  const memValueMb = Math.round((memBytes || 0) / MiB)
   const cpuCoresSafe = cpuCores || 0
   const cpuMinSafe = cpuMin || 0
   const cpuMaxSafe = Math.max(cpuMinSafe + 0.1, cpuMax || 8)
@@ -71,8 +70,8 @@ export function ResourceSlider({
   const handleMemInput = (val: string) => {
     const n = parseFloat(val)
     if (!isNaN(n) && n >= 0) {
-      // Input em MB, converte para bytes
-      onMemChange(n * 1e6)
+      // Input em MiB, converte para bytes
+      onMemChange(n * 1024 * 1024)
     }
   }
 
@@ -148,7 +147,7 @@ export function ResourceSlider({
               step={memStepMb}
               className="h-7 w-20 text-xs tabular-nums text-right"
             />
-            <span className="text-[10px] text-muted-foreground">MB</span>
+            <span className="text-[10px] text-muted-foreground">MiB</span>
           </div>
         </div>
         <Slider
@@ -156,7 +155,7 @@ export function ResourceSlider({
           min={memMinMb}
           max={memMaxMb}
           step={memStepMb}
-          onValueChange={(v) => onMemChange(v[0] * 1e6)}
+          onValueChange={(v) => onMemChange(v[0] * 1024 * 1024)}
           className="w-full"
         />
         <div className="flex items-center justify-between text-[10px] text-muted-foreground">

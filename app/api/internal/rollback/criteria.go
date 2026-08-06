@@ -87,20 +87,23 @@ func (w *Watcher) evaluate(ctx context.Context, watch db.RollbackWatch, c Criter
 }
 
 // checkThrottle verifica se CPU throttling > threshold por >= minMinutes amostras consecutivas.
-// Usa cpu_throttled_periods das métricas — se > 0, há throttling ativo naquela amostra.
+// Usa cpu_throttled_time (cumulativo) — calcula o delta entre amostras consecutivas
+// e divide pelo tempo decorrido para obter a % real de throttling.
 func checkThrottle(metrics []db.MetricRow, thresholdPct float64, minMinutes int) (bool, float64) {
-	if len(metrics) == 0 {
+	if len(metrics) < 2 {
 		return false, 0
 	}
 	consecutive := 0
 	var maxPct float64
-	for _, m := range metrics {
-		// Proxy: se throttled_periods > 0, há throttling ativo.
-		// Para uma métrica mais precisa, seria necessário throttled_time / total_cpu_time,
-		// mas o proxy de periods > 0 é suficiente para detectar throttling sustentado.
+	for i := 1; i < len(metrics); i++ {
 		pct := 0.0
-		if m.CPUThrottledPeriods > 0 {
-			pct = float64(m.CPUThrottledPeriods) // valor bruto como proxy
+		throttledDelta := metrics[i].CPUThrottledTime - metrics[i-1].CPUThrottledTime
+		if throttledDelta > 0 {
+			elapsed := metrics[i].TS.Sub(metrics[i-1].TS).Seconds()
+			if elapsed > 0 {
+				// throttled_time é em nanosegundos — converte para segundos
+				pct = (float64(throttledDelta) / 1e9) / elapsed * 100
+			}
 		}
 		if pct > thresholdPct {
 			consecutive++
