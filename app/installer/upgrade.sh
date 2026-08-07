@@ -80,7 +80,7 @@ validate_range() {
     error "ERROR: $var='$val' não é um número inteiro válido."
     exit 1
   fi
-  if (( val < min || val > max )); then
+  if (( 10#$val < min || 10#$val > max )); then
     error "ERROR: $var=$val fora do range permitido [$min..$max] $unit."
     error "       Use um valor entre $min e $max. Override via -e $var=<valor>."
     exit 1
@@ -100,6 +100,7 @@ validate_passed_intervals() {
   [[ -n "${RESMA_RETENTION_DAYS:-}" ]]           && validate_range RESMA_RETENTION_DAYS           "$RESMA_RETENTION_DAYS"           1  3650 "dias"
   [[ -n "${RESMA_ANALYSIS_WINDOW_DAYS:-}" ]]     && validate_range RESMA_ANALYSIS_WINDOW_DAYS     "$RESMA_ANALYSIS_WINDOW_DAYS"     1   365 "dias"
   [[ -n "${RESMA_STALE_SERVICE_DAYS:-}" ]]       && validate_range RESMA_STALE_SERVICE_DAYS       "$RESMA_STALE_SERVICE_DAYS"       1   365 "dias"
+  return 0  # sempre retorna 0 se nenhuma var foi passada (não trigga set -e)
 }
 
 # update_env aplica uma env var em um service via `docker service update --env-add`.

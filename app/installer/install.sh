@@ -80,7 +80,7 @@ validate_range() {
     error "ERROR: $var='$val' não é um número inteiro válido."
     exit 1
   fi
-  if (( val < min || val > max )); then
+  if (( 10#$val < min || 10#$val > max )); then
     error "ERROR: $var=$val fora do range permitido [$min..$max] $unit."
     error "       Use um valor entre $min e $max. Override via -e $var=<valor>."
     exit 1
