@@ -1,10 +1,6 @@
+import { useState } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu"
+import { useQueryClient } from "@tanstack/react-query"
 import {
   SidebarInset,
   SidebarProvider,
@@ -14,7 +10,13 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { NavUser } from "@/components/nav-user"
 import { CollectingBadge } from "@/components/collecting-badge"
 import { Separator } from "@/components/ui/separator"
-import { ChevronRight, RefreshCw, Check } from "lucide-react"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { ChevronRight, RefreshCw } from "lucide-react"
 import { useRefreshStore, type RefreshMode } from "@/stores/refresh-store"
 
 function buildBreadcrumbs(pathname: string) {
@@ -78,9 +80,20 @@ const REFRESH_OPTIONS: { value: RefreshMode; label: string }[] = [
 export function Layout() {
   const location = useLocation()
   const refreshMode = useRefreshStore((s) => s.mode)
-  const setRefreshMode = useRefreshStore((s) => s.setMode)
+  const queryClient = useQueryClient()
+  const [manualRefreshing, setManualRefreshing] = useState(false)
 
   const breadcrumbs = buildBreadcrumbs(location.pathname)
+
+  // Refresh manual global: invalida todas as queries ativas.
+  // Substitui o dropdown (disabled temporariamente — Frente C, fase final).
+  const handleManualRefresh = () => {
+    if (manualRefreshing) return
+    setManualRefreshing(true)
+    queryClient.invalidateQueries()
+    // Reseta o spinner após 600ms (tempo suficiente p/ refetch iniciar)
+    setTimeout(() => setManualRefreshing(false), 600)
+  }
 
   return (
     <SidebarProvider>
@@ -102,26 +115,33 @@ export function Layout() {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <CollectingBadge />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex h-8 items-center gap-1.5 rounded-md border border-input bg-transparent px-2.5 text-xs shadow-sm hover:bg-accent transition-colors">
-                  <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span>{REFRESH_OPTIONS.find((o) => o.value === refreshMode)?.label ?? "Auto"}</span>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-[8rem]">
-                {REFRESH_OPTIONS.map((opt) => (
-                  <DropdownMenuItem
-                    key={opt.value}
-                    onClick={() => setRefreshMode(opt.value)}
-                    className="justify-between"
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleManualRefresh}
+                    disabled={manualRefreshing}
+                    className="flex h-8 items-center gap-1.5 rounded-md border border-input bg-transparent px-2.5 text-xs shadow-sm hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Atualizar dados"
                   >
-                    <span>{opt.label}</span>
-                    {refreshMode === opt.value && <Check className="h-3.5 w-3.5" />}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    <RefreshCw className={`h-3.5 w-3.5 text-muted-foreground ${manualRefreshing ? "animate-spin" : ""}`} />
+                    <span>Atualizar</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Recarregar todos os dados agora</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex h-8 items-center gap-1.5 rounded-md border border-input bg-transparent px-2.5 text-xs shadow-sm opacity-60 cursor-not-allowed">
+                    <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span>{REFRESH_OPTIONS.find((o) => o.value === refreshMode)?.label ?? "Auto"}</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>Ajuste de intervalo em implementação — use o refresh manual</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <Separator orientation="vertical" className="h-5" />
             <NavUser />
           </div>
