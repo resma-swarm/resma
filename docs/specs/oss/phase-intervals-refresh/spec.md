@@ -9,11 +9,21 @@
 > como **stack Swarm** (`docker stack ls`, `docker stack services`, `docker stack ps`,
 > `docker service logs`, `docker exec <service>.<rep>.<id>`), **NUNCA** via
 > `docker compose up`. Não há container `api` do compose com `air`/hot reload — o
-> serviço `api` roda como réplica da stack `resma` (imagem runtime, sem toolchain Go).
-> Para build/test do Go, usar `docker run` temporário com a imagem dev
-> (`golang:1.26-bookworm` + gcc) montando o código, ou buildar uma imagem dev e
-> executar nela. Os comandos `docker compose exec api go build/test` da spec original
-> **não se aplicam** neste ambiente — substituí-los pelos equivalentes Swarm.
+> serviço `api` roda como réplica da stack `resma` (imagem `resma-api:latest`, target
+> `runtime` do Dockerfile, sem toolchain Go).
+>
+> **Build/test do Go em ambiente Swarm** — usar a imagem dev já buildada
+> (`resma-go-dev:latest`, target `dev` do `app/api/Dockerfile`: `golang:1.26-bookworm`
+> + gcc + g++ + libstdc++ + módulos + air) montando o código fonte:
+>
+> ```powershell
+> docker run --rm -v "${PWD}/app/api:/src" -w /src resma-go-dev:latest bash -c "go build ./... && go vet ./... && go test ./..."
+> ```
+>
+> Os comandos `docker compose exec api go build/test` da spec original
+> **não se aplicam** neste ambiente — substituí-los pelo `docker run resma-go-dev`
+> acima. Se a imagem dev não existir, buildá-la primeiro:
+> `docker build -t resma-go-dev --target dev -f app/api/Dockerfile .`
 
 ---
 
