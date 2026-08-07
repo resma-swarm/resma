@@ -394,11 +394,12 @@ cd frontend && pnpm build  # deve compilar sem erros
 | Ordem | Frente | Descrição | Risco |
 |-------|--------|-----------|-------|
 | 1 | A | Backend: alinhar intervalos de coleta via env vars | Baixo (só defaults) |
-| 2 | B | Frontend: desacoplar modo "auto" de `collect_interval` | Baixo (só store/hook) |
-| 3 | C | Dropdown: disabled temporário | Baixo (1 arquivo) |
-| 4 | C (futura) | Dropdown: implementação completa | Médio (11 páginas) |
+| 2 | D | Installer/Upgrader: expor todas as env vars como parâmetros | Baixo (scripts bash) |
+| 3 | B | Frontend: desacoplar modo "auto" de `collect_interval` | Baixo (só store/hook) |
+| 4 | C | Dropdown: disabled temporário | Baixo (1 arquivo) |
+| 5 | C (futura) | Dropdown: implementação completa | Médio (11 páginas) |
 
-> **Frente C completa fica aguardando comando do usuário** após A e B.
+> **Frente C completa fica aguardando comando do usuário** após A, B e D.
 
 ---
 
@@ -441,7 +442,204 @@ cd frontend && pnpm build  # deve compilar sem erros
 
 ---
 
-## 8. Referências
+## 8. Installer/Upgrader: customização de intervalos via parâmetros
+
+### 8.1 Contexto
+
+O RESMA é implantado via script de install/upgrade que roda dentro de um container Docker (`app/installer/install.sh`, `app/installer/upgrade.sh`). O usuário invoca via one-liner:
+
+```bash
+docker run -it --rm \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  resmaswarm/resma-install:latest
+```
+
+Hoje o installer aceita apenas `STACK_NAME`, `APP_PORT`, `INTERACTIVE`, `RESMA_VERSION` e `RESMA_CORS_ORIGINS` via env vars (`-e VAR=value`). **Nenhuma env var de intervalo de coleta é exposta** — o usuário fica preso aos defaults do `docker-stack.yml`.
+
+### 8.2 Padrão de mercado (evidência)
+
+| Ferramenta | Mecanismo | Referência |
+|------------|-----------|------------|
+| Docker install script | Flags CLI (`--version`, `--channel`) + env vars | docker/docker-install DeepWiki |
+| Docker Desktop MSI | Propriedades CLI (`ENABLEDESKTOPSHORTCUT`, `INSTALLFOLDER`) | docs.docker.com enterprise MSI |
+| Grafana CLI | `--configOverrides` (age como env var) + env vars `GF_*` | grafana.com/docs/administration/cli |
+| Grafana Helm | `--set key=value` ou `--values values.yaml` | grafana-community/helm-charts |
+
+**Conclusão:** o padrão universal para installers de container é **env vars passadas via `-e VAR=value`** — é o mecanismo nativo do `docker run`, não requer parsing de flags no script, e é compatível com automação (CI/CD, Ansible, Terraform). O RESMA já usa este padrão; basta **expandir as env vars aceitas** para incluir todos os intervalos de coleta.
+
+### 8.3 Solução: todas as env vars de intervalo como parâmetros de install/upgrade
+
+O installer e o upgrader devem aceitar **todas as env vars de intervalo** via `-e VAR=value`. O script lê com `${VAR:-default}` e injeta no `docker stack deploy` via `--env-file` ou inline.
+
+#### 8.3.1 Env vars expostas no install
+
+```bash
+docker run -it --rm \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  -e INTERACTIVE=0 \
+  -e STACK_NAME=resma \
+  -e APP_PORT=8080 \
+  -e RESMA_COLLECT_INTERVAL=15 \
+  -e RESMA_CLUSTER_INTERVAL=30 \
+  -e RESMA_STORAGE_INTERVAL=60 \
+  -e RESMA_AGENT_TASK_POLL_INTERVAL=15 \
+  -e RESMA_ROLLBACK_POLL_INTERVAL=30 \
+  -e RESMA_SCHEDULER_POLL=15 \
+  -e RESMA_SSE_KEEPALIVE=15 \
+  -e RESMA_RETENTION_DAYS=30 \
+  -e RESMA_ANALYSIS_WINDOW_DAYS=7 \
+  -e RESMA_STALE_SERVICE_DAYS=7 \
+  resmaswarm/resma-install:latest
+```
+
+#### 8.3.2 Env vars expostas no upgrade
+
+```bash
+docker run -it --rm \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  -e MODE=upgrade \
+  -e INTERACTIVE=0 \
+  -e STACK_NAME=resma \
+  -e RESMA_VERSION=v0.2.0 \
+  -e RESMA_COLLECT_INTERVAL=10 \
+  -e RESMA_STORAGE_INTERVAL=120 \
+  resmaswarm/resma-install:latest
+```
+
+> **No upgrade**, apenas as env vars passadas são aplicadas (as demais permanecem com o valor atual do service). Isso segue o padrão `docker service update --env-add` — só sobrescreve o que for explicitamente passado.
+
+#### 8.3.3 Tabela completa de parâmetros
+
+| Parâmetro (env var) | Default produção | Descrição | Install | Upgrade |
+|---------------------|------------------|-----------|---------|---------|
+| `RESMA_COLLECT_INTERVAL` | `15` (segundos) | Intervalo de coleta de métricas de containers | ✅ | ✅ |
+| `RESMA_CLUSTER_INTERVAL` | `30` (segundos) | Intervalo de coleta de info do cluster Swarm | ✅ | ✅ |
+| `RESMA_STORAGE_INTERVAL` | `60` (segundos) | Intervalo de coleta de métricas de storage (volumes/discos) | ✅ | ✅ |
+| `RESMA_AGENT_TASK_POLL_INTERVAL` | `15` (segundos) | Intervalo de poll de tasks do Swarm + health de agents | ✅ | ✅ |
+| `RESMA_ROLLBACK_POLL_INTERVAL` | `30` (segundos) | Intervalo de poll do rollback watcher | ✅ | ✅ |
+| `RESMA_SCHEDULER_POLL` | `15` (segundos) | Intervalo de poll do scheduler de agendamentos | ✅ | ✅ |
+| `RESMA_SSE_KEEPALIVE` | `15` (segundos) | Intervalo de keepalive ping do SSE broker | ✅ | ✅ |
+| `RESMA_RETENTION_DAYS` | `30` (dias) | Dias de métricas mantidos antes da purga | ✅ | ✅ |
+| `RESMA_ANALYSIS_WINDOW_DAYS` | `7` (dias) | Janela de dados usada pela análise de ML | ✅ | ✅ |
+| `RESMA_STALE_SERVICE_DAYS` | `7` (dias) | Dias sem heartbeat para marcar serviço como stale | ✅ | ✅ |
+
+#### 8.3.4 Implementação no installer
+
+**`app/installer/install.sh`** — ler env vars e injetar no `docker stack deploy`:
+
+```bash
+# ---------- defaults de produção ----------
+RESMA_COLLECT_INTERVAL="${RESMA_COLLECT_INTERVAL:-15}"
+RESMA_CLUSTER_INTERVAL="${RESMA_CLUSTER_INTERVAL:-30}"
+RESMA_STORAGE_INTERVAL="${RESMA_STORAGE_INTERVAL:-60}"
+RESMA_AGENT_TASK_POLL_INTERVAL="${RESMA_AGENT_TASK_POLL_INTERVAL:-15}"
+RESMA_ROLLBACK_POLL_INTERVAL="${RESMA_ROLLBACK_POLL_INTERVAL:-30}"
+RESMA_SCHEDULER_POLL="${RESMA_SCHEDULER_POLL:-15}"
+RESMA_SSE_KEEPALIVE="${RESMA_SSE_KEEPALIVE:-15}"
+RESMA_RETENTION_DAYS="${RESMA_RETENTION_DAYS:-30}"
+RESMA_ANALYSIS_WINDOW_DAYS="${RESMA_ANALYSIS_WINDOW_DAYS:-7}"
+RESMA_STALE_SERVICE_DAYS="${RESMA_STALE_SERVICE_DAYS:-7}"
+
+# ---------- inject no docker stack deploy ----------
+# O docker-stack.yml já referencia estas env vars; o installer só precisa
+# exportá-las antes do deploy (docker stack deploy herda env do shell).
+export RESMA_COLLECT_INTERVAL RESMA_CLUSTER_INTERVAL RESMA_STORAGE_INTERVAL \
+       RESMA_AGENT_TASK_POLL_INTERVAL RESMA_ROLLBACK_POLL_INTERVAL \
+       RESMA_SCHEDULER_POLL RESMA_SSE_KEEPALIVE \
+       RESMA_RETENTION_DAYS RESMA_ANALYSIS_WINDOW_DAYS RESMA_STALE_SERVICE_DAYS
+
+docker stack deploy -c "$COMPOSE_FILE" "$STACK_NAME"
+```
+
+**`app/installer/upgrade.sh`** — aplicar apenas env vars passadas via `docker service update --env-add`:
+
+```bash
+# Para cada env var passada, atualizar o service correspondente.
+# Se a env var não foi passada, não fazer nada (preserva valor atual).
+update_env() {
+  local svc="$1"      # ex: api
+  local var="$2"      # ex: RESMA_COLLECT_INTERVAL
+  local val="$3"      # ex: 10
+  echo "  docker service update --env-add ${var}=${val} ${STACK_NAME}_${svc}"
+  docker service update --env-add "${var}=${val}" "${STACK_NAME}_${svc}"
+}
+
+# Aplicar apenas se a env var foi explicitamente passada (não vazia)
+[[ -n "${RESMA_COLLECT_INTERVAL:-}" ]] && update_env api    RESMA_COLLECT_INTERVAL    "$RESMA_COLLECT_INTERVAL"
+[[ -n "${RESMA_CLUSTER_INTERVAL:-}" ]]  && update_env api    RESMA_CLUSTER_INTERVAL     "$RESMA_CLUSTER_INTERVAL"
+[[ -n "${RESMA_STORAGE_INTERVAL:-}" ]]  && update_env api    RESMA_STORAGE_INTERVAL     "$RESMA_STORAGE_INTERVAL"
+# ... (uma linha por env var)
+```
+
+#### 8.3.5 Modo interativo
+
+No modo interativo (`INTERACTIVE=1`, default), o installer deve **perguntar** se o usuário quer customizar intervalos antes de usar os defaults de produção:
+
+```text
+Application setup
+
+  Enter stack name [resma]:
+  Enter application port [8080]:
+
+  Collection intervals (press Enter for production defaults):
+    Collect interval in seconds [15]:
+    Cluster interval in seconds [30]:
+    Storage interval in seconds [60]:
+    Agent task poll interval in seconds [15]:
+    Rollback poll interval in seconds [30]:
+    Retention days [30]:
+    Analysis window days [7]:
+    Stale service days [7]:
+
+  Customize advanced intervals? (y/N) [N]:
+    Scheduler poll interval in seconds [15]:
+    SSE keepalive interval in seconds [15]:
+```
+
+> **UX:** intervalos avançados (scheduler, SSE keepalive) ficam atrás de um sub-prompt "Customize advanced? (y/N)" para não sobrecarregar o usuário comum. Defaults de produção são sugeridos entre colchetes.
+
+#### 8.3.6 Validação de ranges
+
+O installer deve validar ranges mínimos/máximos antes de aplicar (evita misconfiguration):
+
+| Env var | Mínimo | Máximo | Validação |
+|---------|--------|--------|-----------|
+| `RESMA_COLLECT_INTERVAL` | 5s | 3600s (1h) | `if [[ $v -lt 5 || $v -gt 3600 ]]; then error; exit 1; fi` |
+| `RESMA_CLUSTER_INTERVAL` | 5s | 3600s | idem |
+| `RESMA_STORAGE_INTERVAL` | 10s | 3600s | mínimo 10s (df tem custo de I/O) |
+| `RESMA_AGENT_TASK_POLL_INTERVAL` | 5s | 300s | máximo 300s (staleness de tasks) |
+| `RESMA_ROLLBACK_POLL_INTERVAL` | 10s | 300s | mínimo 10s (rollback reativo) |
+| `RESMA_SCHEDULER_POLL` | 5s | 300s | — |
+| `RESMA_SSE_KEEPALIVE` | 5s | 60s | máximo 60s (proxies cortam idle) |
+| `RESMA_RETENTION_DAYS` | 1 | 3650 (10 anos) | — |
+| `RESMA_ANALYSIS_WINDOW_DAYS` | 1 | 365 | — |
+| `RESMA_STALE_SERVICE_DAYS` | 1 | 365 | — |
+
+#### 8.3.7 Arquivos a alterar
+
+- `app/installer/install.sh` — ler 10 env vars + defaults de produção + export antes do deploy + prompts interativos + validação de ranges
+- `app/installer/upgrade.sh` — aplicar apenas env vars passadas via `docker service update --env-add`
+- `app/installer/docker-stack.yml` — garantir que todas as env vars são referenciadas com `${VAR:-default}` (já é o padrão atual)
+- `app/installer/README.md` (se existir) ou `docs/installation.md` — documentar todos os parâmetros
+
+#### 8.3.8 Validação
+
+```bash
+# Testar install não-interativo com intervals customizados
+docker run -it --rm \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  -e INTERACTIVE=0 \
+  -e RESMA_COLLECT_INTERVAL=10 \
+  -e RESMA_STORAGE_INTERVAL=120 \
+  resmaswarm/resma-install:latest
+
+# Verificar se os valores foram aplicados
+docker service inspect resma_api --format '{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{println .}}{{end}}' | grep RESMA_
+```
+
+---
+
+## 9. Referências
 
 - Grafana `TimeSrv.ts`: https://github.com/grafana/grafana/blob/main/public/app/features/dashboard/services/TimeSrv.ts
 - Grafana `SceneRefreshPicker.tsx`: https://github.com/grafana/scenes/blob/main/packages/scenes/src/components/SceneRefreshPicker.tsx
@@ -455,3 +653,7 @@ cd frontend && pnpm build  # deve compilar sem erros
 - Red Hat OpenShift blog: "scrape intervals 30s defaults"
 - prometheus-users: "max 5m staleness, recommended 2-2.5m"
 - Grafana troubleshooting: "refresh 1m or longer when data changes infrequently"
+- Docker install script: DeepWiki docker/docker-install (flags CLI + env vars)
+- Docker Desktop MSI: docs.docker.com/enterprise (propriedades CLI)
+- Grafana CLI: grafana.com/docs/administration/cli (`--configOverrides` + env vars `GF_*`)
+- Grafana Helm chart: grafana-community/helm-charts (`--set key=value`)
