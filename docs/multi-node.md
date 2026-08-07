@@ -169,7 +169,7 @@ permitindo testar a UI com múltiplos agents.
 | `RESMA_AGENT_TOKEN` | (obrigatório) | Token de autenticação do agent |
 | `RESMA_NODE_ID` | auto-detectado | ID do node (hostname em dev) |
 | `RESMA_NODE_HOSTNAME` | auto-detectado | Hostname do node |
-| `RESMA_COLLECT_INTERVAL` | `1` | Intervalo de coleta (segundos) |
+| `RESMA_COLLECT_INTERVAL` | `15` | Intervalo de coleta (segundos) |
 | `RESMA_HEARTBEAT_INTERVAL` | `60` | Intervalo de heartbeat (segundos) |
 | `RESMA_OOM_EVENTS_FILE` | `/data/events.pending.jsonl` | Buffer de OOM events (persistente) |
 

@@ -4,6 +4,17 @@
 > **Baseado em:** Pesquisa no GitHub do Grafana (`TimeSrv.ts`, `SceneRefreshPicker.tsx`), docs grafana.com (context7), docs prometheus.io, PRs #1557/#1995/#70479 do node_exporter/grafana, Red Hat OpenShift blog, Robust Perception, prometheus-users
 > **Objetivo:** alinhar intervalos de coleta do RESMA aos benchmarks da comunidade observabilidade e corrigir o dropdown de refresh do frontend
 
+> **INSTRUÇÃO GLOBAL (ambiente de validação):** O Docker local deste projeto roda em
+> **modo Swarm**. Toda validação, teste e manipulação de containers deve ser feita
+> como **stack Swarm** (`docker stack ls`, `docker stack services`, `docker stack ps`,
+> `docker service logs`, `docker exec <service>.<rep>.<id>`), **NUNCA** via
+> `docker compose up`. Não há container `api` do compose com `air`/hot reload — o
+> serviço `api` roda como réplica da stack `resma` (imagem runtime, sem toolchain Go).
+> Para build/test do Go, usar `docker run` temporário com a imagem dev
+> (`golang:1.26-bookworm` + gcc) montando o código, ou buildar uma imagem dev e
+> executar nela. Os comandos `docker compose exec api go build/test` da spec original
+> **não se aplicam** neste ambiente — substituí-los pelos equivalentes Swarm.
+
 ---
 
 ## 1. Contexto e Motivação
@@ -391,13 +402,13 @@ cd frontend && pnpm build  # deve compilar sem erros
 
 ## 5. Ordem de Implementação
 
-| Ordem | Frente | Descrição | Risco |
-|-------|--------|-----------|-------|
-| 1 | A | Backend: alinhar intervalos de coleta via env vars | Baixo (só defaults) |
-| 2 | D | Installer/Upgrader: expor todas as env vars como parâmetros | Baixo (scripts bash) |
-| 3 | B | Frontend: desacoplar modo "auto" de `collect_interval` | Baixo (só store/hook) |
-| 4 | C | Dropdown: disabled temporário | Baixo (1 arquivo) |
-| 5 | C (futura) | Dropdown: implementação completa | Médio (11 páginas) |
+| Ordem | Frente | Descrição | Risco | Status |
+|-------|--------|-----------|-------|--------|
+| 1 | A | Backend: alinhar intervalos de coleta via env vars | Baixo (só defaults) | ✅ Concluído |
+| 2 | D | Installer/Upgrader: expor todas as env vars como parâmetros | Baixo (scripts bash) | Pendente |
+| 3 | B | Frontend: desacoplar modo "auto" de `collect_interval` | Baixo (só store/hook) | Pendente |
+| 4 | C | Dropdown: disabled temporário | Baixo (1 arquivo) | Pendente |
+| 5 | C (futura) | Dropdown: implementação completa | Médio (11 páginas) | Pendente |
 
 > **Frente C completa fica aguardando comando do usuário** após A, B e D.
 

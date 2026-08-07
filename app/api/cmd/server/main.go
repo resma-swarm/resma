@@ -85,7 +85,7 @@ func main() {
 
 	// Scheduler (1 goroutine de polling de schedules pendentes + publicação SSE)
 	// O CollectorDataBuilder permite que o scheduler publique payloads completos.
-	sch := scheduler.New(store, dockerCli, srv.SSEHandler(), server.NewCollectorDataBuilder(srv))
+	sch := scheduler.New(store, dockerCli, srv.SSEHandler(), server.NewCollectorDataBuilder(srv), cfg.SchedulerPoll)
 	sch.Start(rootCtx)
 	defer sch.Stop()
 

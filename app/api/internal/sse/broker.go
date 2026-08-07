@@ -36,13 +36,20 @@ type Broker struct {
 	mu   sync.RWMutex
 	subs map[string]map[*subscriber]struct{} // tópico -> set de subscribers
 	log  *slog.Logger
+
+	keepalive time.Duration // cadência do keepalive ping (RESMA_SSE_KEEPALIVE)
 }
 
-// New cria um novo Broker SSE.
-func New() *Broker {
+// New cria um novo Broker SSE. keepalive define o intervalo do ping de keepalive
+// enviado a cada subscriber; se <= 0, usa 15s (default histórico).
+func New(keepalive time.Duration) *Broker {
+	if keepalive <= 0 {
+		keepalive = 15 * time.Second
+	}
 	return &Broker{
-		subs: make(map[string]map[*subscriber]struct{}),
-		log:  slog.Default().With("component", "sse"),
+		subs:      make(map[string]map[*subscriber]struct{}),
+		log:       slog.Default().With("component", "sse"),
+		keepalive: keepalive,
 	}
 }
 
@@ -158,7 +165,7 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request, topic string)
 	defer cleanup()
 
 	ctx := r.Context()
-	ticker := time.NewTicker(15 * time.Second) // keepalive ping
+	ticker := time.NewTicker(b.keepalive) // keepalive ping (RESMA_SSE_KEEPALIVE)
 	defer ticker.Stop()
 
 	for {

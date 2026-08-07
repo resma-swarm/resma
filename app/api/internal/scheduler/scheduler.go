@@ -15,8 +15,11 @@ import (
 )
 
 const (
-	maxAttempts  = 3
-	pollInterval = 15 * time.Second
+	maxAttempts = 3
+	// defaultPollInterval é o fallback quando cfg.SchedulerPoll não é informado
+	// (ex: testes que chamam New sem config). Em produção o valor vem de
+	// RESMA_SCHEDULER_POLL (default 15s em config.go).
+	defaultPollInterval = 15 * time.Second
 )
 
 // SSEPublisher é a interface que o scheduler usa para notificar o frontend
@@ -55,26 +58,33 @@ type Executor struct {
 	builder DataBuilder
 	log     *slog.Logger
 
+	pollInterval time.Duration // cadência de polling (RESMA_SCHEDULER_POLL)
+
 	ctx    context.Context
 	cancel context.CancelFunc
 	done   chan struct{}
 }
 
 // New cria um novo Executor. sse e builder podem ser nil (usa nop*).
-func New(database *db.Store, dc *docker.Client, sse SSEPublisher, builder DataBuilder) *Executor {
+// pollInterval define a cadência de polling; se <= 0, usa defaultPollInterval (15s).
+func New(database *db.Store, dc *docker.Client, sse SSEPublisher, builder DataBuilder, pollInterval time.Duration) *Executor {
 	if sse == nil {
 		sse = nopSSEPublisher{}
 	}
 	if builder == nil {
 		builder = nopDataBuilder{}
 	}
+	if pollInterval <= 0 {
+		pollInterval = defaultPollInterval
+	}
 	return &Executor{
-		db:      database,
-		docker:  dc,
-		sse:     sse,
-		builder: builder,
-		log:     slog.Default().With("component", "scheduler"),
-		done:    make(chan struct{}),
+		db:           database,
+		docker:       dc,
+		sse:          sse,
+		builder:      builder,
+		log:          slog.Default().With("component", "scheduler"),
+		pollInterval: pollInterval,
+		done:         make(chan struct{}),
 	}
 }
 
@@ -111,7 +121,7 @@ func (e *Executor) Stop() {
 // loop é o loop principal de polling.
 func (e *Executor) loop() {
 	defer close(e.done)
-	ticker := time.NewTicker(pollInterval)
+	ticker := time.NewTicker(e.pollInterval)
 	defer ticker.Stop()
 	for {
 		select {

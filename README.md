@@ -214,7 +214,11 @@ Principais variáveis:
 | `RESMA_HTTP_ADDR`             | `:8080`              | Endereço do servidor HTTP          |
 | `RESMA_DB_PATH`               | `/data/resma.duckdb` | Caminho do banco DuckDB            |
 | `RESMA_JWT_SECRET`            | `dev-secret-change-me` | Secret do JWT (obrigatório em prod) |
-| `RESMA_COLLECT_INTERVAL`      | `1`                  | Intervalo de coleta (segundos)     |
+| `RESMA_COLLECT_INTERVAL`      | `15`                 | Intervalo de coleta de containers (segundos) |
+| `RESMA_CLUSTER_INTERVAL`      | `30`                 | Intervalo de coleta de info do cluster (segundos) |
+| `RESMA_STORAGE_INTERVAL`      | `60`                 | Intervalo de coleta de storage (segundos) |
+| `RESMA_SCHEDULER_POLL`        | `15`                 | Intervalo de poll do scheduler (segundos) |
+| `RESMA_SSE_KEEPALIVE`         | `15`                 | Intervalo de keepalive do SSE (segundos) |
 | `RESMA_RETENTION_DAYS`        | `30`                 | Retenção de dados (dias)           |
 | `RESMA_ML_ENABLED`            | `true`               | Habilita ML sidecar                |
 | `RESMA_LEAK_R2_THRESHOLD`     | `0.7`                | Threshold R² para detecção de leak |

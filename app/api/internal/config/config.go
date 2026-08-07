@@ -46,6 +46,10 @@ type Config struct {
 	ClusterInterval time.Duration // RESMA_CLUSTER_INTERVAL (segundos)
 	StorageInterval time.Duration // RESMA_STORAGE_INTERVAL (segundos)
 
+	// Cadências internas (Fase intervals-refresh — tornar hardcoded configuráveis)
+	SchedulerPoll time.Duration // RESMA_SCHEDULER_POLL (segundos) — poll do scheduler de agendamentos
+	SSEKeepalive  time.Duration // RESMA_SSE_KEEPALIVE (segundos) — keepalive ping do SSE broker
+
 	// Stale-marking (Fase 8)
 	StaleServiceDays int // RESMA_STALE_SERVICE_DAYS — services/nodes sem heartbeat por N dias viram 'stale'
 
@@ -81,7 +85,7 @@ type Config struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		DBPath:                getenv("RESMA_DB_PATH", "data/resma.duckdb"),
-		CollectInterval:       getDurationSecs("RESMA_COLLECT_INTERVAL", 10),
+		CollectInterval:       getDurationSecs("RESMA_COLLECT_INTERVAL", 15),
 		RetentionDays:         getInt("RESMA_RETENTION_DAYS", 30),
 		OutlierThreshold:      getFloat("RESMA_OUTLIER_THRESHOLD", 3.0),
 		LeakR2Threshold:       getFloat("RESMA_LEAK_R2_THRESHOLD", 0.7),
@@ -95,8 +99,10 @@ func Load() (*Config, error) {
 		MLURL:                 getenv("RESMA_ML_URL", "http://localhost:8081"),
 		MLEnabled:             getBool("RESMA_ML_ENABLED", true),
 		ExcludedImages:        getCSV("RESMA_EXCLUDED_IMAGES", []string{"resma:latest"}),
-		ClusterInterval:       getDurationSecs("RESMA_CLUSTER_INTERVAL", 60),
-		StorageInterval:       getDurationSecs("RESMA_STORAGE_INTERVAL", 300),
+		ClusterInterval:       getDurationSecs("RESMA_CLUSTER_INTERVAL", 30),
+		StorageInterval:       getDurationSecs("RESMA_STORAGE_INTERVAL", 60),
+		SchedulerPoll:         getDurationSecs("RESMA_SCHEDULER_POLL", 15),
+		SSEKeepalive:          getDurationSecs("RESMA_SSE_KEEPALIVE", 15),
 		StaleServiceDays:      getInt("RESMA_STALE_SERVICE_DAYS", 7),
 		HTTPAddr:              getenv("RESMA_HTTP_ADDR", ":8080"),
 		WebDir:                getenv("RESMA_WEB_DIR", ""),

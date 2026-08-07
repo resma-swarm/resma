@@ -10,7 +10,7 @@ import (
 )
 
 func TestBrokerPublishSubscribe(t *testing.T) {
-	broker := New()
+	broker := New(0) // 0 = default keepalive 15s
 
 	ch, cleanup := broker.Subscribe("test-topic")
 	defer cleanup()
@@ -29,7 +29,7 @@ func TestBrokerPublishSubscribe(t *testing.T) {
 }
 
 func TestBrokerNonBlocking(t *testing.T) {
-	broker := New()
+	broker := New(0) // 0 = default keepalive 15s
 
 	// Subscriber com buffer cheio (não consome)
 	ch, cleanup := broker.Subscribe("slow-topic")
@@ -54,7 +54,7 @@ func TestBrokerNonBlocking(t *testing.T) {
 }
 
 func TestBrokerSubscriberCount(t *testing.T) {
-	broker := New()
+	broker := New(0) // 0 = default keepalive 15s
 
 	if broker.SubscriberCount("topic") != 0 {
 		t.Errorf("initial count = %d, want 0", broker.SubscriberCount("topic"))
@@ -79,7 +79,7 @@ func TestBrokerSubscriberCount(t *testing.T) {
 }
 
 func TestBrokerSubscribedTopicsByPrefix(t *testing.T) {
-	broker := New()
+	broker := New(0) // 0 = default keepalive 15s
 
 	// Sem subscribers — lista vazia
 	if got := broker.SubscribedTopicsByPrefix("container-detail/"); len(got) != 0 {
@@ -116,7 +116,7 @@ func TestBrokerSubscribedTopicsByPrefix(t *testing.T) {
 }
 
 func TestBrokerServeHTTP(t *testing.T) {
-	broker := New()
+	broker := New(0) // 0 = default keepalive 15s
 
 	// Adicionar subscriber para garantir que o tópico existe
 	_, cleanup := broker.Subscribe("test-http")

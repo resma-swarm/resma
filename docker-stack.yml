@@ -33,15 +33,17 @@ services:
       - RESMA_EXCLUDED_IMAGES=docker.io/resmaswarm/resma-api:latest,docker.io/resmaswarm/resma-ml:latest,docker.io/resmaswarm/resma-agent:latest
       - RESMA_COLLECT_INTERVAL=15
       - RESMA_RETENTION_DAYS=30
-      - RESMA_CLUSTER_INTERVAL=300
-      - RESMA_STORAGE_INTERVAL=600
+      - RESMA_CLUSTER_INTERVAL=30
+      - RESMA_STORAGE_INTERVAL=60
+      - RESMA_SCHEDULER_POLL=15
+      - RESMA_SSE_KEEPALIVE=15
       - RESMA_ANALYSIS_WINDOW_DAYS=7
       - RESMA_BCRYPT_COST=12
       - RESMA_LOGIN_RATE_LIMIT=5
       - RESMA_API_KEY_DEFAULT_SCOPES=read
       - RESMA_API_KEY_RATE_LIMIT=100
       - RESMA_AGENT_TOKEN_FILE=/run/secrets/resma_agent_token
-      - RESMA_AGENT_TASK_POLL_INTERVAL=30
+      - RESMA_AGENT_TASK_POLL_INTERVAL=15
     secrets:
       - resma_jwt_secret
       - resma_agent_token

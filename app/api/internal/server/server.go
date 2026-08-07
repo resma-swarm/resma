@@ -47,7 +47,7 @@ type Server struct {
 
 // New cria um novo Server com todas as dependências injetadas.
 func New(cfg *config.Config, database *db.Store, dc *docker.Client, authSvc *auth.Service) *Server {
-	broker := sse.New()
+	broker := sse.New(cfg.SSEKeepalive)
 	sseHandler := sse.NewHandler(broker, authSvc)
 	mlClient := mlclient.New(cfg.MLURL, cfg.MLEnabled)
 	return &Server{
