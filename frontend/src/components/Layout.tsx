@@ -158,10 +158,13 @@ export function Layout() {
 
   const currentLabel = REFRESH_OPTIONS.find((o) => o.value === refreshMode)?.label ?? "Auto"
   const currentIntervalMs = getIntervalMs(refreshMode)
-  // Tooltip descritivo: mostra o intervalo calculado (útil no modo Auto = 30s)
+  // Tooltip descritivo: mostra o intervalo e explica o modo Auto (30s fixo,
+  // independente da taxa de coleta do backend — alinhado ao Grafana).
   const refreshTooltip = currentIntervalMs
-    ? `Reconciliação a cada ${currentLabel === "Auto" ? "30s" : currentLabel}${refreshMode === "auto" ? " (auto)" : ""}`
-    : "Atualização automática desativada"
+    ? refreshMode === "auto"
+      ? "Auto = 30s fixo (independente da coleta do backend)"
+      : `Reconciliação a cada ${currentLabel}`
+    : "Atualização automática desativada (só manual)"
 
   // Spinner ativo: refresh manual OU queries em fetch (como no Grafana)
   const showSpinner = manualRefreshing || isFetching > 0

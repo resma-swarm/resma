@@ -872,17 +872,23 @@ export default function Recommendations() {
   const [showStorage, setShowStorage] = useState(true)
 
   // Reconciliação safety-net controlada pelo dropdown (Frente C).
-  // Página sem SSE — useRefreshTimer atua como polling puro.
-  useRefreshTimer([["schedules", "pending"]])
+  // Página sem SSE — useRefreshTimer atua como polling puro para todas as queries.
+  useRefreshTimer([
+    ["recommendations"],
+    ["storage-recommendations"],
+    ["schedules", "pending"],
+  ])
 
   const { data: recs, isLoading } = useQuery<Recommendation[]>({
     queryKey: ["recommendations"],
     queryFn: () => api.get<Recommendation[]>("/recommendations"),
+    refetchInterval: false,
   })
 
   const { data: storageRecs } = useQuery<StorageAnalysis>({
     queryKey: ["storage-recommendations"],
     queryFn: () => api.get<StorageAnalysis>("/recommendations/storage"),
+    refetchInterval: false,
   })
 
   const { data: pendingSchedules } = useQuery<Schedule[]>({

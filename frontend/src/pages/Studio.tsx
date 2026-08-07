@@ -11,7 +11,7 @@ import * as yaml from "yaml"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import { api } from "@/api/client"
-import { useRefreshInterval } from "@/hooks/use-refresh"
+import { useRefreshTimer } from "@/hooks/use-refresh"
 import { toast } from "sonner"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -176,18 +176,26 @@ export default function Studio() {
   const [recalculating, setRecalculating] = useState(false)
   const [quickApplying, setQuickApplying] = useState<string | null>(null)
 
-  const refreshInterval = useRefreshInterval()
+  // Reconciliação safety-net controlada pelo dropdown (Frente C).
+  // Página sem SSE — useRefreshTimer atua como polling puro para todas as queries.
+  useRefreshTimer([
+    ["recommendations"],
+    ["storage-recommendations"],
+    ["rollback-watches-active"],
+    ["schedules", "pending"],
+    ["change-log-recent"],
+  ])
 
   const { data: recs, isLoading } = useQuery<Recommendation[]>({
     queryKey: ["recommendations"],
     queryFn: () => api.get<Recommendation[]>("/recommendations"),
-    refetchInterval: refreshInterval,
+    refetchInterval: false,
   })
 
   const { data: rollbackWatches } = useQuery<{ watches: { id: number; service: string; status: string }[] }>({
     queryKey: ["rollback-watches-active"],
     queryFn: () => api.get("/rollback-watches?status=monitoring"),
-    refetchInterval: refreshInterval,
+    refetchInterval: false,
   })
   const watchedServices = useMemo(() => {
     const set = new Set<string>()
@@ -200,7 +208,7 @@ export default function Studio() {
   const { data: pendingSchedules } = useQuery<{ id: number; service: string; scheduled_at: string }[]>({
     queryKey: ["schedules", "pending"],
     queryFn: () => api.get("/schedules/pending"),
-    refetchInterval: refreshInterval,
+    refetchInterval: false,
   })
   const scheduledServices = useMemo(() => {
     const map = new Map<string, string>()
@@ -216,7 +224,7 @@ export default function Studio() {
   const { data: changeLog } = useQuery<{ Service: string; Action: string; Status: string }[]>({
     queryKey: ["change-log-recent"],
     queryFn: () => api.get("/change-log"),
-    refetchInterval: refreshInterval,
+    refetchInterval: false,
   })
   const optimizedCount = useMemo(() => {
     const services = new Set<string>()
@@ -229,6 +237,7 @@ export default function Studio() {
   const { data: storageRecs } = useQuery<StorageAnalysis>({
     queryKey: ["storage-recommendations"],
     queryFn: () => api.get<StorageAnalysis>("/recommendations/storage"),
+    refetchInterval: false,
   })
 
   const { data: templates } = useQuery<{ id: number; name: string; description: string; yaml_content: string; stacks: string[] }[]>({
