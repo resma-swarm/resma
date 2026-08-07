@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import { useQueryClient } from "@tanstack/react-query"
 import {
@@ -77,22 +77,32 @@ const REFRESH_OPTIONS: { value: RefreshMode; label: string }[] = [
   { value: "off", label: "Off" },
 ]
 
+// Duração do spinner do refresh manual (tempo suficiente p/ refetch iniciar)
+const MANUAL_REFRESH_SPINNER_MS = 600
+
 export function Layout() {
   const location = useLocation()
   const refreshMode = useRefreshStore((s) => s.mode)
   const queryClient = useQueryClient()
   const [manualRefreshing, setManualRefreshing] = useState(false)
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const breadcrumbs = buildBreadcrumbs(location.pathname)
 
-  // Refresh manual global: invalida todas as queries ativas.
+  // Cleanup: garante que o timeout não sete state em componente desmontado
+  useEffect(() => {
+    return () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current)
+    }
+  }, [])
+
+  // Refresh manual global: invalida queries ativas.
   // Substitui o dropdown (disabled temporariamente — Frente C, fase final).
   const handleManualRefresh = () => {
     if (manualRefreshing) return
     setManualRefreshing(true)
-    queryClient.invalidateQueries()
-    // Reseta o spinner após 600ms (tempo suficiente p/ refetch iniciar)
-    setTimeout(() => setManualRefreshing(false), 600)
+    queryClient.invalidateQueries({ refetchType: "active" })
+    refreshTimer.current = setTimeout(() => setManualRefreshing(false), MANUAL_REFRESH_SPINNER_MS)
   }
 
   return (
@@ -130,14 +140,19 @@ export function Layout() {
                 </TooltipTrigger>
                 <TooltipContent>Recarregar todos os dados agora</TooltipContent>
               </Tooltip>
-            </TooltipProvider>
-            <TooltipProvider delayDuration={200}>
               <Tooltip>
+                {/* span wrapper: Radix Tooltip não dispara em button[disabled] diretamente */}
                 <TooltipTrigger asChild>
-                  <div className="flex h-8 items-center gap-1.5 rounded-md border border-input bg-transparent px-2.5 text-xs shadow-sm opacity-60 cursor-not-allowed">
-                    <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span>{REFRESH_OPTIONS.find((o) => o.value === refreshMode)?.label ?? "Auto"}</span>
-                  </div>
+                  <span className="inline-flex">
+                    <button
+                      disabled
+                      className="flex h-8 items-center gap-1.5 rounded-md border border-input bg-transparent px-2.5 text-xs shadow-sm opacity-60 cursor-not-allowed"
+                      aria-label="Modo de refresh atual (desabilitado temporariamente)"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span>{REFRESH_OPTIONS.find((o) => o.value === refreshMode)?.label ?? "Auto"}</span>
+                    </button>
+                  </span>
                 </TooltipTrigger>
                 <TooltipContent>Ajuste de intervalo em implementação — use o refresh manual</TooltipContent>
               </Tooltip>
