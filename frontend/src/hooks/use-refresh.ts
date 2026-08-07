@@ -12,18 +12,7 @@ let cachedCollectInterval = 15
 
 export function useRefreshInterval(): number | false {
   const mode = useRefreshStore((s) => s.mode)
-
-  const { data: config } = useQuery<AppConfig>({
-    queryKey: ["app-config"],
-    queryFn: () => api.get<AppConfig>("/config"),
-    staleTime: 60_000,
-  })
-
-  if (config?.collect_interval) {
-    cachedCollectInterval = config.collect_interval
-  }
-
-  return getIntervalMs(mode, cachedCollectInterval)
+  return getIntervalMs(mode)
 }
 
 export function useCollectInterval(): number {

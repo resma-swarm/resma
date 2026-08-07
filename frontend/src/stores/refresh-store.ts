@@ -27,7 +27,7 @@ export const useRefreshStore = create<RefreshState>()(
   )
 )
 
-export function getIntervalMs(mode: RefreshMode, collectInterval: number): number | false {
-  if (mode === "auto") return collectInterval * 1000
+export function getIntervalMs(mode: RefreshMode): number | false {
+  if (mode === "auto") return 30_000 // fixo 30s (Grafana troubleshooting: "1m ou mais")
   return INTERVAL_MAP[mode]
 }
