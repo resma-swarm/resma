@@ -3,6 +3,7 @@ import { useMemo, useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/api/client"
 import { useEventSource } from "@/hooks/use-event-source"
+import { useRefreshTimer } from "@/hooks/use-refresh"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
@@ -141,23 +142,24 @@ export default function Schedules() {
 
   // SSE: assina change-log — disparado pelo scheduler quando um
   // schedule executa/falha/pula. Substitui polling fixo de 30s por tempo real.
-  const { isConnected: sseConnected } = useEventSource({
+  useEventSource({
     topic: "change-log",
     invalidateQueries: [["schedules"], ["change-log"]],
   })
-  // SSE ativo = zero polling (SSE publica payload completo + reconciliação 30s)
-  const fallbackInterval = sseConnected ? false : 30000
+
+  // Reconciliação safety-net controlada pelo dropdown (Frente C).
+  useRefreshTimer([["schedules"], ["change-log"]])
 
   const { data: allSchedules, isLoading } = useQuery<Schedule[]>({
     queryKey: ["schedules"],
     queryFn: () => api.get<Schedule[]>("/schedules"),
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const { data: changeLog } = useQuery<ChangeLogEntry[]>({
     queryKey: ["change-log"],
     queryFn: () => api.get<ChangeLogEntry[]>("/change-log"),
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const cancelMutation = useMutation({

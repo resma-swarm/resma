@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useNavigate } from "react-router-dom"
 import { api } from "@/api/client"
 import { Button } from "@/components/ui/button"
-import { useRefreshInterval } from "@/hooks/use-refresh"
+import { useRefreshTimer } from "@/hooks/use-refresh"
 import { useEventSource } from "@/hooks/use-event-source"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -45,23 +45,22 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
 
 export default function Tasks() {
   const navigate = useNavigate()
-  const refreshInterval = useRefreshInterval()
   const [search, setSearch] = useState("")
   const { tasksStatus: statusFilter, tasksService: serviceFilter, setTasksStatus: setStatusFilter, setTasksService: setServiceFilter } = useFilterStore()
 
   // SSE: invalida queries de tasks quando receber evento
-  const { isConnected: sseConnected } = useEventSource({
+  useEventSource({
     topic: "tasks",
     invalidateQueries: [["tasks"], ["services-health"]],
   })
 
-  // SSE ativo = zero polling (SSE publica payload completo + reconciliação 30s)
-  const fallbackInterval = sseConnected ? false : refreshInterval
+  // Reconciliação safety-net controlada pelo dropdown (Frente C).
+  useRefreshTimer([["tasks"], ["services-health"]])
 
   const { data: tasks, isLoading } = useQuery<Task[]>({
     queryKey: ["tasks"],
     queryFn: () => api.get<Task[]>("/tasks"),
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   if (isLoading) {

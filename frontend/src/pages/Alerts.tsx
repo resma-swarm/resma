@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useNavigate, Link } from "react-router-dom"
 import { api } from "@/api/client"
 import { Button } from "@/components/ui/button"
-import { useRefreshInterval } from "@/hooks/use-refresh"
+import { useRefreshTimer } from "@/hooks/use-refresh"
 import { useEventSource } from "@/hooks/use-event-source"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -199,7 +199,6 @@ function renderDetails(alert: AlertItem): React.ReactNode {
 
 export default function Alerts() {
   const navigate = useNavigate()
-  const refreshInterval = useRefreshInterval()
   const [search, setSearch] = useState("")
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const { alertsType: typeFilter, alertsSeverity: severityFilter, setAlertsType: setTypeFilter, setAlertsSeverity: setSeverityFilter } = useFilterStore()
@@ -213,23 +212,22 @@ export default function Alerts() {
   // 2 conexões EventSource à toa. O tópico "events" publica OOMs pontuais
   // (collector.go) e rollbacks (execute.go / rollback_watch_handlers.go),
   // que são exatamente os eventos que mudam o feed de alertas críticos.
-  const { isConnected: sseEvents } = useEventSource({
+  useEventSource({
     topic: "events",
     invalidateQueries: [["alerts"]],
   })
-  const { isConnected: sseMetrics } = useEventSource({
+  useEventSource({
     topic: "metrics",
     invalidateQueries: [["alerts"]],
   })
-  const sseConnected = sseEvents || sseMetrics
 
-  // SSE ativo = zero polling (SSE publica payload completo + reconciliação 30s)
-  const fallbackInterval = sseConnected ? false : refreshInterval
+  // Reconciliação safety-net controlada pelo dropdown (Frente C).
+  useRefreshTimer([["alerts"]])
 
   const { data, isLoading } = useQuery<AlertsResponse>({
     queryKey: ["alerts"],
     queryFn: () => api.get<AlertsResponse>("/alerts"),
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const toggleRow = (key: string) => {

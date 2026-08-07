@@ -418,7 +418,7 @@ cd frontend && pnpm build  # deve compilar sem erros
 | 2 | D | Installer/Upgrader: expor todas as env vars como parâmetros | Baixo (scripts bash) | ✅ Concluído |
 | 3 | B | Frontend: desacoplar modo "auto" de `collect_interval` | Baixo (só store/hook) | ✅ Concluído |
 | 4 | C | Dropdown: disabled temporário | Baixo (1 arquivo) | ✅ Concluído |
-| 5 | C (futura) | Dropdown: implementação completa | Médio (11 páginas) | Pendente |
+| 5 | C (futura) | Dropdown: implementação completa | Médio (11 páginas) | ✅ Concluído |
 
 > **Frente C completa fica aguardando comando do usuário** após A, B e D.
 

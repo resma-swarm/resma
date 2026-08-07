@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useParams, useNavigate } from "react-router-dom"
 import { api } from "@/api/client"
-import { useRefreshInterval } from "@/hooks/use-refresh"
+import { useRefreshTimer } from "@/hooks/use-refresh"
 import { useEventSource } from "@/hooks/use-event-source"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -62,25 +62,29 @@ export default function ContainerDetail() {
   const serviceName = decodeURIComponent(name || "")
   const cid = decodeURIComponent(containerId || "")
 
-  const refreshInterval = useRefreshInterval()
-
   // SSE: assina o tópico "container-detail/{id}" — o collector publica o
   // payload completo (stats+metrics+network) a cada coleta quando há
   // subscriber ativo. O applySSEPayload faz setQueryData para cada query do
   // ContainerDetail — zero refetch HTTP.
-  // Fallback: se SSE cair, polling normal (refreshInterval) + safety net 300s.
+  // Fallback: se SSE cair, a reconciliação do useRefreshTimer funciona como polling.
   const sseTopic = `container-detail/${cid}`
-  const { isConnected: sseConnected } = useEventSource({
+  useEventSource({
     topic: sseTopic,
     enabled: !!cid,
   })
-  const fallbackInterval = sseConnected ? 300_000 : refreshInterval
+
+  // Reconciliação safety-net controlada pelo dropdown (Frente C).
+  useRefreshTimer([
+    ["container-stats", cid],
+    ["container-metrics", cid],
+    ["container-network-info", cid],
+  ])
 
   const { data: stats, isLoading: statsLoading } = useQuery<ContainerStats>({
     queryKey: ["container-stats", cid],
     queryFn: () => api.get<ContainerStats>(`/services/containers/${encodeURIComponent(cid)}/stats`),
     enabled: !!cid,
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const [chartAnimated, setChartAnimated] = useState(false)
@@ -88,14 +92,14 @@ export default function ContainerDetail() {
     queryKey: ["container-metrics", cid],
     queryFn: () => api.get<MetricPoint[]>(`/services/containers/${encodeURIComponent(cid)}/metrics`),
     enabled: !!cid,
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const { data: networkInfo } = useQuery<ContainerNetworkInfo[]>({
     queryKey: ["container-network-info", cid],
     queryFn: () => api.get<ContainerNetworkInfo[]>(`/services/containers/${encodeURIComponent(cid)}/network-info`),
     enabled: !!cid,
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const chartData = (metrics || []).map((m) => ({

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@/api/client"
-import { useRefreshInterval } from "@/hooks/use-refresh"
+import { useRefreshTimer } from "@/hooks/use-refresh"
 import { useEventSource } from "@/hooks/use-event-source"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -83,30 +83,30 @@ interface StorageSummary {
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const refreshInterval = useRefreshInterval()
   const [chartAnimated, setChartAnimated] = useState(false)
 
   // SSE: invalida queries do dashboard quando receber evento.
   // Gap D: assina tanto "dashboard" (cluster info, ~30s) quanto "metrics"
   // (coleta de métricas, ~5s) para atualização em tempo real de métricas.
-  const { isConnected: sseDashboard } = useEventSource({
+  // SSE: assina tópicos para push de dados em tempo real.
+  // A reconciliação safety-net é controlada pelo dropdown via useRefreshTimer.
+  useEventSource({
     topic: "dashboard",
     invalidateQueries: [["dashboard"], ["storage-summary"]],
   })
-  const { isConnected: sseMetrics } = useEventSource({
+  useEventSource({
     topic: "metrics",
     invalidateQueries: [["dashboard"], ["storage-summary"]],
   })
-  const sseConnected = sseDashboard || sseMetrics
 
-  // SSE ativo = zero polling (SSE publica payload completo + reconciliação 30s)
-  // SSE inativo = polling normal como fallback
-  const fallbackInterval = sseConnected ? false : refreshInterval
+  // Reconciliação safety-net controlada pelo dropdown (Frente C).
+  // SSE ativo = safety-net na cadência do dropdown; SSE inativo = polling puro.
+  useRefreshTimer([["dashboard"], ["storage-summary"]])
 
   const { data, isLoading, isError, refetch } = useQuery<DashboardData>({
     queryKey: ["dashboard"],
     queryFn: () => api.get<DashboardData>("/dashboard"),
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const cpuChartData = (data?.top_cpu_consumers ?? []).map((s) => ({
@@ -129,7 +129,7 @@ export default function Dashboard() {
   const { data: storageData } = useQuery<StorageSummary>({
     queryKey: ["storage-summary"],
     queryFn: () => api.get<StorageSummary>("/storage/summary"),
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   if (isLoading) {

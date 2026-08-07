@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useParams, useNavigate } from "react-router-dom"
 import { api } from "@/api/client"
-import { useRefreshInterval } from "@/hooks/use-refresh"
+import { useRefreshTimer } from "@/hooks/use-refresh"
 import { useFilterStore } from "@/stores/filter-store"
 import { useEventSource } from "@/hooks/use-event-source"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -172,41 +172,51 @@ export default function ServiceDetail() {
   const navigate = useNavigate()
   const serviceName = decodeURIComponent(name || "")
 
-  const refreshInterval = useRefreshInterval()
-
   // SSE: assina o tópico "service-detail/{name}" — o collector publica o
   // payload completo (stats+metrics+containers+tasks+health) a cada coleta
   // quando há subscriber ativo. O applySSEPayload faz setQueryData para
   // cada query do ServiceDetail — zero refetch HTTP.
-  // Fallback: se SSE cair, polling normal (refreshInterval).
+  // Fallback: se SSE cair, a reconciliação do useRefreshTimer funciona como polling.
   const sseTopic = `service-detail/${serviceName}`
-  const { isConnected: sseConnected } = useEventSource({
+  useEventSource({
     topic: sseTopic,
     enabled: !!serviceName,
   })
-  // Quando SSE está ativo, não precisamos de polling — o SSE pusha os dados.
-  // Fallback para polling apenas se SSE cair.
-  const fallbackInterval = sseConnected ? false : refreshInterval
+
+  // Reconciliação safety-net controlada pelo dropdown (Frente C).
+  // Inclui todas as queries da página, inclusive schedules e change-log
+  // (antes hardcoded 30s) e services-health.
+  useRefreshTimer([
+    ["service-stats", serviceName],
+    ["schedules", serviceName],
+    ["change-log", serviceName],
+    ["service-tasks", serviceName],
+    ["services-health"],
+    ["service-metrics", serviceName],
+    ["service-containers", serviceName],
+    ["service-recommendation", serviceName],
+    ["service-overview", serviceName],
+  ])
 
   const { data: stats, isLoading: statsLoading } = useQuery<ServiceStats>({
     queryKey: ["service-stats", serviceName],
     queryFn: () => api.get<ServiceStats>(`/services/${encodeURIComponent(serviceName)}/stats`),
     enabled: !!serviceName,
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const { data: serviceSchedules } = useQuery<ServiceSchedule[]>({
     queryKey: ["schedules", serviceName],
     queryFn: () => api.get<ServiceSchedule[]>(`/schedules?service=${encodeURIComponent(serviceName)}`),
     enabled: !!serviceName,
-    refetchInterval: 30000,
+    refetchInterval: false,
   })
 
   const { data: serviceChangeLog } = useQuery<ServiceChangeLog[]>({
     queryKey: ["change-log", serviceName],
     queryFn: () => api.get<ServiceChangeLog[]>(`/change-log/${encodeURIComponent(serviceName)}`),
     enabled: !!serviceName,
-    refetchInterval: 30000,
+    refetchInterval: false,
   })
 
   // Fase 7 — tasks do serviço (Swarm task lifecycle)
@@ -214,14 +224,14 @@ export default function ServiceDetail() {
     queryKey: ["service-tasks", serviceName],
     queryFn: () => api.get<TaskRow[]>(`/tasks/${encodeURIComponent(serviceName)}`),
     enabled: !!serviceName,
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   // Fase 7 — health do serviço (restarts, tasks running/failed)
   const { data: serviceHealth } = useQuery<ServiceHealthRow[]>({
     queryKey: ["services-health"],
     queryFn: () => api.get<ServiceHealthRow[]>("/services/health"),
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const [chartAnimated, setChartAnimated] = useState(false)
@@ -231,14 +241,14 @@ export default function ServiceDetail() {
     queryKey: ["service-metrics", serviceName],
     queryFn: () => api.get<MetricPoint[]>(`/services/${encodeURIComponent(serviceName)}/metrics`),
     enabled: !!serviceName,
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const { data: containers } = useQuery<ContainerStats[]>({
     queryKey: ["service-containers", serviceName],
     queryFn: () => api.get<ContainerStats[]>(`/services/${encodeURIComponent(serviceName)}/containers`),
     enabled: !!serviceName,
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const queryClient = useQueryClient()
@@ -262,7 +272,7 @@ export default function ServiceDetail() {
       }
     },
     enabled: !!serviceName,
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   // Overview (status + risk_score) — alimentado via SSE pelo collector
@@ -292,7 +302,7 @@ export default function ServiceDetail() {
       return { status: "legado", last_seen: null, risk_score: 0, risk_factors: { oom_count: 0, has_leak: false, has_drift: false, mem_limit: 0 } }
     },
     enabled: !!serviceName,
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const [applying, setApplying] = useState<string | null>(null)

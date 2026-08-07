@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/api/client"
+import { useRefreshTimer } from "@/hooks/use-refresh"
 import { Card, CardHeader, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -870,6 +871,10 @@ export default function Recommendations() {
   const [showObserving, setShowObserving] = useState(false)
   const [showStorage, setShowStorage] = useState(true)
 
+  // Reconciliação safety-net controlada pelo dropdown (Frente C).
+  // Página sem SSE — useRefreshTimer atua como polling puro.
+  useRefreshTimer([["schedules", "pending"]])
+
   const { data: recs, isLoading } = useQuery<Recommendation[]>({
     queryKey: ["recommendations"],
     queryFn: () => api.get<Recommendation[]>("/recommendations"),
@@ -883,7 +888,7 @@ export default function Recommendations() {
   const { data: pendingSchedules } = useQuery<Schedule[]>({
     queryKey: ["schedules", "pending"],
     queryFn: () => api.get<Schedule[]>("/schedules/pending"),
-    refetchInterval: 30000,
+    refetchInterval: false,
   })
 
   const recalculateMutation = useMutation({

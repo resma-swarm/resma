@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useNavigate } from "react-router-dom"
 import { api } from "@/api/client"
 import { Button } from "@/components/ui/button"
-import { useRefreshInterval } from "@/hooks/use-refresh"
+import { useRefreshTimer } from "@/hooks/use-refresh"
 import { useEventSource } from "@/hooks/use-event-source"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -54,32 +54,31 @@ const ROLE_CONFIG: Record<string, { label: string; variant: "default" | "seconda
 
 export default function Nodes() {
   const navigate = useNavigate()
-  const refreshInterval = useRefreshInterval()
   const [search, setSearch] = useState("")
   const { nodesRole: roleFilter, nodesStatus: statusFilter, setNodesRole: setRoleFilter, setNodesStatus: setStatusFilter } = useFilterStore()
 
   // SSE: invalida queries de nodes quando receber evento
   // Nota: ["agents"] incluído porque a tabela mostra status do agent (Active/Stale,
   // containers_count) que vem da query ["agents"] — sem invalidação fica stale com SSE ativo.
-  const { isConnected: sseConnected } = useEventSource({
+  useEventSource({
     topic: "nodes",
     invalidateQueries: [["nodes"], ["cluster"], ["agents"]],
   })
 
-  // SSE ativo = zero polling (SSE publica payload completo + reconciliação 30s)
-  const fallbackInterval = sseConnected ? false : refreshInterval
+  // Reconciliação safety-net controlada pelo dropdown (Frente C).
+  useRefreshTimer([["nodes"], ["cluster"], ["agents"]])
 
   const { data: nodes, isLoading } = useQuery<Node[]>({
     queryKey: ["nodes"],
     queryFn: () => api.get<Node[]>("/nodes"),
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   // Fase 7 — agents para mostrar status na tabela de nodes
   const { data: agents } = useQuery<Array<{ node_id: string; status: string; containers_count: number }>>({
     queryKey: ["agents"],
     queryFn: () => api.get<Array<{ node_id: string; status: string; containers_count: number }>>("/agents"),
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   // Mapa node_id -> agent status

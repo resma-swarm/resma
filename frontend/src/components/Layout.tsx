@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
-import { Link, Outlet, useLocation } from "react-router-dom"
-import { useQueryClient } from "@tanstack/react-query"
+import { Link, Outlet, useLocation, useSearchParams } from "react-router-dom"
+import { useQueryClient, useIsFetching } from "@tanstack/react-query"
 import {
   SidebarInset,
   SidebarProvider,
@@ -16,8 +16,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { ChevronRight, RefreshCw } from "lucide-react"
-import { useRefreshStore, type RefreshMode } from "@/stores/refresh-store"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
+import { ChevronRight, RefreshCw, Check } from "lucide-react"
+import { useRefreshStore, getIntervalMs, type RefreshMode } from "@/stores/refresh-store"
 
 function buildBreadcrumbs(pathname: string) {
   const segments = pathname.split("/").filter(Boolean)
@@ -80,12 +88,38 @@ const REFRESH_OPTIONS: { value: RefreshMode; label: string }[] = [
 // Duração do spinner do refresh manual (tempo suficiente p/ refetch iniciar)
 const MANUAL_REFRESH_SPINNER_MS = 600
 
+// Mapeia RefreshMode → valor do parâmetro ?refresh= na URL
+const MODE_TO_URL: Record<RefreshMode, string> = {
+  auto: "auto",
+  "5s": "5s",
+  "30s": "30s",
+  "1m": "1m",
+  "5m": "5m",
+  off: "off",
+}
+
+// Mapeia valor do parâmetro ?refresh= → RefreshMode
+const URL_TO_MODE: Record<string, RefreshMode> = {
+  auto: "auto",
+  "5s": "5s",
+  "30s": "30s",
+  "1m": "1m",
+  "5m": "5m",
+  off: "off",
+}
+
 export function Layout() {
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const refreshMode = useRefreshStore((s) => s.mode)
+  const setMode = useRefreshStore((s) => s.setMode)
   const queryClient = useQueryClient()
   const [manualRefreshing, setManualRefreshing] = useState(false)
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Número de queries sendo fetchadas no momento — alimenta o spinner do
+  // botão de refresh (alinhado com Grafana: queryController.isRunning).
+  const isFetching = useIsFetching()
 
   const breadcrumbs = buildBreadcrumbs(location.pathname)
 
@@ -96,14 +130,41 @@ export function Layout() {
     }
   }, [])
 
+  // URL sync — on mount: se ?refresh= estiver na URL, sobrescreve o modo
+  // persistido (bookmarkable, como no Grafana: ?refresh=5s).
+  useEffect(() => {
+    const urlRefresh = searchParams.get("refresh")
+    if (urlRefresh && URL_TO_MODE[urlRefresh] && URL_TO_MODE[urlRefresh] !== refreshMode) {
+      setMode(URL_TO_MODE[urlRefresh])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Refresh manual global: invalida queries ativas.
-  // Substitui o dropdown (disabled temporariamente — Frente C, fase final).
   const handleManualRefresh = () => {
     if (manualRefreshing) return
     setManualRefreshing(true)
     queryClient.invalidateQueries({ refetchType: "active" })
     refreshTimer.current = setTimeout(() => setManualRefreshing(false), MANUAL_REFRESH_SPINNER_MS)
   }
+
+  // Quando o usuário muda o modo via dropdown, atualiza store + URL
+  const handleModeChange = (mode: RefreshMode) => {
+    setMode(mode)
+    const next = new URLSearchParams(searchParams)
+    next.set("refresh", MODE_TO_URL[mode])
+    setSearchParams(next, { replace: true })
+  }
+
+  const currentLabel = REFRESH_OPTIONS.find((o) => o.value === refreshMode)?.label ?? "Auto"
+  const currentIntervalMs = getIntervalMs(refreshMode)
+  // Tooltip descritivo: mostra o intervalo calculado (útil no modo Auto = 30s)
+  const refreshTooltip = currentIntervalMs
+    ? `Reconciliação a cada ${currentLabel === "Auto" ? "30s" : currentLabel}${refreshMode === "auto" ? " (auto)" : ""}`
+    : "Atualização automática desativada"
+
+  // Spinner ativo: refresh manual OU queries em fetch (como no Grafana)
+  const showSpinner = manualRefreshing || isFetching > 0
 
   return (
     <SidebarProvider>
@@ -134,27 +195,41 @@ export function Layout() {
                     className="flex h-8 items-center gap-1.5 rounded-md border border-input bg-transparent px-2.5 text-xs shadow-sm hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     aria-label="Atualizar dados"
                   >
-                    <RefreshCw className={`h-3.5 w-3.5 text-muted-foreground ${manualRefreshing ? "animate-spin" : ""}`} />
+                    <RefreshCw className={`h-3.5 w-3.5 text-muted-foreground ${showSpinner ? "animate-spin" : ""}`} />
                     <span>Atualizar</span>
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>Recarregar todos os dados agora</TooltipContent>
               </Tooltip>
               <Tooltip>
-                {/* span wrapper: Radix Tooltip não dispara em button[disabled] diretamente */}
                 <TooltipTrigger asChild>
-                  <span className="inline-flex">
-                    <button
-                      disabled
-                      className="flex h-8 items-center gap-1.5 rounded-md border border-input bg-transparent px-2.5 text-xs shadow-sm opacity-60 cursor-not-allowed"
-                      aria-label="Modo de refresh atual (desabilitado temporariamente)"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span>{REFRESH_OPTIONS.find((o) => o.value === refreshMode)?.label ?? "Auto"}</span>
-                    </button>
-                  </span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="flex h-8 items-center gap-1.5 rounded-md border border-input bg-transparent px-2.5 text-xs shadow-sm hover:bg-accent transition-colors"
+                        aria-label="Modo de refresh"
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 text-muted-foreground ${showSpinner ? "animate-spin" : ""}`} />
+                        <span>{currentLabel}</span>
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-40">
+                      <DropdownMenuLabel>Intervalo de refresh</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {REFRESH_OPTIONS.map((opt) => (
+                        <DropdownMenuItem
+                          key={opt.value}
+                          onClick={() => handleModeChange(opt.value)}
+                          className="gap-2 justify-between"
+                        >
+                          <span>{opt.label}</span>
+                          {refreshMode === opt.value && <Check className="h-3.5 w-3.5" />}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TooltipTrigger>
-                <TooltipContent>Ajuste de intervalo em implementação — use o refresh manual</TooltipContent>
+                <TooltipContent>{refreshTooltip}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
             <Separator orientation="vertical" className="h-5" />

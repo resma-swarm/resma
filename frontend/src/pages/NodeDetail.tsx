@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useParams, useNavigate } from "react-router-dom"
 import { api } from "@/api/client"
-import { useRefreshInterval } from "@/hooks/use-refresh"
+import { useRefreshTimer } from "@/hooks/use-refresh"
 import { useEventSource } from "@/hooks/use-event-source"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -89,7 +89,6 @@ export default function NodeDetail() {
   const navigate = useNavigate()
   const nodeIdDecoded = decodeURIComponent(nodeId || "")
 
-  const refreshInterval = useRefreshInterval()
   const [chartAnimated, setChartAnimated] = useState(false)
   const [serviceSearch, setServiceSearch] = useState("")
 
@@ -101,7 +100,7 @@ export default function NodeDetail() {
   // EVENT_QUERY_MAP["storage"] → ["storage-summary"] — zero refetch HTTP.
   // O evento "cluster" (~60s) ainda invalida ["storage-summary"] via
   // getUncoveredQueryKeys (safety net), mas é 12x menos refetch que antes.
-  const { isConnected: sseNodes } = useEventSource({
+  useEventSource({
     topic: "nodes",
     invalidateQueries: [
       ["node-detail", nodeIdDecoded],
@@ -111,7 +110,7 @@ export default function NodeDetail() {
     ],
     enabled: !!nodeIdDecoded,
   })
-  const { isConnected: sseMetrics } = useEventSource({
+  useEventSource({
     topic: "metrics",
     invalidateQueries: [
       ["service-sparklines"],
@@ -119,32 +118,41 @@ export default function NodeDetail() {
     ],
     enabled: !!nodeIdDecoded,
   })
-  const { isConnected: sseDashboard } = useEventSource({
+  useEventSource({
     topic: "dashboard",
     enabled: !!nodeIdDecoded,
   })
-  const sseConnected = sseNodes || sseMetrics || sseDashboard
-  const fallbackInterval = sseConnected ? 300_000 : refreshInterval
+
+  // Reconciliação safety-net controlada pelo dropdown (Frente C).
+  // Inclui todas as queries da página para refresh periódico.
+  useRefreshTimer([
+    ["node-detail", nodeIdDecoded],
+    ["node-metrics", nodeIdDecoded],
+    ["node-services", nodeIdDecoded],
+    ["node-agent", nodeIdDecoded],
+    ["storage-summary"],
+    ["service-sparklines"],
+  ])
 
   const { data: node, isLoading } = useQuery<NodeDetail>({
     queryKey: ["node-detail", nodeIdDecoded],
     queryFn: () => api.get<NodeDetail>(`/nodes/${encodeURIComponent(nodeIdDecoded)}`),
     enabled: !!nodeIdDecoded,
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const { data: metrics } = useQuery<NodeMetric[]>({
     queryKey: ["node-metrics", nodeIdDecoded],
     queryFn: () => api.get<NodeMetric[]>(`/nodes/${encodeURIComponent(nodeIdDecoded)}/metrics`),
     enabled: !!nodeIdDecoded,
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const { data: services } = useQuery<NodeService[]>({
     queryKey: ["node-services", nodeIdDecoded],
     queryFn: () => api.get<NodeService[]>(`/nodes/${encodeURIComponent(nodeIdDecoded)}/services`),
     enabled: !!nodeIdDecoded,
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const { data: storageData } = useQuery<{
@@ -160,13 +168,13 @@ export default function NodeDetail() {
     queryFn: async () => {
       try { return await api.get("/storage/summary") } catch { return null }
     },
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const { data: sparklines } = useQuery<Record<string, Array<{ ts: string; cpu: number; mem: number }>>>({
     queryKey: ["service-sparklines"],
     queryFn: () => api.get<Record<string, Array<{ ts: string; cpu: number; mem: number }>>>("/services/sparklines?points=20"),
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   // Fase 7 — agent rodando neste node (se houver)
@@ -176,7 +184,7 @@ export default function NodeDetail() {
       try { return await api.get<AgentInfo>(`/agents/${encodeURIComponent(nodeIdDecoded)}`) } catch { return null }
     },
     enabled: !!nodeIdDecoded,
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const chartData = (metrics || []).map((m) => ({

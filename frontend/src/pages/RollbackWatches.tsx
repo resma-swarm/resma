@@ -8,6 +8,7 @@
 import { useState, useMemo } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useEventSource } from "@/hooks/use-event-source"
+import { useRefreshTimer } from "@/hooks/use-refresh"
 import { api } from "@/api/client"
 import { toast } from "sonner"
 import {
@@ -98,12 +99,15 @@ export function RollbackWatches() {
     },
   })
 
+  // Reconciliação safety-net controlada pelo dropdown (Frente C).
+  useRefreshTimer([["rollback-watches"], ["change-log"], ["oom-events"]])
+
   const { data, isLoading } = useQuery<RollbackWatchesResponse>({
     queryKey: ["rollback-watches", statusFilter],
     queryFn: () => api.get<RollbackWatchesResponse>(
       `/rollback-watches${statusFilter ? `?status=${statusFilter}` : ""}`,
     ),
-    refetchInterval: sseEvents ? false : 30000,
+    refetchInterval: false,
   })
 
   const rollbackMutation = useMutation({
@@ -184,7 +188,7 @@ export function RollbackWatches() {
           </p>
         </div>
         <Badge variant="outline" className={sseEvents ? "border-green-500/30 text-green-700" : ""}>
-          {sseEvents ? "SSE ativo" : "Polling 30s"}
+          {sseEvents ? "SSE ativo" : "Polling"}
         </Badge>
       </div>
 

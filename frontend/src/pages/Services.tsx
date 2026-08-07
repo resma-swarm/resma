@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "react-router-dom"
 import { api } from "@/api/client"
-import { useRefreshInterval } from "@/hooks/use-refresh"
+import { useRefreshTimer } from "@/hooks/use-refresh"
 import { useEventSource } from "@/hooks/use-event-source"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -81,21 +81,20 @@ export default function Services() {
   const [search, setSearch] = useState("")
   const { servicesStatus: statusFilter, servicesAlert: alertFilter, servicesConfig: configFilter, setServicesStatus: setStatusFilter, setServicesAlert: setAlertFilter, setServicesConfig: setConfigFilter } = useFilterStore()
 
-  const refreshInterval = useRefreshInterval()
-
   // SSE: invalida queries de services quando receber evento
-  const { isConnected: sseConnected } = useEventSource({
+  useEventSource({
     topic: "services",
     invalidateQueries: [["services"], ["recs-summary"]],
   })
 
-  // SSE ativo = zero polling (SSE publica payload completo + reconciliação 30s)
-  const fallbackInterval = sseConnected ? false : refreshInterval
+  // Reconciliação safety-net controlada pelo dropdown (Frente C).
+  // Inclui recs-summary (query derivada/lenta que muda devagar).
+  useRefreshTimer([["services"], ["recs-summary"]])
 
   const { data: services, isLoading } = useQuery<Service[]>({
     queryKey: ["services"],
     queryFn: () => api.get<Service[]>("/services"),
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const { data: recs } = useQuery<Record<string, { oom_events?: number; has_drift?: boolean; memory_trend?: { has_leak: boolean } }>>({
@@ -106,7 +105,7 @@ export default function Services() {
       for (const r of all || []) map[r.service] = r
       return map
     },
-    refetchInterval: fallbackInterval,
+    refetchInterval: false,
   })
 
   const archiveMutation = useMutation({

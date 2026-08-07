@@ -112,15 +112,9 @@ const TOPIC_QUERY_MAP: Record<string, string[][]> = {
   "container-detail": [],
 }
 
-// RECONCILE_QUERY_MAP: queries adicionais para a reconciliação 30s.
-// Inclui queries derivadas/lentas que NÃO são invalidadas a cada evento SSE
-// mas precisam de refresh periódico (recs-summary, etc).
-// A reconciliação 30s invalida TOPIC_QUERY_MAP[topic] + RECONCILE_QUERY_MAP[topic].
-const RECONCILE_QUERY_MAP: Record<string, string[][]> = {
-  // recs-summary muda lentamente — refresh 30s é suficiente.
-  // service-sparklines foi removido (substituído por risk_score no buildServicesList).
-  services: [["recs-summary"]],
-}
+// NOTA: queries derivadas/lentas (ex: recs-summary) que antes eram
+// invalidadas pela reconciliação 30s hardcoded agora são incluídas
+// no useRefreshTimer de cada página (Frente C — spec phase-intervals-refresh).
 
 export function useEventSource({
   topic,
@@ -314,28 +308,11 @@ export function useEventSource({
     }
   }, [connect, enabled, clearReconnectTimer])
 
-  // Reconciliação periódica (30s) — safety net para corrigir drift entre
-  // SSE e estado real do DB. Mesmo com setQueryData, pode haver drift se:
-  // - Um evento SSE for perdido (reconnect)
-  // - O payload SSE for stale no momento do publish
-  // - Múltiplos eventos chegarem fora de ordem
-  // A cada 30s, invalida as queries do tópico (TOPIC_QUERY_MAP) + queries
-  // derivadas/lentas (RECONCILE_QUERY_MAP) para forçar 1 refetch e garantir
-  // que o cache está sincronizado com o DB.
-  useEffect(() => {
-    if (!enabled) return
-    const RECONCILE_INTERVAL_MS = 30000
-    const interval = setInterval(() => {
-      const topicQueries = TOPIC_QUERY_MAP[topic] || []
-      const reconcileQueries = RECONCILE_QUERY_MAP[topic] || []
-      const allQueries = [...topicQueries, ...reconcileQueries]
-      if (allQueries.length > 0) {
-        globalCoalesce.qc = queryClient
-        globalCoalesce.schedule(allQueries)
-      }
-    }, RECONCILE_INTERVAL_MS)
-    return () => clearInterval(interval)
-  }, [enabled, topic, queryClient])
+  // NOTA: A reconciliação safety-net (antes hardcoded 30s aqui) foi movida
+  // para o hook useRefreshTimer (Frente C — spec phase-intervals-refresh).
+  // Cada página chama useRefreshTimer(queryKeys) com suas query keys, e o
+  // intervalo é controlado pelo dropdown de refresh (auto/5s/30s/1m/5m/off).
+  // Isso desacopla a reconciliação do SSE e dá controle ao usuário.
 
   const reconnect = useCallback(() => {
     reconnectAttemptsRef.current = 0
