@@ -188,10 +188,10 @@ export function getIntervalMs(mode: RefreshMode, collectInterval: number): numbe
 
 | Mudança | Risco | Mitigação |
 |---------|-------|-----------|
-| `STORAGE_INTERVAL` 300s→60s | I/O no disco 5x mais frequente | `df` é barato; volumes Docker são poucos; monitorar |
-| `CLUSTER_INTERVAL` 60s/300s→30s | Chamadas Docker API 2x–10x mais frequentes | Cluster info é leve (node list, não stats); aceitável |
-| `COLLECT_INTERVAL` 5s→15s (dev) | Devs podem achar sistema "mais lento" | Dev é o cenário onde 15s é o benchmark; aceitável |
-| `ROLLBACK_POLL_INTERVAL` 10s→30s | Detecção de rollback 20s mais lenta | Rollback é reativo, não tempo real; 30s é alert eval padrão |
+| `STORAGE_INTERVAL` 300s→60s | I/O no disco 5x mais frequente em produção | `df` é barato; volumes Docker são poucos; monitorar |
+| `CLUSTER_INTERVAL` 60s/300s→30s | Chamadas Docker API 2x–10x mais frequentes em produção | Cluster info é leve (node list, não stats); aceitável |
+| `COLLECT_INTERVAL` 5s→15s (dev) | Devs podem achar sistema "mais lento" | Override via `.env` local (ver seção 4.1.5); dev não é o cenário alvo dos defaults |
+| `ROLLBACK_POLL_INTERVAL` 10s→30s | Detecção de rollback 20s mais lenta | Rollback é reativo, não tempo real; 30s é alert eval padrão; override via `.env` em dev |
 
 ---
 
@@ -199,15 +199,22 @@ export function getIntervalMs(mode: RefreshMode, collectInterval: number): numbe
 
 ### 4.1 Frente A — Backend: intervalos de coleta alinhados aos benchmarks
 
-#### 4.1.1 Defaults alinhados
+> **Princípio:** os defaults em `config.go` (API e Agent) e em todos os arquivos de deploy (composes, stack) são **orientados a produção** — o cenário majoritário de usuários. Desenvolvedores podem sobrescrever via env vars locais se precisarem de coleta mais rápida (ver seção 4.1.5).
 
-| Env var | Default atual | Default proposto | Benchmark |
+#### 4.1.1 Defaults de produção (alinhados aos benchmarks)
+
+| Env var | Default atual | Default produção | Benchmark |
 |---------|---------------|------------------|-----------|
-| `RESMA_COLLECT_INTERVAL` | 10s/15s/5s (inconsistente) | **15s** (unificar) | cAdvisor 5s–15s; node_exporter 15s |
+| `RESMA_COLLECT_INTERVAL` | 10s/15s/5s (inconsistente) | **15s** (unificar) | cAdvisor 5s–15s; node_exporter 15s recomendado |
 | `RESMA_CLUSTER_INTERVAL` | 60s/300s (inconsistente) | **30s** | kube-prometheus 30s; cluster health muda rápido |
 | `RESMA_STORAGE_INTERVAL` | 300s/600s (arriscado) | **60s** | staleness ≤2m; df é barato |
 | `RESMA_AGENT_TASK_POLL_INTERVAL` | 15s | **15s** (manter) | heartbeat 15s padrão |
 | `RESMA_ROLLBACK_POLL_INTERVAL` | 30s/10s (inconsistente) | **30s** (unificar) | alert evaluation 30s crítico |
+
+**Onde aplicar (todos os arquivos usam os mesmos defaults de produção):**
+- `config.go` (API) — fallback quando env var não está setada
+- `config.go` (Agent) — fallback quando env var não está setada
+- `docker-compose.yml`, `docker-compose.swarm.yml`, `docker-compose.standalone.yml`, `docker-stack.yml`, `scripts/swarm-hpa-demo.yml` — todos explicitam os mesmos valores de produção
 
 #### 4.1.2 Novas env vars (tornar hardcoded configuráveis)
 
@@ -241,6 +248,37 @@ docker compose exec api go vet ./...
 docker compose exec api gofmt -l .
 docker compose exec api go test ./...
 ```
+
+#### 4.1.5 Override para desenvolvimento local
+
+Os defaults de produção (15s/30s/60s) são seguros para dev, mas desenvolvedores podem querer coleta mais rápida para iterar mais rápido. O override é via env vars locais — **não alterar os arquivos de deploy**.
+
+**Opção 1 — env vars no shell antes de subir a stack:**
+```bash
+# PowerShell (dev local com coleta rápida)
+$env:RESMA_COLLECT_INTERVAL="5"
+$env:RESMA_ROLLBACK_POLL_INTERVAL="10"
+docker compose up -d
+```
+
+**Opção 2 — arquivo `.env` na raiz do projeto (não commitado):**
+```env
+# .env (gitignored) — override local para dev
+RESMA_COLLECT_INTERVAL=5
+RESMA_ROLLBACK_POLL_INTERVAL=10
+```
+
+**Valores sugeridos para dev:**
+
+| Env var | Produção | Dev (override local) | Motivo |
+|---------|----------|----------------------|--------|
+| `RESMA_COLLECT_INTERVAL` | 15s | **5s** | Ver dados chegando rápido durante desenvolvimento |
+| `RESMA_CLUSTER_INTERVAL` | 30s | 30s (mesmo) | Não muda significativamente em dev |
+| `RESMA_STORAGE_INTERVAL` | 60s | 60s (mesmo) | Não muda significativamente em dev |
+| `RESMA_AGENT_TASK_POLL_INTERVAL` | 15s | 15s (mesmo) | Não muda significativamente em dev |
+| `RESMA_ROLLBACK_POLL_INTERVAL` | 30s | **10s** | Testar rollback mais rápido em dev |
+
+> **Importante:** o arquivo `.env` já é gitignored pelo RESMA (ver `.gitignore`). Desenvolvedores que precisarem de coleta rápida devem usar este mecanismo, não alterar os defaults dos arquivos de deploy.
 
 ---
 
@@ -374,6 +412,8 @@ cd frontend && pnpm build  # deve compilar sem erros
 │  • STORAGE_INTERVAL=60s   (staleness <2m)           │
 │  • SCHEDULER_POLL=15s     (env var nova)            │
 │  • SSE_KEEPALIVE=15s      (env var nova)            │
+│  • Defaults de PRODUÇÃO em todos os arquivos        │
+│  • Dev sobrescreve via .env local (ver 4.1.5)       │
 │  • Configurável via ParametersPage + env vars       │
 │  • SSE publica eventos na cadência da coleta        │
 └────────────────────┬────────────────────────────────┘
@@ -394,7 +434,7 @@ cd frontend && pnpm build  # deve compilar sem erros
 
 - 📏 **Coleta ≠ refresh** — desacoplados como no Grafana/Prometheus
 - ⏱️ **Intervalos via env vars** — nenhum hardcoded relevante (exceto retention/stale operacionais)
-- 📊 **Defaults baseados em benchmarks** — 15s/30s/60s alinhados à comunidade
+- 📊 **Defaults de produção** — 15s/30s/60s alinhados aos benchmarks da comunidade; dev sobrescreve via `.env`
 - 🎛️ **Dropdown funciona sempre** (futura Frente C) — SSE on/off, safety-net respeita dropdown
 - 🤖 **Auto faz sentido** — 30s fixo, não taxa de coleta
 - 🔗 **URL bookmarkable** (futuro) — estado compartilhável
