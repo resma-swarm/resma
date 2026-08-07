@@ -15,7 +15,21 @@
 #     -e INTERACTIVE=0 \
 #     -e STACK_NAME=resma \
 #     -e APP_PORT=8080 \
+#     -e RESMA_COLLECT_INTERVAL=15 \
+#     -e RESMA_STORAGE_INTERVAL=60 \
 #     resmaswarm/resma-install:latest
+#
+# Intervalos de coleta (defaults de produção, sobrescrevíveis via -e):
+#   RESMA_COLLECT_INTERVAL         (default 15s)  — coleta de containers
+#   RESMA_CLUSTER_INTERVAL         (default 30s)  — info do cluster Swarm
+#   RESMA_STORAGE_INTERVAL         (default 60s)  — métricas de storage
+#   RESMA_AGENT_TASK_POLL_INTERVAL (default 15s)  — poll de tasks + health agents
+#   RESMA_ROLLBACK_POLL_INTERVAL   (default 30s)  — poll do rollback watcher
+#   RESMA_SCHEDULER_POLL           (default 15s)  — poll do scheduler (avançado)
+#   RESMA_SSE_KEEPALIVE            (default 15s)  — keepalive SSE (avançado)
+#   RESMA_RETENTION_DAYS           (default 30)   — retenção de métricas (dias)
+#   RESMA_ANALYSIS_WINDOW_DAYS     (default 7)    — janela de análise ML (dias)
+#   RESMA_STALE_SERVICE_DAYS       (default 7)    — dias sem heartbeat → stale
 
 set -euo pipefail
 
@@ -41,6 +55,50 @@ STACK_NAME="${STACK_NAME:-resma}"
 APP_PORT="${APP_PORT:-8080}"
 IMAGE_PREFIX="${IMAGE_PREFIX:-docker.io/resmaswarm}"
 COMPOSE_FILE="/install/docker-stack.yml"
+
+# ---------- defaults de produção (intervalos de coleta) ----------
+# Estes valores são os benchmarks alinhados ao Prometheus/Grafana (ver spec
+# phase-intervals-refresh seção 4.1.1). O installer só precisa exportá-los
+# antes do `docker stack deploy` — o docker-stack.yml referencia via ${VAR:-default}.
+RESMA_COLLECT_INTERVAL="${RESMA_COLLECT_INTERVAL:-15}"
+RESMA_CLUSTER_INTERVAL="${RESMA_CLUSTER_INTERVAL:-30}"
+RESMA_STORAGE_INTERVAL="${RESMA_STORAGE_INTERVAL:-60}"
+RESMA_AGENT_TASK_POLL_INTERVAL="${RESMA_AGENT_TASK_POLL_INTERVAL:-15}"
+RESMA_ROLLBACK_POLL_INTERVAL="${RESMA_ROLLBACK_POLL_INTERVAL:-30}"
+RESMA_SCHEDULER_POLL="${RESMA_SCHEDULER_POLL:-15}"
+RESMA_SSE_KEEPALIVE="${RESMA_SSE_KEEPALIVE:-15}"
+RESMA_RETENTION_DAYS="${RESMA_RETENTION_DAYS:-30}"
+RESMA_ANALYSIS_WINDOW_DAYS="${RESMA_ANALYSIS_WINDOW_DAYS:-7}"
+RESMA_STALE_SERVICE_DAYS="${RESMA_STALE_SERVICE_DAYS:-7}"
+
+# ---------- validação de ranges ----------
+# Evita misconfiguration (ex: COLLECT_INTERVAL=0 que causaria busy loop).
+# Ranges definidos na spec phase-intervals-refresh seção 8.3.6.
+validate_range() {
+  local var="$1" val="$2" min="$3" max="$4" unit="$5"
+  if ! [[ "$val" =~ ^[0-9]+$ ]]; then
+    error "ERROR: $var='$val' não é um número inteiro válido."
+    exit 1
+  fi
+  if (( val < min || val > max )); then
+    error "ERROR: $var=$val fora do range permitido [$min..$max] $unit."
+    error "       Use um valor entre $min e $max. Override via -e $var=<valor>."
+    exit 1
+  fi
+}
+
+validate_intervals() {
+  validate_range RESMA_COLLECT_INTERVAL         "$RESMA_COLLECT_INTERVAL"         5  3600 "segundos"
+  validate_range RESMA_CLUSTER_INTERVAL         "$RESMA_CLUSTER_INTERVAL"         5  3600 "segundos"
+  validate_range RESMA_STORAGE_INTERVAL         "$RESMA_STORAGE_INTERVAL"        10  3600 "segundos"
+  validate_range RESMA_AGENT_TASK_POLL_INTERVAL "$RESMA_AGENT_TASK_POLL_INTERVAL" 5   300 "segundos"
+  validate_range RESMA_ROLLBACK_POLL_INTERVAL   "$RESMA_ROLLBACK_POLL_INTERVAL"  10   300 "segundos"
+  validate_range RESMA_SCHEDULER_POLL           "$RESMA_SCHEDULER_POLL"           5   300 "segundos"
+  validate_range RESMA_SSE_KEEPALIVE            "$RESMA_SSE_KEEPALIVE"            5    60 "segundos"
+  validate_range RESMA_RETENTION_DAYS           "$RESMA_RETENTION_DAYS"           1  3650 "dias"
+  validate_range RESMA_ANALYSIS_WINDOW_DAYS     "$RESMA_ANALYSIS_WINDOW_DAYS"     1   365 "dias"
+  validate_range RESMA_STALE_SERVICE_DAYS       "$RESMA_STALE_SERVICE_DAYS"       1   365 "dias"
+}
 
 # ---------- 1. validar docker + swarm ----------
 section "Checking prerequisites"
@@ -88,6 +146,36 @@ if [[ "$INTERACTIVE" == "1" ]]; then
   input "Enter application port [$APP_PORT]: "
   read -r choice
   APP_PORT="${choice:=$APP_PORT}"
+
+  # Collection intervals — defaults de produção sugeridos entre colchetes.
+  # Pressionar Enter aceita o default (não sobrecarrega o usuário comum).
+  section "Collection intervals (press Enter for production defaults)"
+  input "  Collect interval in seconds [$RESMA_COLLECT_INTERVAL]: "
+  read -r choice; RESMA_COLLECT_INTERVAL="${choice:=$RESMA_COLLECT_INTERVAL}"
+  input "  Cluster interval in seconds [$RESMA_CLUSTER_INTERVAL]: "
+  read -r choice; RESMA_CLUSTER_INTERVAL="${choice:=$RESMA_CLUSTER_INTERVAL}"
+  input "  Storage interval in seconds [$RESMA_STORAGE_INTERVAL]: "
+  read -r choice; RESMA_STORAGE_INTERVAL="${choice:=$RESMA_STORAGE_INTERVAL}"
+  input "  Agent task poll interval in seconds [$RESMA_AGENT_TASK_POLL_INTERVAL]: "
+  read -r choice; RESMA_AGENT_TASK_POLL_INTERVAL="${choice:=$RESMA_AGENT_TASK_POLL_INTERVAL}"
+  input "  Rollback poll interval in seconds [$RESMA_ROLLBACK_POLL_INTERVAL]: "
+  read -r choice; RESMA_ROLLBACK_POLL_INTERVAL="${choice:=$RESMA_ROLLBACK_POLL_INTERVAL}"
+  input "  Retention days [$RESMA_RETENTION_DAYS]: "
+  read -r choice; RESMA_RETENTION_DAYS="${choice:=$RESMA_RETENTION_DAYS}"
+  input "  Analysis window days [$RESMA_ANALYSIS_WINDOW_DAYS]: "
+  read -r choice; RESMA_ANALYSIS_WINDOW_DAYS="${choice:=$RESMA_ANALYSIS_WINDOW_DAYS}"
+  input "  Stale service days [$RESMA_STALE_SERVICE_DAYS]: "
+  read -r choice; RESMA_STALE_SERVICE_DAYS="${choice:=$RESMA_STALE_SERVICE_DAYS}"
+
+  # Intervalos avançados ficam atrás de um sub-prompt para não sobrecarregar.
+  input "  Customize advanced intervals? (y/N) [N]: "
+  read -r choice
+  if [[ "${choice,,}" == "y" || "${choice,,}" == "yes" ]]; then
+    input "    Scheduler poll interval in seconds [$RESMA_SCHEDULER_POLL]: "
+    read -r choice; RESMA_SCHEDULER_POLL="${choice:=$RESMA_SCHEDULER_POLL}"
+    input "    SSE keepalive interval in seconds [$RESMA_SSE_KEEPALIVE]: "
+    read -r choice; RESMA_SSE_KEEPALIVE="${choice:=$RESMA_SSE_KEEPALIVE}"
+  fi
 else
   echo "Stack name: $STACK_NAME"
   echo "Application port: $APP_PORT"
@@ -96,7 +184,16 @@ else
     error "SETUP FAILED — choose a different stack name."
     exit 1
   fi
+  echo "Collection intervals (production defaults):"
+  echo "  COLLECT=$RESMA_COLLECT_INTERVALs CLUSTER=$RESMA_CLUSTER_INTERVALs STORAGE=$RESMA_STORAGE_INTERVALs"
+  echo "  AGENT_TASK_POLL=$RESMA_AGENT_TASK_POLL_INTERVALs ROLLBACK_POLL=$RESMA_ROLLBACK_POLL_INTERVALs"
+  echo "  SCHEDULER_POLL=$RESMA_SCHEDULER_POLLs SSE_KEEPALIVE=$RESMA_SSE_KEEPALIVEs"
+  echo "  RETENTION=${RESMA_RETENTION_DAYS}d ANALYSIS_WINDOW=${RESMA_ANALYSIS_WINDOW_DAYS}d STALE_SERVICE=${RESMA_STALE_SERVICE_DAYS}d"
 fi
+
+# ---------- 2b. validar ranges dos intervalos ----------
+validate_intervals
+success "Interval values validated"
 
 # ---------- 3. gerar secrets ----------
 section "Generating Docker secrets"
@@ -136,6 +233,12 @@ success "Images pulled"
 
 # ---------- 6. deploy ----------
 section "Deploying stack"
+# Exportar todas as env vars de intervalo — o docker-stack.yml referencia via
+# ${VAR:-default}, e `docker stack deploy` herda o env do shell.
+export RESMA_COLLECT_INTERVAL RESMA_CLUSTER_INTERVAL RESMA_STORAGE_INTERVAL \
+       RESMA_AGENT_TASK_POLL_INTERVAL RESMA_ROLLBACK_POLL_INTERVAL \
+       RESMA_SCHEDULER_POLL RESMA_SSE_KEEPALIVE \
+       RESMA_RETENTION_DAYS RESMA_ANALYSIS_WINDOW_DAYS RESMA_STALE_SERVICE_DAYS
 RESMA_CORS_ORIGINS="${RESMA_CORS_ORIGINS:-http://localhost:${APP_PORT}}" \
   docker stack deploy -c "$COMPOSE_FILE" "$STACK_NAME"
 success "Stack deployed"

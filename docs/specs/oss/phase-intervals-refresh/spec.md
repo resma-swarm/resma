@@ -415,7 +415,7 @@ cd frontend && pnpm build  # deve compilar sem erros
 | Ordem | Frente | Descrição | Risco | Status |
 |-------|--------|-----------|-------|--------|
 | 1 | A | Backend: alinhar intervalos de coleta via env vars | Baixo (só defaults) | ✅ Concluído |
-| 2 | D | Installer/Upgrader: expor todas as env vars como parâmetros | Baixo (scripts bash) | Pendente |
+| 2 | D | Installer/Upgrader: expor todas as env vars como parâmetros | Baixo (scripts bash) | ✅ Concluído |
 | 3 | B | Frontend: desacoplar modo "auto" de `collect_interval` | Baixo (só store/hook) | Pendente |
 | 4 | C | Dropdown: disabled temporário | Baixo (1 arquivo) | Pendente |
 | 5 | C (futura) | Dropdown: implementação completa | Médio (11 páginas) | Pendente |

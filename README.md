@@ -60,6 +60,61 @@ docker run -it --rm \
   resmaswarm/resma-install:latest
 ```
 
+#### Customizar intervalos de coleta no install
+
+Os defaults de produção (15s/30s/60s) são alinhados aos benchmarks do
+Prometheus/Grafana. Para sobrescrever via env vars:
+
+```bash
+docker run -it --rm \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  -e INTERACTIVE=0 \
+  -e RESMA_COLLECT_INTERVAL=10 \
+  -e RESMA_STORAGE_INTERVAL=120 \
+  resmaswarm/resma-install:latest
+```
+
+| Parâmetro                     | Default | Range        | Descrição                                  |
+|-------------------------------|---------|--------------|--------------------------------------------|
+| `RESMA_COLLECT_INTERVAL`      | `15`    | 5–3600s      | Coleta de containers (api + agent)         |
+| `RESMA_CLUSTER_INTERVAL`      | `30`    | 5–3600s      | Info do cluster Swarm                      |
+| `RESMA_STORAGE_INTERVAL`      | `60`    | 10–3600s     | Métricas de storage (volumes/discos)       |
+| `RESMA_AGENT_TASK_POLL_INTERVAL` | `15` | 5–300s       | Poll de tasks + health de agents           |
+| `RESMA_ROLLBACK_POLL_INTERVAL`| `30`    | 10–300s      | Poll do rollback watcher                   |
+| `RESMA_SCHEDULER_POLL`        | `15`    | 5–300s       | Poll do scheduler (avançado)               |
+| `RESMA_SSE_KEEPALIVE`         | `15`    | 5–60s        | Keepalive ping do SSE broker (avançado)    |
+| `RESMA_RETENTION_DAYS`        | `30`    | 1–3650 dias  | Retenção de métricas antes da purga        |
+| `RESMA_ANALYSIS_WINDOW_DAYS`  | `7`     | 1–365 dias   | Janela de dados usada pela análise de ML   |
+| `RESMA_STALE_SERVICE_DAYS`    | `7`     | 1–365 dias   | Dias sem heartbeat para marcar stale       |
+
+> No modo interativo (`INTERACTIVE=1`, default), o installer pergunta os
+> intervalos com os defaults de produção sugeridos entre colchetes. Intervalos
+> avançados (scheduler, SSE keepalive) ficam atrás de um sub-prompt.
+
+#### Upgrade
+
+```bash
+docker run -it --rm \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  -e MODE=upgrade \
+  -e RESMA_VERSION=v0.2.0 \
+  resmaswarm/resma-install:latest
+```
+
+No upgrade, apenas as env vars explicitamente passadas são aplicadas via
+`docker service update --env-add` — as demais permanecem com o valor atual
+do service:
+
+```bash
+docker run -it --rm \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  -e MODE=upgrade \
+  -e RESMA_VERSION=v0.2.0 \
+  -e RESMA_COLLECT_INTERVAL=10 \
+  -e RESMA_STORAGE_INTERVAL=120 \
+  resmaswarm/resma-install:latest
+```
+
 ### Desinstalar
 
 ```bash
