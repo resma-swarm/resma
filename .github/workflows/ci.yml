@@ -132,7 +132,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Build API image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: app/api/Dockerfile
@@ -142,7 +142,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build ML image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: app/ml/Dockerfile
@@ -151,7 +151,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build Agent image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: app/agent/Dockerfile
@@ -161,7 +161,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build Installer image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: app/installer/Dockerfile
@@ -189,7 +189,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Push API image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: app/api/Dockerfile
@@ -201,7 +201,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Push ML image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: app/ml/Dockerfile
@@ -212,7 +212,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Push Agent image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: app/agent/Dockerfile
