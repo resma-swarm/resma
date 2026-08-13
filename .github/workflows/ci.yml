@@ -27,10 +27,11 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+          cache-dependency-path: app/api/go.sum
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: v2.9.0
           working-directory: app/api
 
   go-test:
@@ -45,6 +46,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+          cache-dependency-path: app/api/go.sum
       - name: Go test
         env:
           CGO_ENABLED: 1
@@ -62,6 +64,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+          cache-dependency-path: app/api/go.sum
       - run: go vet ./...
 
   gofmt-check:
@@ -76,6 +79,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+          cache-dependency-path: app/api/go.sum
       - run: |
           if [ -n "$(gofmt -l .)" ]; then
             echo "Arquivos não formatados:"
@@ -98,7 +102,6 @@ jobs:
       - run: pip install -r requirements.txt
       - run: pip install pytest httpx
       - run: pytest tests/ -v
-        continue-on-error: true # ML tests são opcionais nesta fase
 
   frontend-build:
     name: Frontend Build

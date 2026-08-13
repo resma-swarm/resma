@@ -127,7 +127,17 @@ html[data-theme='dark'] {
 }
 
 /* Navbar: links externos (GitHub etc.) não devem quebrar linha — o ícone de
- * "abrir externo" deve ficar sempre na mesma linha do label. */
-.navbar__item {
+ * "abrir externo" deve ficar sempre na mesma linha do label. O Infima coloca
+ * display:block nos links e no SVG, fazendo o ícone cair para a linha de baixo.
+ * inline-flex + gap alinha texto e ícone horizontalmente. */
+.navbar__item.navbar__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   white-space: nowrap;
+}
+
+.navbar__link svg {
+  display: inline-block !important;
+  flex-shrink: 0;
 }
