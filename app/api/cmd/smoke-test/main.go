@@ -245,7 +245,7 @@ func doRequestRaw(method, path string, body any, token string) (int, string) {
 	if err != nil {
 		return 0, err.Error()
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	b, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, string(b)
 }

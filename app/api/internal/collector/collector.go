@@ -380,7 +380,7 @@ func (c *Collector) syncServiceRegistry() {
 		c.log.Error("erro ao query services", "err", err)
 		return
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var svcName string

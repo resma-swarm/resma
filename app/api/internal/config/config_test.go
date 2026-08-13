@@ -9,7 +9,7 @@ import (
 func TestLoadDefaults(t *testing.T) {
 	// Limpar env vars relevantes
 	for _, k := range []string{"RESMA_DB_PATH", "RESMA_HTTP_ADDR", "RESMA_JWT_SECRET", "RESMA_ENV"} {
-		os.Unsetenv(k)
+		_ = os.Unsetenv(k)
 	}
 
 	cfg, err := Load()
@@ -32,8 +32,8 @@ func TestLoadDefaults(t *testing.T) {
 }
 
 func TestLoadCORSOrigins(t *testing.T) {
-	os.Setenv("RESMA_CORS_ORIGINS", "http://localhost:5173,http://localhost:8080,https://resma.example.com")
-	defer os.Unsetenv("RESMA_CORS_ORIGINS")
+	_ = os.Setenv("RESMA_CORS_ORIGINS", "http://localhost:5173,http://localhost:8080,https://resma.example.com")
+	defer func() { _ = os.Unsetenv("RESMA_CORS_ORIGINS") }()
 
 	cfg, err := Load()
 	if err != nil {
@@ -57,9 +57,9 @@ func TestJWTSecretFile(t *testing.T) {
 		t.Fatalf("WriteFile error: %v", err)
 	}
 
-	os.Unsetenv("RESMA_JWT_SECRET")
-	os.Setenv("RESMA_JWT_SECRET_FILE", secretFile)
-	defer os.Unsetenv("RESMA_JWT_SECRET_FILE")
+	_ = os.Unsetenv("RESMA_JWT_SECRET")
+	_ = os.Setenv("RESMA_JWT_SECRET_FILE", secretFile)
+	defer func() { _ = os.Unsetenv("RESMA_JWT_SECRET_FILE") }()
 
 	cfg, err := Load()
 	if err != nil {
@@ -72,11 +72,11 @@ func TestJWTSecretFile(t *testing.T) {
 }
 
 func TestProductionRejectsDefaultSecret(t *testing.T) {
-	os.Setenv("RESMA_ENV", "production")
-	os.Setenv("RESMA_JWT_SECRET", "dev-secret-change-me")
+	_ = os.Setenv("RESMA_ENV", "production")
+	_ = os.Setenv("RESMA_JWT_SECRET", "dev-secret-change-me")
 	defer func() {
-		os.Unsetenv("RESMA_ENV")
-		os.Unsetenv("RESMA_JWT_SECRET")
+		_ = os.Unsetenv("RESMA_ENV")
+		_ = os.Unsetenv("RESMA_JWT_SECRET")
 	}()
 
 	_, err := Load()
@@ -86,10 +86,10 @@ func TestProductionRejectsDefaultSecret(t *testing.T) {
 }
 
 func TestProductionRejectsEmptySecret(t *testing.T) {
-	os.Setenv("RESMA_ENV", "production")
-	os.Unsetenv("RESMA_JWT_SECRET")
-	os.Unsetenv("RESMA_JWT_SECRET_FILE")
-	defer os.Unsetenv("RESMA_ENV")
+	_ = os.Setenv("RESMA_ENV", "production")
+	_ = os.Unsetenv("RESMA_JWT_SECRET")
+	_ = os.Unsetenv("RESMA_JWT_SECRET_FILE")
+	defer func() { _ = os.Unsetenv("RESMA_ENV") }()
 
 	_, err := Load()
 	if err == nil {
@@ -98,11 +98,11 @@ func TestProductionRejectsEmptySecret(t *testing.T) {
 }
 
 func TestProductionAcceptsRealSecret(t *testing.T) {
-	os.Setenv("RESMA_ENV", "production")
-	os.Setenv("RESMA_JWT_SECRET", "a-real-production-secret-32-bytes-long!!")
+	_ = os.Setenv("RESMA_ENV", "production")
+	_ = os.Setenv("RESMA_JWT_SECRET", "a-real-production-secret-32-bytes-long!!")
 	defer func() {
-		os.Unsetenv("RESMA_ENV")
-		os.Unsetenv("RESMA_JWT_SECRET")
+		_ = os.Unsetenv("RESMA_ENV")
+		_ = os.Unsetenv("RESMA_JWT_SECRET")
 	}()
 
 	cfg, err := Load()

@@ -53,7 +53,7 @@ func main() {
 		logger.Error("duckdb init falhou", "err", err, "path", cfg.DBPath)
 		os.Exit(1)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	logger.Info("duckdb conectado", "path", cfg.DBPath)
 
 	// Docker SDK
@@ -61,7 +61,7 @@ func main() {
 	if err != nil {
 		logger.Warn("docker client init falhou (continuando em modo sem docker)", "err", err)
 	} else {
-		defer dockerCli.Close()
+		defer func() { _ = dockerCli.Close() }()
 		if err := dockerCli.Health(rootCtx); err != nil {
 			logger.Warn("docker daemon inacessível", "err", err)
 		} else {
