@@ -1,4 +1,6 @@
-# RESMA — golangci-lint config
+# RESMA — golangci-lint config (v2 format)
+version: "2"
+
 run:
   timeout: 5m
   go: "1.26"
@@ -17,9 +19,10 @@ linters:
     - revive
     - gocritic
 
-linters-settings:
+settings:
   goimports:
-    local-prefixes: github.com/resma/api
+    local-prefixes:
+      - github.com/resma/api
   gocritic:
     enabled-tags:
       - performance
@@ -27,11 +30,10 @@ linters-settings:
   revive:
     rules:
       - name: exported
-        disabled: true # nomes curtos são OK em Go
+        disabled: true
 
 issues:
   exclude-rules:
-    # Test files podem ter unused params e ser menos estritos
     - path: _test\.go
       linters:
         - gocritic
