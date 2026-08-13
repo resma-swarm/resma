@@ -6,11 +6,12 @@ returns 200 with the expected shape.
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# Add repo root to sys.path so 'app.ml.main' is importable
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
 from fastapi.testclient import TestClient
 
-from main import app
+from app.ml.main import app
 
 
 def test_health():
