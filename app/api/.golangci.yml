@@ -13,30 +13,35 @@ linters:
     - ineffassign
     - staticcheck
     - unused
-    - gofmt
-    - goimports
     - misspell
     - revive
     - gocritic
 
-settings:
-  goimports:
-    local-prefixes:
-      - github.com/resma/api
-  gocritic:
-    enabled-tags:
-      - performance
-      - style
-  revive:
-    rules:
-      - name: exported
-        disabled: true
+  settings:
+    gocritic:
+      enabled-tags:
+        - performance
+        - style
+    revive:
+      rules:
+        - name: exported
+          disabled: true
 
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gocritic
-        - revive
-  max-issues-per-linter: 0
-  max-same-issues: 0
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gocritic
+          - revive
+    max-issues-per-linter: 0
+    max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/resma/api
