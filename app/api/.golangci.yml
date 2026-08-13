@@ -1,4 +1,5 @@
-# RESMA — golangci-lint config (v2 format)
+# RESMA — golangci-lint config (v2)
+# Ref: https://golangci-lint.run/docs/configuration/file
 version: "2"
 
 run:
@@ -33,8 +34,10 @@ linters:
         linters:
           - gocritic
           - revive
-    max-issues-per-linter: 0
-    max-same-issues: 0
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
 
 formatters:
   enable:
