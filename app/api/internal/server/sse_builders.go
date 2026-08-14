@@ -36,7 +36,7 @@ func (s *Server) buildDashboardData(ctx context.Context) (map[string]any, error)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	type svcMetric struct {
 		Name   string
@@ -71,7 +71,7 @@ func (s *Server) buildDashboardData(ctx context.Context) (map[string]any, error)
 		}
 		activeContainerCount[svc] = cnt
 	}
-	activeContainersRows.Close()
+	_ = activeContainersRows.Close()
 
 	activeQuery := `SELECT DISTINCT service FROM metrics WHERE ts > now()::TIMESTAMP - INTERVAL 5 MINUTE`
 	activeRows, err := s.db.QueryContext(ctx, activeQuery)
@@ -86,7 +86,7 @@ func (s *Server) buildDashboardData(ctx context.Context) (map[string]any, error)
 		}
 		activeSet[svc] = true
 	}
-	activeRows.Close()
+	_ = activeRows.Close()
 
 	activeServices := make([]svcMetric, 0, len(services))
 	for _, sm := range services {
@@ -234,7 +234,7 @@ func (s *Server) buildServicesList(ctx context.Context) ([]map[string]any, error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	activeQuery := `SELECT service, count(DISTINCT container_id) as active
 		FROM metrics WHERE ts > now()::TIMESTAMP - INTERVAL 5 MINUTES GROUP BY service`
@@ -251,7 +251,7 @@ func (s *Server) buildServicesList(ctx context.Context) ([]map[string]any, error
 		}
 		activeMap[svc] = cnt
 	}
-	activeRows.Close()
+	_ = activeRows.Close()
 
 	// OOM count por serviço (1 query aggregada, não 1 por serviço)
 	oomMap := make(map[string]int32)
@@ -270,7 +270,7 @@ func (s *Server) buildServicesList(ctx context.Context) ([]map[string]any, error
 			}
 			oomMap[svc] = cnt
 		}
-		oomRows.Close()
+		_ = oomRows.Close()
 	}
 
 	// Leak/Drift do ML sidecar (cached, fallback graceful)
@@ -394,7 +394,7 @@ func (s *Server) buildServiceSparklines(ctx context.Context, points int) (map[st
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	result := make(map[string][]map[string]any)
 	for rows.Next() {
@@ -614,7 +614,7 @@ func (s *Server) buildOOMEvents(ctx context.Context, days int, service string) (
 		if err != nil {
 			return nil, err
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 		return scanOOMRows(rows), nil
 	}
 	stmt += " ORDER BY ts DESC LIMIT 200"
@@ -622,7 +622,7 @@ func (s *Server) buildOOMEvents(ctx context.Context, days int, service string) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanOOMRows(rows), nil
 }
 
@@ -872,7 +872,7 @@ func (s *Server) BuildServiceDetailData(ctx context.Context, service string) (ma
 		for oomRows.Next() {
 			_ = oomRows.Scan(&oomCount)
 		}
-		oomRows.Close()
+		_ = oomRows.Close()
 	}
 
 	// Leak/Drift do ML sidecar
@@ -939,7 +939,7 @@ func (s *Server) buildServiceMetricsDownsampled(ctx context.Context, service str
 		if err != nil {
 			return []map[string]any{}
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 		return scanMetricRows(rows)
 	}
 
@@ -962,7 +962,7 @@ func (s *Server) buildServiceMetricsDownsampled(ctx context.Context, service str
 	if err != nil {
 		return []map[string]any{}
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanMetricRows(rows)
 }
 
@@ -989,7 +989,7 @@ func (s *Server) buildContainerMetricsDownsampled(ctx context.Context, container
 		if err != nil {
 			return []map[string]any{}
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 		return scanMetricRows(rows)
 	}
 
@@ -1012,7 +1012,7 @@ func (s *Server) buildContainerMetricsDownsampled(ctx context.Context, container
 	if err != nil {
 		return []map[string]any{}
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanMetricRows(rows)
 }
 
@@ -1134,7 +1134,7 @@ func (s *Server) buildServiceContainersData(ctx context.Context, service string,
 	if err != nil {
 		return []map[string]any{}
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	runningIDs, _ := s.docker.GetRunningContainerIDs(ctx)
 	allContainers := s.docker.ListContainers()

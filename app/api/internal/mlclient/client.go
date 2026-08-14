@@ -44,7 +44,7 @@ func (c *Client) Health(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("ML sidecar health returned %d", resp.StatusCode)
 	}
@@ -101,7 +101,7 @@ func (c *Client) GetAlerts(ctx context.Context) (*AlertsResult, error) {
 		c.log.Warn("ML sidecar indisponível (alerts)", "url", url, "err", err)
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("ML sidecar returned %d: %s", resp.StatusCode, string(body))
@@ -139,7 +139,7 @@ func (c *Client) get(ctx context.Context, path string) (any, error) {
 		c.log.Warn("ML sidecar indisponível", "url", url, "err", err)
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("ML sidecar returned %d: %s", resp.StatusCode, string(body))

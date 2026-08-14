@@ -184,7 +184,7 @@ func (e *Executor) executeOne(item db.Schedule) {
 
 		// Registrar no change_log mesmo no caso de skip (valores já estavam aplicados)
 		// para que o ML sidecar detecte o apply e classifique como "observing".
-		e.db.AddChangeLog(ctx, db.ChangeLogEntry{
+		if _, err := e.db.AddChangeLog(ctx, db.ChangeLogEntry{
 			Service:              service,
 			Action:               "apply",
 			Source:               "schedule",
@@ -198,7 +198,9 @@ func (e *Executor) executeOne(item db.Schedule) {
 			CPUReservationAfter:  item.CPUReservation,
 			MemReservationAfter:  item.MemReservation,
 			Status:               "completed",
-		})
+		}); err != nil {
+			e.log.Error("erro ao registrar change_log (skip)", "err", err)
+		}
 
 		e.publishChangeLog("completed", service, scheduleID)
 		return
@@ -239,7 +241,7 @@ func (e *Executor) executeOne(item db.Schedule) {
 
 		// Registrar no change_log para que o ML sidecar detecte o apply via
 		// /api/internal/services/{service}/last-apply e classifique como "observing".
-		e.db.AddChangeLog(ctx, db.ChangeLogEntry{
+		if _, err := e.db.AddChangeLog(ctx, db.ChangeLogEntry{
 			Service:              service,
 			Action:               "apply",
 			Source:               "schedule",
@@ -253,7 +255,9 @@ func (e *Executor) executeOne(item db.Schedule) {
 			CPUReservationAfter:  item.CPUReservation,
 			MemReservationAfter:  item.MemReservation,
 			Status:               "completed",
-		})
+		}); err != nil {
+			e.log.Error("erro ao registrar change_log", "err", err)
+		}
 
 		e.publishChangeLog("completed", service, scheduleID)
 	} else {

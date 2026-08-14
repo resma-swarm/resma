@@ -37,7 +37,7 @@ type Client struct {
 // New cria o client Docker usando as variáveis padrão (DOCKER_HOST etc.).
 // Em produção dentro do Swarm, o socket /var/run/docker.sock é montado ro.
 func New(ctx context.Context) (*Client, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation()) //nolint:staticcheck // SA1019: migrate to client.New in a dedicated PR
 	if err != nil {
 		return nil, fmt.Errorf("docker client init: %w", err)
 	}

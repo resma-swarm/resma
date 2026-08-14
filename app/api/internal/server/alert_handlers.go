@@ -81,7 +81,7 @@ func (s *Server) handleAlerts(w http.ResponseWriter, r *http.Request) {
 			TS: ts.Format(time.RFC3339Nano),
 		})
 	}
-	oomRows.Close()
+	_ = oomRows.Close()
 
 	// --- Leaks e Drifts (ML sidecar) — estado derivado on-demand ---
 	// Fallback graceful: se o sidecar estiver indisponível, retornamos apenas

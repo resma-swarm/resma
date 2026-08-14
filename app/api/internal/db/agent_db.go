@@ -67,7 +67,7 @@ func (s *Store) GetAgents(ctx context.Context) ([]Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Agent
 	for rows.Next() {
 		var a Agent
@@ -155,7 +155,7 @@ func (s *Store) GetTasks(ctx context.Context) ([]Task, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Task
 	for rows.Next() {
 		var t Task
@@ -178,7 +178,7 @@ func (s *Store) GetTasksByService(ctx context.Context, service string) ([]Task, 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Task
 	for rows.Next() {
 		var t Task
@@ -253,7 +253,7 @@ func (s *Store) GetTaskHistory(ctx context.Context, service string, days int) ([
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []TaskHistoryPoint
 	for rows.Next() {
 		var p TaskHistoryPoint

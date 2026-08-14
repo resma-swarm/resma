@@ -85,7 +85,7 @@ func (c *Client) streamStatsOnce(ctx context.Context, containerID string) error 
 	if err != nil {
 		return err
 	}
-	defer result.Body.Close()
+	defer func() { _ = result.Body.Close() }()
 
 	dec := json.NewDecoder(result.Body)
 	for {
@@ -112,7 +112,7 @@ func (c *Client) GetStats(ctx context.Context, containerID string) (*Stats, erro
 		c.log.Error("erro ao obter stats", "id", containerID[:12], "err", err)
 		return nil, err
 	}
-	defer result.Body.Close()
+	defer func() { _ = result.Body.Close() }()
 
 	var raw container.StatsResponse
 	if err := json.NewDecoder(result.Body).Decode(&raw); err != nil {

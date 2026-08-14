@@ -113,7 +113,7 @@ func (s *Server) handleServiceMetrics(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 
 		result := []map[string]any{}
 		for rows.Next() {
@@ -157,7 +157,7 @@ func (s *Server) handleServiceMetrics(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	result := []map[string]any{}
 	for rows.Next() {
@@ -250,7 +250,7 @@ func (s *Server) handleServiceContainers(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	runningIDs, _ := s.docker.GetRunningContainerIDs(ctx)
 	allContainers := s.docker.ListContainers()
@@ -321,7 +321,7 @@ func (s *Server) handleContainerMetrics(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	result := []map[string]any{}
 	for rows.Next() {

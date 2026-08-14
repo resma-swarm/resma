@@ -142,7 +142,7 @@ func (s *Store) appendBatch(ctx context.Context, table string, fn func(*duckdb.A
 	if err != nil {
 		return fmt.Errorf("acquire conn for appender: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	var app *duckdb.Appender
 	if err := conn.Raw(func(driverConn any) error {
@@ -157,7 +157,7 @@ func (s *Store) appendBatch(ctx context.Context, table string, fn func(*duckdb.A
 		return fmt.Errorf("new appender for %q: %w", table, err)
 	}
 	// Close faz flush automático; erro de Close tem prioridade.
-	defer app.Close()
+	defer func() { _ = app.Close() }()
 
 	if err := fn(app); err != nil {
 		return err

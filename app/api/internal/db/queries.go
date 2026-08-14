@@ -331,7 +331,7 @@ func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []User
 	for rows.Next() {
 		var u User
@@ -480,7 +480,7 @@ func (s *Store) ListTemplates(ctx context.Context) ([]Template, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Template
 	for rows.Next() {
 		var t Template
@@ -658,7 +658,7 @@ func (s *Store) GetServiceRegistry(ctx context.Context) (map[string]ServiceRegis
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	out := make(map[string]ServiceRegistryEntry)
 	for rows.Next() {
 		var svc, status string
@@ -730,7 +730,7 @@ func (s *Store) GetNodes(ctx context.Context) ([]Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Node
 	for rows.Next() {
 		var n Node
@@ -823,7 +823,7 @@ func (s *Store) UpsertContainerNodeMapBatch(ctx context.Context, rows []Containe
 	if err != nil {
 		return fmt.Errorf("acquire conn for upsert: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Temp table é session-scoped (dropped on conn close). Criar/clear por batch.
 	if _, err := conn.ExecContext(ctx,
@@ -854,7 +854,7 @@ func (s *Store) UpsertContainerNodeMapBatch(ctx context.Context, rows []Containe
 		}); err != nil {
 			return fmt.Errorf("new appender for staging: %w", err)
 		}
-		defer app.Close()
+		defer func() { _ = app.Close() }()
 		for _, r := range rows {
 			if err := app.AppendRow(r.ContainerID, r.NodeID, r.Service, now); err != nil {
 				return fmt.Errorf("append staging row: %w", err)
@@ -900,7 +900,7 @@ func (s *Store) GetNodeMetrics(ctx context.Context, nodeID string, days int) ([]
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []NodeMetricPoint
 	for rows.Next() {
 		var p NodeMetricPoint
@@ -974,7 +974,7 @@ func (s *Store) GetNodeServices(ctx context.Context, nodeID string, analysisWind
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []NodeService
 	for rows.Next() {
 		var ns NodeService
@@ -1079,7 +1079,7 @@ func (s *Store) ListSchedules(ctx context.Context, status string) ([]Schedule, e
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Schedule
 	for rows.Next() {
 		var sch Schedule
@@ -1100,7 +1100,7 @@ func (s *Store) GetPendingSchedules(ctx context.Context) ([]Schedule, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Schedule
 	for rows.Next() {
 		var sch Schedule
@@ -1194,7 +1194,7 @@ func (s *Store) GetScheduleHistory(ctx context.Context, service string, limit in
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []Schedule
 	for rows.Next() {
 		var sch Schedule
@@ -1298,7 +1298,7 @@ func (s *Store) GetChangeLog(ctx context.Context, service string, limit int32) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []ChangeLogEntry
 	for rows.Next() {
 		var e ChangeLogEntry
@@ -1365,7 +1365,7 @@ func (s *Store) GetStorageTrend(ctx context.Context, days int) ([]StorageTrendPo
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []StorageTrendPoint
 	for rows.Next() {
 		var p StorageTrendPoint
@@ -1395,7 +1395,7 @@ func (s *Store) GetVolumeGrowth(ctx context.Context, volumeName string, days int
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []VolumeGrowthPoint
 	for rows.Next() {
 		var p VolumeGrowthPoint
@@ -1424,7 +1424,7 @@ func (s *Store) GetVolumeGrowthAll(ctx context.Context, days int) ([]VolumeGrowt
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []VolumeGrowthAllPoint
 	for rows.Next() {
 		var p VolumeGrowthAllPoint
@@ -1483,7 +1483,7 @@ func (s *Store) ListAPIKeys(ctx context.Context) ([]APIKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []APIKey
 	for rows.Next() {
 		var k APIKey
@@ -1544,7 +1544,7 @@ func (s *Store) GetServiceMetricsRaw(ctx context.Context, service string, days i
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var result []MetricRow
 	for rows.Next() {
 		var r MetricRow
@@ -1581,7 +1581,7 @@ func (s *Store) GetServicesWithMetrics(ctx context.Context, days int) ([]string,
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var services []string
 	for rows.Next() {
 		var svc string
@@ -1603,7 +1603,7 @@ func (s *Store) GetActiveServices(ctx context.Context, minutes int) ([]string, e
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var services []string
 	for rows.Next() {
 		var svc string
@@ -1650,7 +1650,7 @@ func (s *Store) GetVolumeMetricsRaw(ctx context.Context, days int) ([]VolumeMetr
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var result []VolumeMetricRow
 	for rows.Next() {
 		var r VolumeMetricRow
@@ -1746,7 +1746,7 @@ func (s *Store) GetActiveRollbackWatches(ctx context.Context) ([]RollbackWatch, 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var result []RollbackWatch
 	for rows.Next() {
 		w, err := scanRollbackWatch(rows)
@@ -1794,7 +1794,7 @@ func (s *Store) ListRollbackWatches(ctx context.Context, status, service string,
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var result []RollbackWatch
 	for rows.Next() {
 		w, err := scanRollbackWatch(rows)
@@ -1832,7 +1832,7 @@ func (s *Store) GetMetricsSince(ctx context.Context, service string, since time.
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var result []MetricRow
 	for rows.Next() {
 		var r MetricRow
