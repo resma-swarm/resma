@@ -3,23 +3,37 @@
 # RESMA Installer — roda dentro de um container Docker com docker.sock montado.
 # Gera secrets, faz pull das imagens, deploya o stack e aguarda healthcheck.
 #
-# Uso (one-liner):
+# Uso (one-liner interativo):
 #   docker run -it --rm \
 #     --name resma-installer \
 #     --volume /var/run/docker.sock:/var/run/docker.sock \
 #     resmaswarm/resma-install:latest
 #
-# Modo não-interativo:
+# Uso com flags (não-interativo, estilo Docker install):
 #   docker run -it --rm \
 #     --volume /var/run/docker.sock:/var/run/docker.sock \
-#     -e INTERACTIVE=0 \
-#     -e STACK_NAME=resma \
-#     -e APP_PORT=8080 \
-#     -e RESMA_COLLECT_INTERVAL=15 \
-#     -e RESMA_STORAGE_INTERVAL=60 \
-#     resmaswarm/resma-install:latest
+#     resmaswarm/resma-install:latest \
+#     --no-input \
+#     --stack-name resma \
+#     --port 8080 \
+#     --network captain-overlay-network
 #
-# Intervalos de coleta (defaults de produção, sobrescrevíveis via -e):
+# Flags disponíveis:
+#   --no-input                  Desativa prompts interativos (usa defaults ou env vars)
+#   --stack-name <name>         Nome do stack (default: resma)
+#   --port <port>               Porta publicada (default: 8080)
+#   --network <name>            Rede overlay externa adicional (repeatable ou CSV)
+#   --image-prefix <prefix>     Prefixo das imagens (default: docker.io/resmaswarm)
+#   --version <version>         Versão das imagens (default: latest)
+#   --help, -h                  Mostra esta ajuda
+#
+# Compatibilidade com env vars (flags têm precedência):
+#   -e INTERACTIVE=0            Equivalente a --no-input
+#   -e STACK_NAME=resma         Equivalente a --stack-name
+#   -e APP_PORT=8080            Equivalente a --port
+#   -e IMAGE_PREFIX=...         Equivalente a --image-prefix
+#
+# Intervalos de coleta (via env vars, sobrescrevíveis):
 #   RESMA_COLLECT_INTERVAL         (default 15s)  — coleta de containers
 #   RESMA_CLUSTER_INTERVAL         (default 30s)  — info do cluster Swarm
 #   RESMA_STORAGE_INTERVAL         (default 60s)  — métricas de storage
@@ -42,18 +56,18 @@ title()   { echo -e "${BC}$1${NC}"; }
 section() { echo -e "\n${UC}$1${NC}"; }
 input()   { printf "$1"; }
 
-# ---------- banner ----------
-cat /install/logo.txt
-echo
-title "Welcome to RESMA — RESource MAnager for Docker Swarm"
-echo "Version: ${VERSION:-latest}"
-echo
+# ---------- help ----------
+print_help() {
+  sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
+  exit 0
+}
 
-# ---------- defaults ----------
+# ---------- defaults (env vars, antes do parsing de flags) ----------
 INTERACTIVE="${INTERACTIVE:-1}"
 STACK_NAME="${STACK_NAME:-resma}"
 APP_PORT="${APP_PORT:-8080}"
 IMAGE_PREFIX="${IMAGE_PREFIX:-docker.io/resmaswarm}"
+VERSION="${VERSION:-latest}"
 COMPOSE_FILE="/install/docker-stack.yml"
 
 # ---------- defaults de produção (intervalos de coleta) ----------
@@ -70,6 +84,94 @@ RESMA_SSE_KEEPALIVE="${RESMA_SSE_KEEPALIVE:-15}"
 RESMA_RETENTION_DAYS="${RESMA_RETENTION_DAYS:-30}"
 RESMA_ANALYSIS_WINDOW_DAYS="${RESMA_ANALYSIS_WINDOW_DAYS:-7}"
 RESMA_STALE_SERVICE_DAYS="${RESMA_STALE_SERVICE_DAYS:-7}"
+
+# ---------- parse flags ----------
+EXTRA_NETWORKS=()
+ANY_FLAG_PASSED=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --no-input)
+      INTERACTIVE=0
+      ANY_FLAG_PASSED=1
+      shift
+      ;;
+    --network)
+      ANY_FLAG_PASSED=1
+      shift
+      if [[ $# -eq 0 || "$1" == --* ]]; then
+        error "ERROR: --network requires a value"
+        exit 1
+      fi
+      IFS=',' read -ra NETS <<< "$1"
+      for net in "${NETS[@]}"; do
+        EXTRA_NETWORKS+=("$(echo "$net" | xargs)")  # trim whitespace
+      done
+      shift
+      ;;
+    --stack-name)
+      ANY_FLAG_PASSED=1
+      shift
+      if [[ $# -eq 0 || "$1" == --* ]]; then
+        error "ERROR: --stack-name requires a value"
+        exit 1
+      fi
+      STACK_NAME="$1"
+      shift
+      ;;
+    --port)
+      ANY_FLAG_PASSED=1
+      shift
+      if [[ $# -eq 0 || "$1" == --* ]]; then
+        error "ERROR: --port requires a value"
+        exit 1
+      fi
+      APP_PORT="$1"
+      shift
+      ;;
+    --image-prefix)
+      ANY_FLAG_PASSED=1
+      shift
+      if [[ $# -eq 0 || "$1" == --* ]]; then
+        error "ERROR: --image-prefix requires a value"
+        exit 1
+      fi
+      IMAGE_PREFIX="$1"
+      shift
+      ;;
+    --version)
+      ANY_FLAG_PASSED=1
+      shift
+      if [[ $# -eq 0 || "$1" == --* ]]; then
+        error "ERROR: --version requires a value"
+        exit 1
+      fi
+      VERSION="$1"
+      shift
+      ;;
+    --help|-h)
+      print_help
+      ;;
+    *)
+      error "ERROR: Unknown option: $1"
+      error "  Run with --help for usage."
+      exit 1
+      ;;
+  esac
+done
+
+# Auto-detect: se qualquer flag foi passada, desliga modo interativo.
+# Convenção de mercado: flags na linha de comando implicam automação (CI/CD).
+if [[ "$ANY_FLAG_PASSED" == "1" && "$INTERACTIVE" == "1" ]]; then
+  INTERACTIVE=0
+fi
+
+# ---------- banner ----------
+cat /install/logo.txt
+echo
+title "Welcome to RESMA — RESource MAnager for Docker Swarm"
+echo "Version: ${VERSION}"
+echo
 
 # ---------- validação de ranges ----------
 # Evita misconfiguration (ex: COLLECT_INTERVAL=0 que causaria busy loop).
@@ -179,6 +281,9 @@ if [[ "$INTERACTIVE" == "1" ]]; then
 else
   echo "Stack name: $STACK_NAME"
   echo "Application port: $APP_PORT"
+  if [[ ${#EXTRA_NETWORKS[@]} -gt 0 ]]; then
+    echo "Extra networks: ${EXTRA_NETWORKS[*]}"
+  fi
   if docker stack ps "$STACK_NAME" >/dev/null 2>&1; then
     warning "Stack [$STACK_NAME] already exists!"
     error "SETUP FAILED — choose a different stack name."
@@ -221,14 +326,41 @@ if [[ "$APP_PORT" != "8080" ]]; then
   sed -i "s|published: 8080|published: $APP_PORT|" "$COMPOSE_FILE"
 fi
 
+# ---------- 4b. gerar override de redes externas ----------
+# Se --network foi passada, gera um override file que adiciona as redes
+# externas a TODOS os serviços (api, ml, agent). O override inclui resma-net
+# porque Docker Compose substitui (não faz merge) a lista de networks.
+OVERRIDE_FILE=""
+if [[ ${#EXTRA_NETWORKS[@]} -gt 0 ]]; then
+  OVERRIDE_FILE="/tmp/resma-networks-override.yml"
+  {
+    echo "services:"
+    for svc in api ml agent; do
+      echo "  $svc:"
+      echo "    networks:"
+      echo "      - resma-net"
+      for net in "${EXTRA_NETWORKS[@]}"; do
+        echo "      - $net"
+      done
+    done
+    echo ""
+    echo "networks:"
+    for net in "${EXTRA_NETWORKS[@]}"; do
+      echo "  $net:"
+      echo "    external: true"
+    done
+  } > "$OVERRIDE_FILE"
+  success "Networks override generated: ${EXTRA_NETWORKS[*]}"
+fi
+
 # ---------- 5. pull imagens ----------
 section "Pulling images"
-echo "  - ${IMAGE_PREFIX}/resma-api:latest"
-docker pull "${IMAGE_PREFIX}/resma-api:latest"
-echo "  - ${IMAGE_PREFIX}/resma-ml:latest"
-docker pull "${IMAGE_PREFIX}/resma-ml:latest"
-echo "  - ${IMAGE_PREFIX}/resma-agent:latest"
-docker pull "${IMAGE_PREFIX}/resma-agent:latest"
+echo "  - ${IMAGE_PREFIX}/resma-api:${VERSION}"
+docker pull "${IMAGE_PREFIX}/resma-api:${VERSION}"
+echo "  - ${IMAGE_PREFIX}/resma-ml:${VERSION}"
+docker pull "${IMAGE_PREFIX}/resma-ml:${VERSION}"
+echo "  - ${IMAGE_PREFIX}/resma-agent:${VERSION}"
+docker pull "${IMAGE_PREFIX}/resma-agent:${VERSION}"
 success "Images pulled"
 
 # ---------- 6. deploy ----------
@@ -239,8 +371,15 @@ export RESMA_COLLECT_INTERVAL RESMA_CLUSTER_INTERVAL RESMA_STORAGE_INTERVAL \
        RESMA_AGENT_TASK_POLL_INTERVAL RESMA_ROLLBACK_POLL_INTERVAL \
        RESMA_SCHEDULER_POLL RESMA_SSE_KEEPALIVE \
        RESMA_RETENTION_DAYS RESMA_ANALYSIS_WINDOW_DAYS RESMA_STALE_SERVICE_DAYS
+
+DEPLOY_CMD="docker stack deploy -c \"$COMPOSE_FILE\""
+if [[ -n "$OVERRIDE_FILE" ]]; then
+  DEPLOY_CMD="$DEPLOY_CMD -c \"$OVERRIDE_FILE\""
+fi
+DEPLOY_CMD="$DEPLOY_CMD \"$STACK_NAME\""
+
 RESMA_CORS_ORIGINS="${RESMA_CORS_ORIGINS:-http://localhost:${APP_PORT}}" \
-  docker stack deploy -c "$COMPOSE_FILE" "$STACK_NAME"
+  eval "$DEPLOY_CMD"
 success "Stack deployed"
 
 # ---------- 7. aguardar healthcheck ----------
