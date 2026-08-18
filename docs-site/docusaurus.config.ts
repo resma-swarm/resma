@@ -8,13 +8,13 @@ const config: Config = {
   favicon: 'img/favicon.ico',
 
   // Set the production url of your site here
-  url: 'https://USER.github.io',
+  url: 'https://resma-swarm.github.io',
   // Set the /<baseUrl>/ pathname under which your site is served
   baseUrl: '/resma/',
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'USER', // Usually your GitHub org/user name.
+  organizationName: 'resma-swarm', // Usually your GitHub org/user name.
   projectName: 'resma', // Usually your repo name.
 
   onBrokenLinks: 'throw',
