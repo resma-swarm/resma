@@ -21,7 +21,11 @@
 # Flags disponíveis:
 #   --no-input                  Desativa prompts interativos (usa defaults ou env vars)
 #   --stack-name <name>         Nome do stack (default: resma)
-#   --port <port>               Porta publicada (default: 8080)
+#   --port <port>               Porta publicada da UI/API (default: 8080)
+#   --domain <domain>           Domínio público para Traefik + TLS (default: vazio = sem proxy)
+#   --tls <auto|internal|none>  Modo TLS (default: auto — ACME se domínio público, internal se .local)
+#   --disable-ui                Desabilita o frontend (modo headless para CLI-only)
+#   --install-cli               Instala o binário resma-cli em /usr/local/bin do host
 #   --network <name>            Rede overlay externa adicional (repeatable ou CSV)
 #   --image-prefix <prefix>     Prefixo das imagens (default: docker.io/resmaswarm)
 #   --version <version>         Versão das imagens (default: latest)
@@ -31,6 +35,10 @@
 #   -e INTERACTIVE=0            Equivalente a --no-input
 #   -e STACK_NAME=resma         Equivalente a --stack-name
 #   -e APP_PORT=8080            Equivalente a --port
+#   -e RESMA_DOMAIN=foo.com     Equivalente a --domain
+#   -e RESMA_TLS_MODE=auto      Equivalente a --tls
+#   -e RESMA_DISABLE_UI=1       Equivalente a --disable-ui
+#   -e RESMA_INSTALL_CLI=1      Equivalente a --install-cli
 #   -e IMAGE_PREFIX=...         Equivalente a --image-prefix
 #
 # Intervalos de coleta (via env vars, sobrescrevíveis):
@@ -69,6 +77,12 @@ APP_PORT="${APP_PORT:-8080}"
 IMAGE_PREFIX="${IMAGE_PREFIX:-docker.io/resmaswarm}"
 VERSION="${VERSION:-latest}"
 COMPOSE_FILE="/install/docker-stack.yml"
+
+# Proxy / UI / CLI (novos)
+RESMA_DOMAIN="${RESMA_DOMAIN:-}"
+RESMA_TLS_MODE="${RESMA_TLS_MODE:-auto}"
+RESMA_DISABLE_UI="${RESMA_DISABLE_UI:-0}"
+RESMA_INSTALL_CLI="${RESMA_INSTALL_CLI:-0}"
 
 # ---------- defaults de produção (intervalos de coleta) ----------
 # Estes valores são os benchmarks alinhados ao Prometheus/Grafana (ver spec
@@ -127,6 +141,39 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       APP_PORT="$1"
+      shift
+      ;;
+    --domain)
+      ANY_FLAG_PASSED=1
+      shift
+      if [[ $# -eq 0 || "$1" == --* ]]; then
+        error "ERROR: --domain requires a value"
+        exit 1
+      fi
+      RESMA_DOMAIN="$1"
+      shift
+      ;;
+    --tls)
+      ANY_FLAG_PASSED=1
+      shift
+      if [[ $# -eq 0 || "$1" == --* ]]; then
+        error "ERROR: --tls requires a value (auto|internal|none)"
+        exit 1
+      fi
+      case "$1" in
+        auto|internal|none) RESMA_TLS_MODE="$1" ;;
+        *) error "ERROR: --tls must be auto, internal, or none"; exit 1 ;;
+      esac
+      shift
+      ;;
+    --disable-ui)
+      ANY_FLAG_PASSED=1
+      RESMA_DISABLE_UI=1
+      shift
+      ;;
+    --install-cli)
+      ANY_FLAG_PASSED=1
+      RESMA_INSTALL_CLI=1
       shift
       ;;
     --image-prefix)
@@ -244,10 +291,40 @@ if [[ "$INTERACTIVE" == "1" ]]; then
     fi
   done
 
-  # Port
-  input "Enter application port [$APP_PORT]: "
+  # Disable UI? (modo headless para CLI-only)
+  input "Disable web UI (headless mode for CLI-only)? (y/N) [N]: "
   read -r choice
-  APP_PORT="${choice:=$APP_PORT}"
+  if [[ "${choice,,}" == "y" || "${choice,,}" == "yes" ]]; then
+    RESMA_DISABLE_UI=1
+  fi
+
+  # Domain — só perguntado se UI não foi desabilitada (ou até mesmo se foi?
+  # Decisão: mesmo com --disable-ui, o domain faz sentido para API com TLS).
+  # Mas por simplicidade e alinhado ao acordado: disable-ui ignora Traefik.
+  if [[ "$RESMA_DISABLE_UI" != "1" ]]; then
+    section "Domain (optional)"
+    echo "  Leave blank to access via IP:port (no proxy, no TLS)."
+    echo "  Enter a domain to enable Traefik reverse proxy + TLS."
+    echo "  Examples: resma.local (self-signed), resma.example.com (Let's Encrypt)."
+    input "  Domain [blank]: "
+    read -r choice
+    RESMA_DOMAIN="${choice:-$RESMA_DOMAIN}"
+  fi
+
+  # Port — só perguntada se SEM domain (com domain, Traefik ocupa 80/443).
+  # Com --disable-ui, a porta ainda é a da API (acesso CLI via IP:porta).
+  if [[ -z "$RESMA_DOMAIN" ]]; then
+    input "Enter application port [$APP_PORT]: "
+    read -r choice
+    APP_PORT="${choice:=$APP_PORT}"
+  fi
+
+  # Install CLI?
+  input "Install resma-cli to /usr/local/bin on this host? (y/N) [N]: "
+  read -r choice
+  if [[ "${choice,,}" == "y" || "${choice,,}" == "yes" ]]; then
+    RESMA_INSTALL_CLI=1
+  fi
 
   # Collection intervals — defaults de produção sugeridos entre colchetes.
   # Pressionar Enter aceita o default (não sobrecarrega o usuário comum).
@@ -281,6 +358,10 @@ if [[ "$INTERACTIVE" == "1" ]]; then
 else
   echo "Stack name: $STACK_NAME"
   echo "Application port: $APP_PORT"
+  echo "Domain: ${RESMA_DOMAIN:-<none>}"
+  echo "TLS mode: $RESMA_TLS_MODE"
+  echo "Disable UI: $RESMA_DISABLE_UI"
+  echo "Install CLI: $RESMA_INSTALL_CLI"
   if [[ ${#EXTRA_NETWORKS[@]} -gt 0 ]]; then
     echo "Extra networks: ${EXTRA_NETWORKS[*]}"
   fi
@@ -321,27 +402,39 @@ AGENT_TOKEN=$(openssl rand -hex 32)
 echo -n "$AGENT_TOKEN" | docker secret create resma_agent_token -
 success "Secret resma_agent_token created"
 
-# ---------- 4. ajustar compose file (porta) ----------
-if [[ "$APP_PORT" != "8080" ]]; then
+# ---------- 4. ajustar compose file (porta + UI) ----------
+# Só reescreve a porta publicada se não houver domain (com domain, o Traefik
+# ocupa 80/443 e a porta 8080 do api fica interna apenas).
+if [[ "$APP_PORT" != "8080" && -z "$RESMA_DOMAIN" ]]; then
   sed -i "s|published: 8080|published: $APP_PORT|" "$COMPOSE_FILE"
+fi
+# Com domain, remover a publicação da porta 8080 (acesso só via Traefik).
+if [[ -n "$RESMA_DOMAIN" ]]; then
+  sed -i '/published: 8080/d; /mode: host/d' "$COMPOSE_FILE"
+fi
+# --disable-ui: setar RESMA_WEB_DIR vazio via sed (docker stack deploy não
+# faz merge de env vars individuais via override file — sed é mais confiável).
+if [[ "$RESMA_DISABLE_UI" == "1" ]]; then
+  sed -i 's|RESMA_WEB_DIR: ${RESMA_WEB_DIR:-/app/web}|RESMA_WEB_DIR: ""|' "$COMPOSE_FILE"
+  success "UI disabled (headless mode — RESMA_WEB_DIR empty)"
 fi
 
 # ---------- 4b. gerar override de redes externas ----------
 # Se --network foi passada, gera um override file que adiciona as redes
-# externas a TODOS os serviços (api, ml, agent). O override inclui resma-net
-# porque Docker Compose substitui (não faz merge) a lista de networks.
+# externas APENAS ao service api (não ao ml/agent — esses são internos e
+# não precisam ser alcançáveis por proxies externos como CapRover).
+# O override inclui resma-net porque Docker Compose substitui (não faz merge)
+# a lista de networks.
 OVERRIDE_FILE=""
 if [[ ${#EXTRA_NETWORKS[@]} -gt 0 ]]; then
   OVERRIDE_FILE="/tmp/resma-networks-override.yml"
   {
     echo "services:"
-    for svc in api ml agent; do
-      echo "  $svc:"
-      echo "    networks:"
-      echo "      - resma-net"
-      for net in "${EXTRA_NETWORKS[@]}"; do
-        echo "      - $net"
-      done
+    echo "  api:"
+    echo "    networks:"
+    echo "      - resma-net"
+    for net in "${EXTRA_NETWORKS[@]}"; do
+      echo "      - $net"
     done
     echo ""
     echo "networks:"
@@ -353,6 +446,125 @@ if [[ ${#EXTRA_NETWORKS[@]} -gt 0 ]]; then
   success "Networks override generated: ${EXTRA_NETWORKS[*]}"
 fi
 
+# ---------- 4c. gerar override de proxy (Traefik) ----------
+# Se --domain foi passado, gera um override file que:
+#   1. Adiciona o service proxy (Traefik v3) na mesma resma-net
+#   2. Adiciona labels Traefik no service api para rotear Host(${DOMAIN}) → api:8080
+#   3. Configura TLS (ACME se domínio público, internal se .local, none se --tls=none)
+# Tudo na mesma rede resma-net — zero configuração de rede cross-stack.
+PROXY_OVERRIDE_FILE=""
+if [[ -n "$RESMA_DOMAIN" ]]; then
+  PROXY_OVERRIDE_FILE="/tmp/resma-proxy-override.yml"
+
+  # Determinar modo TLS:
+  #   - --tls=none        → HTTP-only na porta 80, sem TLS
+  #   - --tls=internal    → HTTPS na 443 com cert self-signed do Traefik
+  #   - --tls=auto        → ACME TLS-ALPN-01 se domínio NÃO termina em .local
+  #                        → internal se termina em .local
+  USE_ACME=0
+  USE_INTERNAL_TLS=0
+  case "$RESMA_TLS_MODE" in
+    none)      : ;;  # sem TLS
+    internal)  USE_INTERNAL_TLS=1 ;;
+    auto)
+      if [[ "$RESMA_DOMAIN" == *.local ]]; then
+        USE_INTERNAL_TLS=1
+      else
+        USE_ACME=1
+      fi
+      ;;
+  esac
+
+  # Email para ACME — obrigatório se ACME. Default genérico se não fornecido.
+  ACME_EMAIL="${RESMA_ACME_EMAIL:-admin@${RESMA_DOMAIN}}"
+
+  {
+    echo "services:"
+    echo "  api:"
+    echo "    deploy:"
+    echo "      labels:"
+    echo "        - traefik.enable=true"
+    echo "        - traefik.http.routers.resma.rule=Host(\`${RESMA_DOMAIN}\`)"
+    if [[ "$RESMA_TLS_MODE" == "none" ]]; then
+      echo "        - traefik.http.routers.resma.entrypoints=web"
+    else
+      echo "        - traefik.http.routers.resma.entrypoints=websecure"
+      echo "        - traefik.http.routers.resma.tls=true"
+      if [[ "$USE_ACME" == "1" ]]; then
+        echo "        - traefik.http.routers.resma.tls.certresolver=letsencrypt"
+      fi
+    fi
+    echo "        - traefik.http.services.resma.loadbalancer.server.port=8080"
+    # SSE: desabilitar bufferização para streaming funcionar atrás do proxy
+    echo "        - traefik.http.middlewares.resma-sse.headers.customResponseHeaders.X-Accel-Buffering=no"
+    echo "        - traefik.http.routers.resma.middlewares=resma-sse"
+    echo ""
+    echo "  proxy:"
+    echo "    image: traefik:v3.7.10"
+    echo "    command:"
+    echo "      - --entrypoints.web.address=:80"
+    echo "      - --providers.swarm.endpoint=unix:///var/run/docker.sock"
+    echo "      - --providers.swarm.exposedbydefault=false"
+    echo "      - --providers.swarm.network=${STACK_NAME}_resma-net"
+    echo "      - --log.level=INFO"
+    echo "      - --accesslog=true"
+    if [[ "$RESMA_TLS_MODE" != "none" ]]; then
+      echo "      - --entrypoints.websecure.address=:443"
+      echo "      - --entrypoints.web.http.redirections.entrypoint.to=websecure"
+      echo "      - --entrypoints.web.http.redirections.entrypoint.scheme=https"
+      echo "      - --entrypoints.web.http.redirections.entrypoint.permanent=true"
+      if [[ "$USE_ACME" == "1" ]]; then
+        echo "      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+        echo "      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+        echo "      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      fi
+    fi
+    echo "    volumes:"
+    echo "      - /var/run/docker.sock:/var/run/docker.sock:ro"
+    if [[ "$USE_ACME" == "1" ]]; then
+      echo "      - resma-letsencrypt:/letsencrypt"
+    fi
+    echo "    ports:"
+    echo "      - target: 80"
+    echo "        published: 80"
+    echo "        protocol: tcp"
+    echo "        mode: host"
+    if [[ "$RESMA_TLS_MODE" != "none" ]]; then
+      echo "      - target: 443"
+      echo "        published: 443"
+      echo "        protocol: tcp"
+      echo "        mode: host"
+    fi
+    echo "    deploy:"
+    echo "      placement:"
+    echo "        constraints:"
+    echo "          - node.role == manager"
+    echo "      resources:"
+    echo "        reservations:"
+    echo "          cpus: \"0.05\""
+    echo "          memory: 32M"
+    echo "      restart_policy:"
+    echo "        condition: on-failure"
+    echo "        max_attempts: 3"
+    echo "    networks:"
+    echo "      - resma-net"
+    echo ""
+    if [[ "$USE_ACME" == "1" ]]; then
+      echo "volumes:"
+      echo "  resma-letsencrypt:"
+      echo ""
+    fi
+  } > "$PROXY_OVERRIDE_FILE"
+
+  if [[ "$USE_ACME" == "1" ]]; then
+    success "Proxy override generated: Traefik + ACME (Let's Encrypt) for ${RESMA_DOMAIN}"
+  elif [[ "$USE_INTERNAL_TLS" == "1" ]]; then
+    success "Proxy override generated: Traefik + internal TLS (self-signed) for ${RESMA_DOMAIN}"
+  else
+    success "Proxy override generated: Traefik HTTP-only for ${RESMA_DOMAIN}"
+  fi
+fi
+
 # ---------- 5. pull imagens ----------
 section "Pulling images"
 echo "  - ${IMAGE_PREFIX}/resma-api:${VERSION}"
@@ -361,6 +573,14 @@ echo "  - ${IMAGE_PREFIX}/resma-ml:${VERSION}"
 docker pull "${IMAGE_PREFIX}/resma-ml:${VERSION}"
 echo "  - ${IMAGE_PREFIX}/resma-agent:${VERSION}"
 docker pull "${IMAGE_PREFIX}/resma-agent:${VERSION}"
+if [[ -n "$RESMA_DOMAIN" ]]; then
+  echo "  - traefik:v3.7.10"
+  docker pull traefik:v3.7.10
+fi
+if [[ "$RESMA_INSTALL_CLI" == "1" ]]; then
+  echo "  - ${IMAGE_PREFIX}/resma-cli:${VERSION}"
+  docker pull "${IMAGE_PREFIX}/resma-cli:${VERSION}"
+fi
 success "Images pulled"
 
 # ---------- 6. deploy ----------
@@ -376,9 +596,22 @@ DEPLOY_CMD="docker stack deploy -c \"$COMPOSE_FILE\""
 if [[ -n "$OVERRIDE_FILE" ]]; then
   DEPLOY_CMD="$DEPLOY_CMD -c \"$OVERRIDE_FILE\""
 fi
+if [[ -n "$PROXY_OVERRIDE_FILE" ]]; then
+  DEPLOY_CMD="$DEPLOY_CMD -c \"$PROXY_OVERRIDE_FILE\""
+fi
 DEPLOY_CMD="$DEPLOY_CMD \"$STACK_NAME\""
 
-RESMA_CORS_ORIGINS="${RESMA_CORS_ORIGINS:-http://localhost:${APP_PORT}}" \
+# CORS: com domain, incluir a URL pública; sem domain, IP:porta.
+if [[ -n "$RESMA_DOMAIN" ]]; then
+  if [[ "$RESMA_TLS_MODE" == "none" ]]; then
+    CORS_URL="http://${RESMA_DOMAIN}"
+  else
+    CORS_URL="https://${RESMA_DOMAIN}"
+  fi
+else
+  CORS_URL="http://localhost:${APP_PORT}"
+fi
+RESMA_CORS_ORIGINS="${RESMA_CORS_ORIGINS:-${CORS_URL}}" \
   eval "$DEPLOY_CMD"
 success "Stack deployed"
 
@@ -390,37 +623,120 @@ MAX_ATTEMPTS=40  # ~3 min
 attempt=0
 while true; do
   STATUS=$(curl --unix-socket /var/run/docker.sock -sgG \
-    -X GET "http:/v1.24/tasks?filters={\"service\":[\"${STACK_NAME}_resma-api\"]}" \
+    -X GET "http:/v1.24/tasks?filters={\"service\":[\"${STACK_NAME}_api\"]}" \
     2>/dev/null | jq -r 'sort_by(.CreatedAt) | .[-1].Status.State' 2>/dev/null || echo "unknown")
 
   if [[ "$STATUS" == "running" ]]; then
-    success "\n  resma-api is healthy"
+    success "\n  ${STACK_NAME}_api is healthy"
     break
   fi
   printf "."
   attempt=$((attempt + 1))
   if [[ $attempt -ge $MAX_ATTEMPTS ]]; then
-    error "\n  TIMEOUT — resma-api not healthy after ${MAX_ATTEMPTS} attempts."
-    warning "Check logs: docker service logs ${STACK_NAME}_resma-api"
+    error "\n  TIMEOUT — ${STACK_NAME}_api not healthy after ${MAX_ATTEMPTS} attempts."
+    warning "Check logs: docker service logs ${STACK_NAME}_api"
     exit 1
   fi
   sleep 5
 done
+
+# ---------- 7b. aguardar proxy saudável (se habilitado) ----------
+if [[ -n "$RESMA_DOMAIN" ]]; then
+  printf "  Waiting for proxy"
+  MAX_ATTEMPTS_PROXY=24  # ~2 min
+  attempt=0
+  while true; do
+    STATUS=$(curl --unix-socket /var/run/docker.sock -sgG \
+      -X GET "http:/v1.24/tasks?filters={\"service\":[\"${STACK_NAME}_proxy\"]}" \
+      2>/dev/null | jq -r 'sort_by(.CreatedAt) | .[-1].Status.State' 2>/dev/null || echo "unknown")
+    if [[ "$STATUS" == "running" ]]; then
+      success "\n  ${STACK_NAME}_proxy is healthy"
+      break
+    fi
+    printf "."
+    attempt=$((attempt + 1))
+    if [[ $attempt -ge $MAX_ATTEMPTS_PROXY ]]; then
+      warning "\n  ${STACK_NAME}_proxy not healthy after ${MAX_ATTEMPTS_PROXY} attempts (continuing)."
+      warning "  Check logs: docker service logs ${STACK_NAME}_proxy"
+      break
+    fi
+    sleep 5
+  done
+fi
+
+# ---------- 7c. instalar CLI no host (se solicitado) ----------
+if [[ "$RESMA_INSTALL_CLI" == "1" ]]; then
+  section "Installing resma-cli to /usr/local/bin"
+  # Detectar arquitetura do host
+  HOST_ARCH=$(uname -m 2>/dev/null || echo "x86_64")
+  case "$HOST_ARCH" in
+    x86_64|amd64) CLI_IMAGE="${IMAGE_PREFIX}/resma-cli:${VERSION}" ;;
+    aarch64|arm64) CLI_IMAGE="${IMAGE_PREFIX}/resma-cli:${VERSION}-arm64" ;;
+    *) CLI_IMAGE="${IMAGE_PREFIX}/resma-cli:${VERSION}" ;;
+  esac
+  # Extrair o binário da imagem distroless para /usr/local/bin no host.
+  # A imagem CLI é distroless (sem sh) — usamos docker create + docker cp.
+  # O installer roda com docker.sock montado do host.
+  CLI_TMP_CONTAINER="resma-cli-extract-$$"
+  if docker create --name "$CLI_TMP_CONTAINER" "${CLI_IMAGE}" >/dev/null 2>&1; then
+    if docker cp "$CLI_TMP_CONTAINER:/resma" /usr/local/bin/resma 2>/dev/null; then
+      chmod +x /usr/local/bin/resma 2>/dev/null || true
+      docker rm "$CLI_TMP_CONTAINER" >/dev/null 2>&1
+      success "resma-cli installed to /usr/local/bin/resma"
+      echo "  Run 'resma --help' to verify."
+    else
+      docker rm "$CLI_TMP_CONTAINER" >/dev/null 2>&1
+      warning "Could not copy to /usr/local/bin (host not Linux or permission denied)."
+      echo "  Manual install:"
+      echo "    docker create --name cli-extract ${CLI_IMAGE}"
+      echo "    docker cp cli-extract:/resma /usr/local/bin/resma"
+      echo "    docker rm cli-extract"
+      echo "    chmod +x /usr/local/bin/resma"
+    fi
+  else
+    warning "Could not pull/create CLI image ${CLI_IMAGE}."
+    echo "  Verify the image exists and try again."
+  fi
+fi
 
 # ---------- 8. done ----------
 MANAGER_IP=$(docker info --format '{{.Swarm.NodeAddr}}' 2>/dev/null || echo "localhost")
 echo
 title "=== RESMA installed successfully! ==="
 echo
-echo "  URL: http://${MANAGER_IP}:${APP_PORT}"
+
+# URL de acesso — depende da configuração
+if [[ -n "$RESMA_DOMAIN" ]]; then
+  if [[ "$RESMA_TLS_MODE" == "none" ]]; then
+    echo "  URL: http://${RESMA_DOMAIN}"
+  else
+    echo "  URL: https://${RESMA_DOMAIN}"
+    if [[ "$RESMA_DOMAIN" == *.local ]]; then
+      echo "  (self-signed certificate — browser will show a warning)"
+    fi
+  fi
+elif [[ "$RESMA_DISABLE_UI" == "1" ]]; then
+  echo "  API: http://${MANAGER_IP}:${APP_PORT} (headless — no web UI)"
+  echo "  Use the CLI: resma auth login --server http://${MANAGER_IP}:${APP_PORT}"
+else
+  echo "  URL: http://${MANAGER_IP}:${APP_PORT}"
+fi
 echo
 echo "Next steps:"
-echo "  1. Open the URL above in your browser"
-echo "  2. Complete onboarding (create admin user)"
-echo "  3. Configure API keys if needed"
+if [[ "$RESMA_DISABLE_UI" != "1" ]]; then
+  echo "  1. Open the URL above in your browser"
+  echo "  2. Complete onboarding (create admin user)"
+  echo "  3. Configure API keys if needed"
+else
+  echo "  1. Create admin user via CLI: resma auth login --server http://${MANAGER_IP}:${APP_PORT}"
+  echo "  2. Use 'resma services list', 'resma agents list', etc."
+fi
 echo
-echo "Logs:     docker service logs ${STACK_NAME}_resma-api"
-echo "Logs ML:  docker service logs ${STACK_NAME}_resma-ml"
-echo "Remove:   docker stack rm ${STACK_NAME}"
+echo "Logs:       docker service logs ${STACK_NAME}_api"
+echo "Logs ML:    docker service logs ${STACK_NAME}_ml"
+if [[ -n "$RESMA_DOMAIN" ]]; then
+  echo "Logs proxy: docker service logs ${STACK_NAME}_proxy"
+fi
+echo "Remove:     docker stack rm ${STACK_NAME}"
 echo
 title "Enjoy! :)"

@@ -38,7 +38,7 @@ type Config struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		APIURL:          getenv("RESMA_API_URL", "http://api:8080"),
-		Token:           getenv("RESMA_AGENT_TOKEN", ""),
+		Token:           getenvOrFile("RESMA_AGENT_TOKEN", "RESMA_AGENT_TOKEN_FILE", ""),
 		NodeID:          getenv("RESMA_NODE_ID", ""),
 		NodeHostname:    getenv("RESMA_NODE_HOSTNAME", ""),
 		CollectInterval: getDuration("RESMA_COLLECT_INTERVAL", 15*time.Second),
@@ -66,6 +66,20 @@ func Load() (*Config, error) {
 func getenv(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return def
+}
+
+// getenvOrFile lê uma env var, ou se vazio, lê o conteúdo de um arquivo
+// cujo path está em outra env var (sufixo _FILE). Suporte para Docker Swarm secrets.
+func getenvOrFile(key, fileKey, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	if filePath := os.Getenv(fileKey); filePath != "" {
+		if data, err := os.ReadFile(filePath); err == nil {
+			return strings.TrimSpace(string(data))
+		}
 	}
 	return def
 }

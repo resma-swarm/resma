@@ -117,10 +117,50 @@ containers locais via Docker socket e faz push HTTP para o Go API no manager.
 
 ---
 
+## Proxy Embutido (Traefik) — Decisão Arquitetural
+
+O RESMA oferece acesso público com domínio + TLS via **Traefik embutido no stack**
+(service `proxy`), sem exigir reverse proxy pré-existente no cluster.
+
+**Documentação:** [docs/deploy-proxy.md](docs/deploy-proxy.md)
+
+**Decisão:** Traefik embutido (não stack separada) porque:
+- Zero configuração de rede cross-stack (Traefik na mesma `resma-net` do API)
+- Funciona no primeiro deploy (sem passo extra de deployar Traefik antes)
+- O service `proxy` é injetado via override file quando `--domain` é passado
+
+**Flags do installer:**
+- `--domain <domain>` — sobe Traefik + TLS (ACME se público, internal se `.local`)
+- `--tls <auto|internal|none>` — modo TLS (default: `auto`)
+- `--disable-ui` — desabilita frontend (modo headless para CLI-only)
+- `--install-cli` — instala `resma-cli` em `/usr/local/bin` do host
+- `--network <name>` — anexa apenas o `api` à rede externa (para proxy externo existente)
+
+**Versão Traefik:** `v3.7.10` (fixada no patch exato, >7 dias, tem fix do Docker API v1.44+).
+Ver seção 0 abaixo sobre versionamento.
+
+**Implementação:**
+- `docker-stack.yml` — base sem proxy (IP:porta com UI)
+- `app/installer/install.sh` — gera override files para proxy/UI/networks
+- Override de proxy: adiciona service `proxy` + labels Traefik no `api`
+- Override de UI: `sed` no `docker-stack.yml` setando `RESMA_WEB_DIR: ""`
+  (docker stack deploy não faz merge de env vars individuais via override)
+
+---
+
 ## Orientações para Agentes de IA — Implementação OSS
 
 > **LEIA ESTA SEÇÃO ANTES DE INICIAR QUALQUER IMPLEMENTAÇÃO.**
 > Adicione estas orientações à memória do chat antes de começar a trabalhar em qualquer tarefa das Fases 0b–6.
+
+### 0. Versionamento de dependências e imagens Docker
+
+- **NUNCA use tags flutuantes** (`latest`, `*`, ranges não-limitados como `>=`) — elas podem resolver para versões recém-publicadas não auditadas
+- **SEMPRE consulte a versão mais recente publicada** e use o **número da versão** (ex: `traefik:v3.7.10`, não `traefik:latest` nem `traefik:v3.7`)
+- **Regra de 7 dias**: preferir versões publicadas há pelo menos 7 dias (segurança contra supply chain — versões recém-lançadas podem ser yanked por vulnerabilidades). Se a versão mais recente tem menos de 7 dias, usar a anterior mais recente que atenda ao critério
+- **Exemplo**: se `traefik:v3.7.11` foi publicada hoje e `traefik:v3.7.10` há 2 semanas, usar `v3.7.10`
+- **Fixar patch exato** (ex: `v3.7.10`), não minor (ex: `v3.7`) — minor tags podem pular patches automaticamente, o que pode introduzir regressões sem controle explícito
+- Ao adicionar nova dependência (Go module, imagem Docker, npm package), verificar a versão mais recente no registry oficial antes de especificar
 
 ### 1. Go é executado em Docker, não no host
 

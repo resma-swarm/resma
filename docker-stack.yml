@@ -10,7 +10,12 @@
 #
 # Variáveis (definir via env ou docker secret):
 #   RESMA_CORS_ORIGINS — CSV de origens CORS (default: http://localhost:8080)
-#   RESMA_DOMAIN — domínio para Traefik (opcional, default: resma.local)
+#   RESMA_DOMAIN — domínio público para Traefik + TLS (opcional)
+#   RESMA_TLS_MODE — auto | internal | none (default: auto — ACME se domínio público, internal se .local)
+#   RESMA_WEB_DIR — diretório do frontend (default: /app/web; vazio desabilita a UI)
+#
+# Proxy (Traefik) é injetado via override file quando --domain é passado ao installer.
+# Ver app/installer/install.sh e docs/deploy-proxy.md.
 
 services:
   api:
@@ -23,29 +28,31 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - resma-data:/data
     environment:
-      - RESMA_ENV=production
-      - RESMA_DB_PATH=/data/resma.duckdb
-      - RESMA_HTTP_ADDR=:8080
-      - RESMA_ML_URL=http://ml:8081
-      - RESMA_ML_ENABLED=true
-      - RESMA_JWT_SECRET_FILE=/run/secrets/resma_jwt_secret
-      - RESMA_CORS_ORIGINS=${RESMA_CORS_ORIGINS:-http://localhost:8080}
-      - RESMA_EXCLUDED_IMAGES=docker.io/resmaswarm/resma-api:latest,docker.io/resmaswarm/resma-ml:latest,docker.io/resmaswarm/resma-agent:latest
-      - RESMA_COLLECT_INTERVAL=${RESMA_COLLECT_INTERVAL:-15}
-      - RESMA_RETENTION_DAYS=${RESMA_RETENTION_DAYS:-30}
-      - RESMA_CLUSTER_INTERVAL=${RESMA_CLUSTER_INTERVAL:-30}
-      - RESMA_STORAGE_INTERVAL=${RESMA_STORAGE_INTERVAL:-60}
-      - RESMA_SCHEDULER_POLL=${RESMA_SCHEDULER_POLL:-15}
-      - RESMA_SSE_KEEPALIVE=${RESMA_SSE_KEEPALIVE:-15}
-      - RESMA_ANALYSIS_WINDOW_DAYS=${RESMA_ANALYSIS_WINDOW_DAYS:-7}
-      - RESMA_STALE_SERVICE_DAYS=${RESMA_STALE_SERVICE_DAYS:-7}
-      - RESMA_ROLLBACK_POLL_INTERVAL=${RESMA_ROLLBACK_POLL_INTERVAL:-30}
-      - RESMA_BCRYPT_COST=12
-      - RESMA_LOGIN_RATE_LIMIT=5
-      - RESMA_API_KEY_DEFAULT_SCOPES=read
-      - RESMA_API_KEY_RATE_LIMIT=100
-      - RESMA_AGENT_TOKEN_FILE=/run/secrets/resma_agent_token
-      - RESMA_AGENT_TASK_POLL_INTERVAL=${RESMA_AGENT_TASK_POLL_INTERVAL:-15}
+      RESMA_ENV: production
+      RESMA_DB_PATH: /data/resma.duckdb
+      RESMA_HTTP_ADDR: :8080
+      RESMA_ML_URL: http://ml:8081
+      RESMA_ML_ENABLED: "true"
+      RESMA_JWT_SECRET_FILE: /run/secrets/resma_jwt_secret
+      RESMA_CORS_ORIGINS: ${RESMA_CORS_ORIGINS:-http://localhost:8080}
+      RESMA_EXCLUDED_IMAGES: docker.io/resmaswarm/resma-api:latest,docker.io/resmaswarm/resma-ml:latest,docker.io/resmaswarm/resma-agent:latest
+      RESMA_COLLECT_INTERVAL: ${RESMA_COLLECT_INTERVAL:-15}
+      RESMA_RETENTION_DAYS: ${RESMA_RETENTION_DAYS:-30}
+      RESMA_CLUSTER_INTERVAL: ${RESMA_CLUSTER_INTERVAL:-30}
+      RESMA_STORAGE_INTERVAL: ${RESMA_STORAGE_INTERVAL:-60}
+      RESMA_SCHEDULER_POLL: ${RESMA_SCHEDULER_POLL:-15}
+      RESMA_SSE_KEEPALIVE: ${RESMA_SSE_KEEPALIVE:-15}
+      RESMA_ANALYSIS_WINDOW_DAYS: ${RESMA_ANALYSIS_WINDOW_DAYS:-7}
+      RESMA_STALE_SERVICE_DAYS: ${RESMA_STALE_SERVICE_DAYS:-7}
+      RESMA_ROLLBACK_POLL_INTERVAL: ${RESMA_ROLLBACK_POLL_INTERVAL:-30}
+      RESMA_BCRYPT_COST: "12"
+      RESMA_LOGIN_RATE_LIMIT: "5"
+      RESMA_API_KEY_DEFAULT_SCOPES: read
+      RESMA_API_KEY_RATE_LIMIT: "100"
+      RESMA_AGENT_TOKEN_FILE: /run/secrets/resma_agent_token
+      RESMA_AGENT_TASK_POLL_INTERVAL: ${RESMA_AGENT_TASK_POLL_INTERVAL:-15}
+      # Frontend: vazio desabilita a UI (modo headless para CLI-only).
+      RESMA_WEB_DIR: ${RESMA_WEB_DIR:-/app/web}
     secrets:
       - resma_jwt_secret
       - resma_agent_token
@@ -63,16 +70,8 @@ services:
       restart_policy:
         condition: on-failure
         max_attempts: 3
-      # Traefik labels (descomentar se usar Traefik)
-      # labels:
-      #   - traefik.enable=true
-      #   - traefik.http.routers.resma.rule=Host(${RESMA_DOMAIN:-resma.local})
-      #   - traefik.http.routers.resma.entrypoints=http
-      #   - traefik.http.services.resma.loadbalancer.server.port=8080
-      #   # SSE: desabilitar bufferização
-      #   - traefik.http.middlewares.resma-sse.headers.customResponseHeaders.X-Accel-Buffering=no
-      #   - traefik.http.routers.resma-sse.rule=Host(`${RESMA_DOMAIN:-resma.local}`) && PathPrefix(`/api/sse/`)
-      #   - traefik.http.routers.resma-sse.middlewares=resma-sse
+      # Labels Traefik são injetadas via override file quando --domain é passado.
+      # Ver app/installer/install.sh (gera /tmp/resma-proxy-override.yml).
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
       interval: 30s
@@ -87,7 +86,7 @@ services:
     # NÃO monta resma-data — o ML sidecar não acessa o DuckDB diretamente.
     # Ele solicita dados via HTTP ao Go API (/api/internal/*).
     environment:
-      - RESMA_API_URL=http://api:8080
+      RESMA_API_URL: http://api:8080
     deploy:
       resources:
         limits:
@@ -117,11 +116,11 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - agent-data:/data
     environment:
-      - RESMA_API_URL=http://api:8080
-      - RESMA_AGENT_TOKEN_FILE=/run/secrets/resma_agent_token
-      - RESMA_COLLECT_INTERVAL=${RESMA_COLLECT_INTERVAL:-15}
-      - RESMA_HEARTBEAT_INTERVAL=60
-      - RESMA_OOM_EVENTS_FILE=/data/events.pending.jsonl
+      RESMA_API_URL: http://api:8080
+      RESMA_AGENT_TOKEN_FILE: /run/secrets/resma_agent_token
+      RESMA_COLLECT_INTERVAL: ${RESMA_COLLECT_INTERVAL:-15}
+      RESMA_HEARTBEAT_INTERVAL: "60"
+      RESMA_OOM_EVENTS_FILE: /data/events.pending.jsonl
     secrets:
       - resma_agent_token
     deploy:

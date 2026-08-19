@@ -36,7 +36,9 @@ COPY app/agent/ ./
 
 # Build estático (CGO desabilitado — sem DuckDB). -trimpath + -ldflags strip.
 # Version injetada via -ldflags (sobrescrita no CI).
+# CACHE_BUSTER invalida o cache do go-build mount quando há mudanças de código.
 ARG VERSION=dev
+ARG CACHE_BUSTER=0
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.Version=${VERSION}" \
