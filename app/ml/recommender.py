@@ -5,7 +5,17 @@ dados via HTTP aos endpoints internos do Go API (/api/internal/*).
 O Go API é o único owner do DuckDB, evitando conflitos de lock.
 
 Lógica ML (numpy, scipy, scikit-learn) permanece idêntica à versão anterior.
+
+Memória (fix OOM produção):
+- httpx.AsyncClient (não bloqueia event loop — sync Client em async def
+  acumulava requests no backlog com numpy arrays vivos).
+- LinearRegression reutilizado como singleton (BLAS não devolve memória
+  ao SO quando instanciado por chamada).
+- gc.collect() a cada GC_COLLECT_EVERY_N requests para liberar buffers
+  numpy/sklearn não referenciados.
+- Cache de /alerts com TTL configurável (ALERTS_CACHE_TTL_S, default 60s).
 """
+import gc
 import logging
 import os
 import time
@@ -17,6 +27,10 @@ from scipy import stats
 from sklearn.linear_model import LinearRegression
 
 logger = logging.getLogger("resma.ml.recommender")
+
+# gc.collect() a cada N requests em /alerts (endpoint mais frequente,
+# chamado pelo SSE broker ~36x/min). Default 10.
+GC_COLLECT_EVERY_N = int(os.environ.get("RESMA_GC_COLLECT_EVERY_N", "10"))
 
 # Config via env (mesmos defaults do Python original)
 ANALYSIS_WINDOW_DAYS = int(os.environ.get("RESMA_ANALYSIS_WINDOW_DAYS", "7"))
@@ -42,23 +56,37 @@ API_URL = os.environ.get("RESMA_API_URL", "http://api:8080")
 class ResourceRecommender:
     """Recomendador de recursos — obtém dados via HTTP do Go API."""
 
-    def __init__(self, client: httpx.Client):
+    def __init__(self, client: httpx.AsyncClient):
         self.client = client
         self._last_recommendation_ts: dict[str, str] = {}
         self._last_sample_count: dict[str, int] = {}
         self._last_suggested: dict[str, dict] = {}
         # Cache de detect_alerts: o dashboard e a página /alerts chamam o
         # mesmo endpoint a cada evento SSE (~5s). Sem cache, o ML sidecar
-        # faz N+1 chamadas HTTP ao Go API a cada 5s. Com cache de 30s,
-        # apenas 1 chamada real é feita a cada 30s.
+        # faz N+1 chamadas HTTP ao Go API a cada 5s. Com cache de
+        # ALERTS_CACHE_TTL_S segundos (default 60s), apenas 1 chamada real
+        # é feita por janela de TTL.
         self._alerts_cache: dict | None = None
         self._alerts_cache_ts: float = 0.0
+        # Singleton LinearRegression: reutilizar a mesma instância evita
+        # alocar buffers BLAS a cada chamada (sklearn não devolve memória
+        # ao SO quando o modelo é descartado). O fit() reescreve coef_.
+        self._lr_model = LinearRegression()
+        # Contador de requests para gc.collect() periódico em /alerts.
+        self._alerts_request_count = 0
 
-    # --- chamadas HTTP ao Go API ---
+    def _maybe_gc(self) -> None:
+        """gc.collect() a cada GC_COLLECT_EVERY_N calls em /alerts."""
+        self._alerts_request_count += 1
+        if self._alerts_request_count >= GC_COLLECT_EVERY_N:
+            gc.collect()
+            self._alerts_request_count = 0
 
-    def _get_metrics(self, service: str, days: int = ANALYSIS_WINDOW_DAYS) -> list[dict]:
+    # --- chamadas HTTP ao Go API (async — não bloqueiam o event loop) ---
+
+    async def _get_metrics(self, service: str, days: int = ANALYSIS_WINDOW_DAYS) -> list[dict]:
         """GET /api/internal/services/{service}/metrics"""
-        r = self.client.get(
+        r = await self.client.get(
             f"{API_URL}/api/internal/services/{service}/metrics",
             params={"days": days},
             timeout=30.0,
@@ -66,9 +94,9 @@ class ResourceRecommender:
         r.raise_for_status()
         return r.json()
 
-    def _get_oom_count(self, service: str, days: int = ANALYSIS_WINDOW_DAYS) -> int:
+    async def _get_oom_count(self, service: str, days: int = ANALYSIS_WINDOW_DAYS) -> int:
         """GET /api/internal/services/{service}/oom-count"""
-        r = self.client.get(
+        r = await self.client.get(
             f"{API_URL}/api/internal/services/{service}/oom-count",
             params={"days": days},
             timeout=10.0,
@@ -76,9 +104,9 @@ class ResourceRecommender:
         r.raise_for_status()
         return r.json().get("count", 0)
 
-    def _get_oom_count_since(self, service: str, since_ts: str) -> int:
+    async def _get_oom_count_since(self, service: str, since_ts: str) -> int:
         """GET /api/internal/services/{service}/oom-count?since=..."""
-        r = self.client.get(
+        r = await self.client.get(
             f"{API_URL}/api/internal/services/{service}/oom-count",
             params={"since": since_ts},
             timeout=10.0,
@@ -86,7 +114,7 @@ class ResourceRecommender:
         r.raise_for_status()
         return r.json().get("count", 0)
 
-    def _get_last_apply(self, service: str) -> dict | None:
+    async def _get_last_apply(self, service: str) -> dict | None:
         """GET /api/internal/services/{service}/last-apply
 
         Retorna o timestamp do último apply bem-sucedido, ou None se não houver.
@@ -94,7 +122,7 @@ class ResourceRecommender:
         o status 'observing' (em observação pós-apply).
         """
         try:
-            r = self.client.get(
+            r = await self.client.get(
                 f"{API_URL}/api/internal/services/{service}/last-apply",
                 timeout=10.0,
             )
@@ -107,9 +135,9 @@ class ResourceRecommender:
             logger.debug("last-apply indisponível para %s: %s", service, e)
             return None
 
-    def _get_services_with_metrics(self, days: int = ANALYSIS_WINDOW_DAYS) -> list[str]:
+    async def _get_services_with_metrics(self, days: int = ANALYSIS_WINDOW_DAYS) -> list[str]:
         """GET /api/internal/services/with-metrics"""
-        r = self.client.get(
+        r = await self.client.get(
             f"{API_URL}/api/internal/services/with-metrics",
             params={"days": days},
             timeout=10.0,
@@ -117,7 +145,7 @@ class ResourceRecommender:
         r.raise_for_status()
         return r.json()
 
-    def _get_active_services(self, minutes: int = ALERT_ACTIVE_WINDOW_MIN) -> list[str]:
+    async def _get_active_services(self, minutes: int = ALERT_ACTIVE_WINDOW_MIN) -> list[str]:
         """GET /api/internal/services/with-metrics?minutes=N
 
         Retorna apenas serviços com métricas nos últimos N minutos (ativos).
@@ -125,7 +153,7 @@ class ResourceRecommender:
         reduzindo de ~11 para ~6 serviços e eliminando chamadas HTTP
         desnecessárias a serviços parados.
         """
-        r = self.client.get(
+        r = await self.client.get(
             f"{API_URL}/api/internal/services/with-metrics",
             params={"minutes": minutes},
             timeout=10.0,
@@ -133,9 +161,9 @@ class ResourceRecommender:
         r.raise_for_status()
         return r.json()
 
-    def _get_service_config(self, service: str) -> dict:
+    async def _get_service_config(self, service: str) -> dict:
         """GET /api/internal/services/{service}/config"""
-        r = self.client.get(
+        r = await self.client.get(
             f"{API_URL}/api/internal/services/{service}/config",
             timeout=10.0,
         )
@@ -148,9 +176,9 @@ class ResourceRecommender:
             "mem_reservation": data.get("mem_reservation", 0) or 0,
         }
 
-    def _get_volume_metrics(self, days: int = ANALYSIS_WINDOW_DAYS) -> list[dict]:
+    async def _get_volume_metrics(self, days: int = ANALYSIS_WINDOW_DAYS) -> list[dict]:
         """GET /api/internal/storage/volumes/metrics"""
-        r = self.client.get(
+        r = await self.client.get(
             f"{API_URL}/api/internal/storage/volumes/metrics",
             params={"days": days},
             timeout=10.0,
@@ -160,10 +188,10 @@ class ResourceRecommender:
 
     # --- lógica ML (idêntica à versão anterior, apenas fonte de dados mudou) ---
 
-    def analyze(self, service_name: str) -> dict:
+    async def analyze(self, service_name: str) -> dict:
         """Analisar um serviço e retornar recomendação de recursos."""
-        current = self._get_service_config(service_name)
-        raw = self._get_metrics(service_name)
+        current = await self._get_service_config(service_name)
+        raw = await self._get_metrics(service_name)
 
         if len(raw) < 100:
             early = self._early_recommendation()
@@ -223,18 +251,18 @@ class ResourceRecommender:
         pattern = self._classify_pattern(ts, cpu)
         forecast = self._forecast_memory(mem, FORECAST_DAYS)
 
-        oom_count = self._get_oom_count(service_name)
+        oom_count = await self._get_oom_count(service_name)
 
         # Buscar último apply bem-sucedido para distinguir OOMs antes vs depois.
         # Se houve apply, o status passa a "observing" (em observação) enquanto
         # não houver OOMs novos pós-apply — o usuário já tomou uma ação e o
         # serviço está sendo reavaliado.
-        last_apply = self._get_last_apply(service_name)
+        last_apply = await self._get_last_apply(service_name)
         oom_count_since_apply = 0
         applied_at = None
         if last_apply and last_apply.get("applied_at"):
             applied_at = last_apply["applied_at"]
-            oom_count_since_apply = self._get_oom_count_since(service_name, applied_at)
+            oom_count_since_apply = await self._get_oom_count_since(service_name, applied_at)
 
         drift = self._detect_drift(cpu, mem)
         mem_margin, cpu_margin = self._data_driven_margin(
@@ -305,41 +333,41 @@ class ResourceRecommender:
         self._last_suggested[service_name] = result["suggested"]
         return result
 
-    def analyze_all(self) -> list[dict]:
+    async def analyze_all(self) -> list[dict]:
         """Analisar todos os serviços com métricas."""
-        services = self._get_services_with_metrics()
+        services = await self._get_services_with_metrics()
         results = []
         for svc in services:
             try:
-                results.append(self.analyze(svc))
+                results.append(await self.analyze(svc))
             except Exception as e:
                 logger.error("erro analisando %s: %s", svc, e)
         return results
 
-    def evaluate_triggers(self) -> list[dict]:
+    async def evaluate_triggers(self) -> list[dict]:
         """Avaliar triggers de reanálise."""
-        services = self._get_services_with_metrics()
+        services = await self._get_services_with_metrics()
         triggers = []
         for svc in services:
-            reasons = self._check_triggers(svc)
+            reasons = await self._check_triggers(svc)
             if reasons:
                 triggers.append({"service": svc, "reasons": reasons})
         return triggers
 
-    def _check_triggers(self, service_name: str) -> list[str]:
+    async def _check_triggers(self, service_name: str) -> list[str]:
         reasons = []
         last_ts = self._last_recommendation_ts.get(service_name)
         last_samples = self._last_sample_count.get(service_name, 0)
         last_suggested = self._last_suggested.get(service_name, {})
 
-        oom_count = self._get_oom_count(service_name)
+        oom_count = await self._get_oom_count(service_name)
 
         if last_ts:
-            oom_since = self._get_oom_count_since(service_name, last_ts)
+            oom_since = await self._get_oom_count_since(service_name, last_ts)
             if oom_since > 0:
                 reasons.append(f"oom_event ({oom_since} novos OOMs)")
 
-        raw = self._get_metrics(service_name)
+        raw = await self._get_metrics(service_name)
         if len(raw) < 100:
             return reasons
 
@@ -381,20 +409,20 @@ class ResourceRecommender:
 
         return reasons
 
-    def forecast(self, service_name: str, days_ahead: int = 7) -> dict:
+    async def forecast(self, service_name: str, days_ahead: int = 7) -> dict:
         """Forecast de memória para um serviço."""
-        raw = self._get_metrics(service_name)
+        raw = await self._get_metrics(service_name)
         if len(raw) < 10:
             return {"service": service_name, "error": "insufficient data", "samples": len(raw)}
         mem = np.array([r["mem_usage"] for r in raw])
         return {"service": service_name, "forecast": self._forecast_memory(mem, days_ahead)}
 
-    def analyze_storage(self) -> dict:
+    async def analyze_storage(self) -> dict:
         """Análise de storage."""
         recommendations = []
 
         try:
-            growth = self._get_volume_metrics()
+            growth = await self._get_volume_metrics()
         except Exception:
             growth = []
 
@@ -410,7 +438,7 @@ class ResourceRecommender:
                 continue
             sizes = np.array([s[1] for s in series])
             x = np.arange(len(sizes)).reshape(-1, 1)
-            model = LinearRegression()
+            model = self._lr_model
             model.fit(x, sizes)
             slope = model.coef_[0]
             r2 = model.score(x, sizes)
@@ -443,7 +471,7 @@ class ResourceRecommender:
             "recommendations": recommendations,
         }
 
-    def detect_alerts(self) -> dict:
+    async def detect_alerts(self) -> dict:
         """Detectar memory leaks e resource drifts para serviços ativos.
 
         Serviço "ativo" = tem métricas nos últimos ALERT_ACTIVE_WINDOW_MIN
@@ -457,11 +485,17 @@ class ResourceRecommender:
 
         Cache: o dashboard e a página /alerts chamam este método a cada
         evento SSE (~5s). Sem cache, o ML sidecar faz N+1 chamadas HTTP
-        ao Go API a cada 5s. Com cache de ALERTS_CACHE_TTL_S segundos,
-        apenas 1 chamada real é feita por janela de TTL.
+        ao Go API a cada 5s. Com cache de ALERTS_CACHE_TTL_S segundos
+        (default 60s), apenas 1 chamada real é feita por janela de TTL.
+
+        Memória: gc.collect() a cada GC_COLLECT_EVERY_N requests para
+        liberar buffers numpy/sklearn não referenciados (fix OOM produção).
         """
+        # gc.collect() periódico — /alerts é o endpoint mais frequente
+        self._maybe_gc()
+
         # Cache: retorna resultado cacheado se ainda válido
-        cache_ttl = float(os.environ.get("RESMA_ALERTS_CACHE_TTL_S", "30"))
+        cache_ttl = float(os.environ.get("RESMA_ALERTS_CACHE_TTL_S", "60"))
         now_ts = time.time()
         if self._alerts_cache is not None and (now_ts - self._alerts_cache_ts) < cache_ttl:
             return self._alerts_cache
@@ -473,7 +507,7 @@ class ResourceRecommender:
             # Buscar apenas serviços com métricas na janela ativa (5 min),
             # não todos com histórico de 7 dias. Isso reduz de ~11 para ~6
             # chamadas HTTP ao Go API.
-            services = self._get_active_services()
+            services = await self._get_active_services()
         except Exception as e:
             logger.error("detect_alerts: erro listando serviços: %s", e)
             result = {"leak_alerts": leak_alerts, "drift_alerts": drift_alerts}
@@ -486,7 +520,7 @@ class ResourceRecommender:
 
         for svc in services:
             try:
-                raw = self._get_metrics(svc)
+                raw = await self._get_metrics(svc)
             except Exception as e:
                 logger.warning("detect_alerts: sem métricas para %s: %s", svc, e)
                 continue
@@ -554,7 +588,7 @@ class ResourceRecommender:
 
     def _detect_leak(self, mem: np.ndarray) -> dict:
         x = np.arange(len(mem)).reshape(-1, 1)
-        model = LinearRegression()
+        model = self._lr_model
         model.fit(x, mem)
         slope = model.coef_[0]
         r2 = model.score(x, mem)
@@ -860,7 +894,7 @@ class ResourceRecommender:
 
     def _forecast_memory(self, mem: np.ndarray, days_ahead: int) -> dict:
         x = np.arange(len(mem)).reshape(-1, 1)
-        model = LinearRegression()
+        model = self._lr_model
         model.fit(x, mem)
         slope = model.coef_[0]
         samples_per_day = len(mem) / ANALYSIS_WINDOW_DAYS

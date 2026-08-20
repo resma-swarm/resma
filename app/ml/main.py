@@ -12,12 +12,20 @@ Endpoints:
 Arquitetura: o ML sidecar NÃO acessa o DuckDB diretamente. Ele solicita
 dados via HTTP aos endpoints internos do Go API (/api/internal/*).
 O Go API é o único owner do DuckDB, evitando conflitos de lock.
+
+Memória (fix OOM produção):
+- httpx.AsyncClient (não bloqueia event loop — sync Client em async def
+  acumulava requests no backlog com numpy arrays vivos).
+- LinearRegression singleton no recommender (BLAS não devolve memória).
+- gc.collect() periódico + cache /alerts TTL 60s.
+- anyio thread limiter reduzido (sidecar é I/O-bound, não CPU-bound).
 """
 import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 
+import anyio
 import httpx
 from fastapi import FastAPI, HTTPException
 
@@ -32,14 +40,18 @@ API_URL = os.environ.get("RESMA_API_URL", "http://api:8080")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("ML sidecar iniciando (dados via Go API %s)", API_URL)
-    # httpx.Client síncrono — o recommender faz chamadas síncronas
-    # (numpy/scipy/sklearn são síncronos por natureza)
-    client = httpx.Client(base_url=API_URL, timeout=60.0)
-    app.state.client = client
-    app.state.recommender = ResourceRecommender(client)
-    logger.info("ML sidecar pronto")
-    yield
-    client.close()
+    # Reduzir thread pool do anyio: o sidecar é I/O-bound (HTTP ao Go API)
+    # e CPU-bound apenas em numpy/sklearn síncrono dentro do event loop.
+    # Default 40 threads é excessivo — 10 basta e reduz memory footprint.
+    limiter = anyio.to_thread.current_default_thread_limiter()
+    limiter.total_tokens = int(os.environ.get("RESMA_THREAD_POOL_SIZE", "10"))
+    # httpx.AsyncClient — não bloqueia o event loop durante chamadas HTTP
+    # ao Go API. O sync Client anterior acumulava requests no backlog.
+    async with httpx.AsyncClient(base_url=API_URL, timeout=60.0) as client:
+        app.state.client = client
+        app.state.recommender = ResourceRecommender(client)
+        logger.info("ML sidecar pronto")
+        yield
     logger.info("ML sidecar parando")
 
 
@@ -56,7 +68,7 @@ async def analyze_all():
     """Analisar todos os serviços ativos."""
     try:
         rec = app.state.recommender
-        results = rec.analyze_all()
+        results = await rec.analyze_all()
         return results
     except Exception as e:
         logger.error("erro em analyze_all: %s", e)
@@ -68,7 +80,7 @@ async def analyze_storage():
     """Análise de storage (volumes, imagens, reclaimable)."""
     try:
         rec = app.state.recommender
-        result = rec.analyze_storage()
+        result = await rec.analyze_storage()
         return result
     except Exception as e:
         logger.error("erro em analyze_storage: %s", e)
@@ -80,7 +92,7 @@ async def analyze_service(service: str):
     """Analisar um serviço específico."""
     try:
         rec = app.state.recommender
-        result = rec.analyze(service)
+        result = await rec.analyze(service)
         return result
     except Exception as e:
         logger.error("erro em analyze(%s): %s", service, e)
@@ -92,7 +104,7 @@ async def evaluate_triggers():
     """Avaliar triggers de reanálise para todos os serviços."""
     try:
         rec = app.state.recommender
-        triggers = rec.evaluate_triggers()
+        triggers = await rec.evaluate_triggers()
         return triggers
     except Exception as e:
         logger.error("erro em evaluate_triggers: %s", e)
@@ -104,7 +116,7 @@ async def forecast_service(service: str, days: int = 7):
     """Forecast de memória para um serviço."""
     try:
         rec = app.state.recommender
-        result = rec.forecast(service, days)
+        result = await rec.forecast(service, days)
         return result
     except Exception as e:
         logger.error("erro em forecast(%s): %s", service, e)
@@ -126,7 +138,7 @@ async def detect_alerts():
     """
     try:
         rec = app.state.recommender
-        return rec.detect_alerts()
+        return await rec.detect_alerts()
     except Exception as e:
         logger.error("erro em detect_alerts: %s", e)
         raise HTTPException(status_code=500, detail=str(e))

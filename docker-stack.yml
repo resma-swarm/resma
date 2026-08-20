@@ -94,7 +94,7 @@ services:
           memory: 256M
         reservations:
           cpus: "0.10"
-          memory: 64M
+          memory: 128M
       restart_policy:
         condition: on-failure
         max_attempts: 3

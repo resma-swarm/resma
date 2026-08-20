@@ -79,13 +79,17 @@ services:
   # ---- ML sidecar Python runtime ----
   # NÃO monta resma-data — o ML sidecar não acessa o DuckDB diretamente.
   # Ele solicita dados via HTTP ao Go API (/api/internal/*).
-  # Sem limits — o Studio é o único owner dos limits.
+  # limits.memory: hard cap para evitar OOM não controlado do host.
+  # reservations: garantia mínima para o scheduler do Swarm.
   ml:
     image: resma-ml:latest
     environment:
       - RESMA_API_URL=http://api:8080
     deploy:
       resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
         reservations:
           cpus: "0.10"
           memory: 64M
